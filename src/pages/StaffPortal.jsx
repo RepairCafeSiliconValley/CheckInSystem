@@ -160,7 +160,7 @@ export default function StaffPortal() {
               cursor: "pointer",
             }}
           >
-            🔒 Lock
+            👋 Logout
           </button>
         </div>
       </div>
