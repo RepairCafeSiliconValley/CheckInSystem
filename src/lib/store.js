@@ -137,6 +137,17 @@ export async function fetchVisitorDetail(attendeeId) {
   return { attendee: attRes.data, orders: ordersRes.data };
 }
 
+// ─── Work order by code (public fixer page) ───
+
+export async function fetchWorkOrderByCode(code) {
+  const { data } = await supabase
+    .from("work_orders")
+    .select("*, attendees(name)")
+    .eq("code", code)
+    .single();
+  return data;
+}
+
 // ─── Updates ───
 
 export async function updateAttendee(id, updates) {

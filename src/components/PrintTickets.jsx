@@ -1,9 +1,12 @@
+import { QRCodeSVG } from "qrcode.react";
 import Logo from "./Logo";
 import Button from "./Button";
 import Badge from "./Badge";
 import { OUTCOMES } from "../lib/constants";
 
 export default function PrintTickets({ workOrders, attendeeName, eventName, onClose }) {
+  const baseUrl = window.location.origin;
+
   return (
     <div>
       <div className="no-print">
@@ -51,7 +54,7 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, onCl
           </div>
 
           <div style={{ borderTop: "1px dashed #d0d5dd", paddingTop: 12 }}>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", fontWeight: 600, color: "#98a2b3", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>Outcome (to be filled by coordinator)</div>
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", fontWeight: 600, color: "#98a2b3", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>Outcome</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               {OUTCOMES.map((o) => (
                 <div key={o} style={{ padding: "6px 10px", border: "1.5px solid #d0d5dd", borderRadius: "6px", fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#667085", textAlign: "center" }}>☐ {o}</div>
@@ -59,6 +62,12 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, onCl
             </div>
             <div style={{ marginTop: 10, padding: "8px 10px", border: "1.5px solid #d0d5dd", borderRadius: "6px" }}>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#98a2b3" }}>Fixer name: ___________________________</span>
+            </div>
+            <div style={{ textAlign: "center", marginTop: 12 }}>
+              <QRCodeSVG value={`${baseUrl}/fix/${wo.code}`} size={100} level="M" />
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", color: "#98a2b3", marginTop: 4 }}>
+                Scan to submit outcome
+              </div>
             </div>
           </div>
         </div>
