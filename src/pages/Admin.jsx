@@ -62,8 +62,10 @@ export default function Admin() {
           <Card key={ev.id} style={{ marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 700, color: "#1d2939" }}>{ev.name}</span>
-              <Badge text={ev.is_open ? "Open" : "Closed"} color={ev.is_open ? "#2e7d32" : "#b42318"} />
-              <Badge text={ev.date} />
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <Badge text={ev.is_open ? "Open" : "Closed"} color={ev.is_open ? "#2e7d32" : "#b42318"} />
+                <Badge text={ev.date} />
+              </div>
             </div>
             {ev.location && <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", marginBottom: 8 }}>{ev.location}</div>}
             <div style={{ display: "flex", gap: 16, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
@@ -71,23 +73,23 @@ export default function Admin() {
               <span>{s.orderCount} items</span>
               <span style={{ color: "#2e7d32" }}>{s.fixedCount} fixed</span>
             </div>
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10, padding: "8px 12px", background: "#f0f4f8", borderRadius: "8px", fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "#475467", wordBreak: "break-all" }}>
+              {checkinUrl}
+            </div>
+            <div style={{ marginTop: 12, textAlign: "center" }}>
+              <QRCodeSVG value={checkinUrl} size={160} level="M" />
+            </div>
+            <div style={{ marginTop: 14, textAlign: "center" }}>
               <Button
                 variant={ev.is_open ? "danger" : "success"}
                 onClick={async () => {
                   await toggleEventOpen(ev.id, !ev.is_open);
                   await loadEvents();
                 }}
-                style={{ padding: "10px 20px", fontSize: "13px" }}
+                style={{ padding: "8px 20px", fontSize: "13px", width: "auto", display: "inline-block" }}
               >
                 {ev.is_open ? "Close Check-In" : "Reopen Check-In"}
               </Button>
-            </div>
-            <div style={{ marginTop: 10, padding: "8px 12px", background: "#f0f4f8", borderRadius: "8px", fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "#475467", wordBreak: "break-all" }}>
-              {checkinUrl}
-            </div>
-            <div style={{ marginTop: 12, textAlign: "center" }}>
-              <QRCodeSVG value={checkinUrl} size={160} level="M" />
             </div>
           </Card>
         );
