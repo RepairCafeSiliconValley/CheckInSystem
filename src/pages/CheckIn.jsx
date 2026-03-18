@@ -345,6 +345,53 @@ export default function CheckIn() {
     );
   }
 
+  if (!event.is_open) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "#f5f6f8",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 20,
+        }}
+      >
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
+          <div style={{ display: "inline-block", marginBottom: 24 }}>
+            <Logo />
+          </div>
+          <Card>
+            <div style={{ fontSize: "32px", marginBottom: 12 }}>🔒</div>
+            <h2
+              style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "#1d2939",
+                margin: "0 0 8px 0",
+              }}
+            >
+              Check-In Closed
+            </h2>
+            <p
+              style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "14px",
+                color: "#667085",
+                lineHeight: 1.5,
+                margin: 0,
+              }}
+            >
+              This event is no longer accepting items for repair. Thank you for
+              your interest!
+            </p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{

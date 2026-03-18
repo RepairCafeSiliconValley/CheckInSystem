@@ -4,7 +4,7 @@ import Card from "../components/Card";
 import Input from "../components/Input";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
-import { fetchEvents, createEvent, fetchEventStats } from "../lib/store";
+import { fetchEvents, createEvent, fetchEventStats, toggleEventOpen } from "../lib/store";
 
 export default function Admin() {
   const [eventName, setEventName] = useState("");
@@ -62,7 +62,10 @@ export default function Admin() {
           <Card key={ev.id} style={{ marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 700, color: "#1d2939" }}>{ev.name}</span>
-              <Badge text={ev.date} />
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <Badge text={ev.is_open ? "Open" : "Closed"} color={ev.is_open ? "#2e7d32" : "#b42318"} />
+                <Badge text={ev.date} />
+              </div>
             </div>
             {ev.location && <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", marginBottom: 8 }}>{ev.location}</div>}
             <div style={{ display: "flex", gap: 16, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
@@ -75,6 +78,18 @@ export default function Admin() {
             </div>
             <div style={{ marginTop: 12, textAlign: "center" }}>
               <QRCodeSVG value={checkinUrl} size={160} level="M" />
+            </div>
+            <div style={{ marginTop: 14, textAlign: "center" }}>
+              <Button
+                variant={ev.is_open ? "danger" : "success"}
+                onClick={async () => {
+                  await toggleEventOpen(ev.id, !ev.is_open);
+                  await loadEvents();
+                }}
+                style={{ padding: "8px 20px", fontSize: "13px", width: "auto", display: "inline-block" }}
+              >
+                {ev.is_open ? "Close Check-In" : "Reopen Check-In"}
+              </Button>
             </div>
           </Card>
         );

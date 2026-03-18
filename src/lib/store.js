@@ -32,6 +32,14 @@ export async function createEvent(name, date, location) {
   return data;
 }
 
+export async function toggleEventOpen(id, isOpen) {
+  const { error } = await supabase
+    .from("events")
+    .update({ is_open: isOpen })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 // ─── Check-in (atomic via RPC) ───
 
 export async function checkinVisitor(eventId, name, email, items) {
