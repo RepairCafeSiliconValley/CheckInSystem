@@ -9,6 +9,7 @@ create table events (
   name text not null,
   date date not null,
   location text,
+  is_open boolean not null default true,
   created_at timestamptz default now()
 );
 

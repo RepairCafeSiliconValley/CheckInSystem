@@ -4,7 +4,7 @@ import Card from "../components/Card";
 import Input from "../components/Input";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
-import { fetchEvents, createEvent, fetchEventStats } from "../lib/store";
+import { fetchEvents, createEvent, fetchEventStats, toggleEventOpen } from "../lib/store";
 
 export default function Admin() {
   const [eventName, setEventName] = useState("");
@@ -62,6 +62,7 @@ export default function Admin() {
           <Card key={ev.id} style={{ marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 700, color: "#1d2939" }}>{ev.name}</span>
+              <Badge text={ev.is_open ? "Open" : "Closed"} color={ev.is_open ? "#2e7d32" : "#b42318"} />
               <Badge text={ev.date} />
             </div>
             {ev.location && <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", marginBottom: 8 }}>{ev.location}</div>}
@@ -69,6 +70,18 @@ export default function Admin() {
               <span>{s.attendeeCount} visitors</span>
               <span>{s.orderCount} items</span>
               <span style={{ color: "#2e7d32" }}>{s.fixedCount} fixed</span>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <Button
+                variant={ev.is_open ? "danger" : "success"}
+                onClick={async () => {
+                  await toggleEventOpen(ev.id, !ev.is_open);
+                  await loadEvents();
+                }}
+                style={{ padding: "10px 20px", fontSize: "13px" }}
+              >
+                {ev.is_open ? "Close Check-In" : "Reopen Check-In"}
+              </Button>
             </div>
             <div style={{ marginTop: 10, padding: "8px 12px", background: "#f0f4f8", borderRadius: "8px", fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "#475467", wordBreak: "break-all" }}>
               {checkinUrl}
