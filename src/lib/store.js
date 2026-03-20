@@ -1,5 +1,4 @@
 import { supabase } from "./supabase";
-import { generateCode } from "./generateCode";
 
 // ─── Events ───
 
@@ -43,41 +42,21 @@ export async function toggleEventOpen(id, isOpen) {
 // ─── Check-in (atomic via RPC) ───
 
 export async function checkinVisitor(eventId, name, email, items) {
-  // Generate codes client-side
-  const itemsWithCodes = items.map((item, idx) => ({
+  const rpcItems = items.map((item, idx) => ({
     item_name: item.name.trim(),
     category: item.category,
     description: item.description.trim(),
     priority: idx + 1,
-    code: generateCode(),
   }));
 
   const { data, error } = await supabase.rpc("checkin_visitor", {
     p_event_id: eventId,
     p_name: name.trim(),
     p_email: email.trim(),
-    p_items: itemsWithCodes,
+    p_items: rpcItems,
   });
 
-  if (error) {
-    // Retry once with new codes in case of (extremely rare) collision
-    const retryItems = itemsWithCodes.map((item) => ({
-      ...item,
-      code: generateCode(),
-    }));
-    const { data: retryData, error: retryError } = await supabase.rpc(
-      "checkin_visitor",
-      {
-        p_event_id: eventId,
-        p_name: name.trim(),
-        p_email: email.trim(),
-        p_items: retryItems,
-      }
-    );
-    if (retryError) throw retryError;
-    return retryData;
-  }
-
+  if (error) throw error;
   return data;
 }
 
