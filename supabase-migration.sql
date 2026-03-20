@@ -38,7 +38,8 @@ create table work_orders (
   created_at timestamptz default now()
 );
 
--- 4. Atomic check-in RPC function
+-- 4. Atomic check-in RPC function (codes generated server-side)
+-- Returns: { "baseCode": "R-M4K", "items": [{ "code": "R-M4K-1", "itemName": "...", "priority": 1 }, ...] }
 create or replace function checkin_visitor(
   p_event_id uuid,
   p_name text,
@@ -47,19 +48,38 @@ create or replace function checkin_visitor(
 ) returns jsonb as $$
 declare
   v_attendee_id uuid;
-  v_result jsonb := '[]'::jsonb;
+  v_base_code text;
+  v_chars text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  v_result jsonb;
+  v_items_result jsonb := '[]'::jsonb;
   v_item jsonb;
+  v_index integer := 0;
+  v_i integer;
+  v_rand_bytes bytea;
 begin
+  -- Generate unique base code server-side (retry on collision)
+  loop
+    v_base_code := 'R-';
+    v_rand_bytes := gen_random_bytes(3);
+    for v_i in 0..2 loop
+      v_base_code := v_base_code || substr(v_chars, (get_byte(v_rand_bytes, v_i) % length(v_chars)) + 1, 1);
+    end loop;
+    exit when not exists (
+      select 1 from work_orders where code like v_base_code || '-%'
+    );
+  end loop;
+
   -- Insert attendee
   insert into attendees (event_id, name, email)
   values (p_event_id, p_name, p_email)
   returning id into v_attendee_id;
 
-  -- Insert each work order
+  -- Insert each work order with suffixed code (R-M4K-1, R-M4K-2)
   for v_item in select * from jsonb_array_elements(p_items) loop
+    v_index := v_index + 1;
     insert into work_orders (code, attendee_id, event_id, item_name, category, description, priority)
     values (
-      v_item->>'code',
+      v_base_code || '-' || v_index,
       v_attendee_id,
       p_event_id,
       v_item->>'item_name',
@@ -68,12 +88,17 @@ begin
       (v_item->>'priority')::integer
     );
 
-    v_result := v_result || jsonb_build_object(
-      'code', v_item->>'code',
+    v_items_result := v_items_result || jsonb_build_object(
+      'code', v_base_code || '-' || v_index,
       'itemName', v_item->>'item_name',
       'priority', (v_item->>'priority')::integer
     );
   end loop;
+
+  v_result := jsonb_build_object(
+    'baseCode', v_base_code,
+    'items', v_items_result
+  );
 
   return v_result;
 end;

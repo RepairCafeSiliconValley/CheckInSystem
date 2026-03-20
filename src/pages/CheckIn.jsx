@@ -44,15 +44,40 @@ function ConfirmationScreen({ data, onReset }) {
           fontFamily: "'Outfit', sans-serif",
           fontSize: "14px",
           color: "#667085",
-          margin: "0 0 28px 0",
+          margin: "0 0 20px 0",
           lineHeight: 1.5,
         }}
       >
         Thanks {data.name}! Please head to the check-in desk so a coordinator
-        can review your item{data.codes.length > 1 ? "s" : ""} and print your
-        ticket{data.codes.length > 1 ? "s" : ""}.
+        can review your item{data.items.length > 1 ? "s" : ""} and print your
+        ticket{data.items.length > 1 ? "s" : ""}.
       </p>
-      {data.codes.map((c) => (
+      <div
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: "12px",
+          fontWeight: 600,
+          color: "#667085",
+          textTransform: "uppercase",
+          letterSpacing: "1px",
+          marginBottom: 6,
+        }}
+      >
+        Your ID
+      </div>
+      <div
+        style={{
+          fontFamily: "'Space Mono', monospace",
+          fontSize: "40px",
+          fontWeight: 700,
+          color: "#1e3a6e",
+          letterSpacing: "4px",
+          marginBottom: 20,
+        }}
+      >
+        {data.baseCode}
+      </div>
+      {data.items.map((c) => (
         <Card
           key={c.code}
           style={{
@@ -64,11 +89,11 @@ function ConfirmationScreen({ data, onReset }) {
           <div
             style={{
               fontFamily: "'Space Mono', monospace",
-              fontSize: "36px",
+              fontSize: "18px",
               fontWeight: 700,
               color: "#1e3a6e",
-              letterSpacing: "3px",
-              marginBottom: 6,
+              letterSpacing: "2px",
+              marginBottom: 4,
             }}
           >
             {c.code}
@@ -81,10 +106,6 @@ function ConfirmationScreen({ data, onReset }) {
             }}
           >
             {c.itemName}
-            <span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span>
-            <span style={{ color: c.priority === 1 ? "#1e3a6e" : "#e07850" }}>
-              Priority {c.priority}
-            </span>
           </div>
         </Card>
       ))}
@@ -126,8 +147,8 @@ function CheckInForm({ event, onComplete }) {
     setSubmitting(true);
     setError(null);
     try {
-      const codes = await checkinVisitor(event.id, name, email, items);
-      onComplete({ name: name.trim(), codes });
+      const result = await checkinVisitor(event.id, name, email, items);
+      onComplete({ name: name.trim(), baseCode: result.baseCode, items: result.items });
     } catch (err) {
       setError("Something went wrong. Please try again.");
       setSubmitting(false);
