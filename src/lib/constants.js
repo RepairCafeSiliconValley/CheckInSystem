@@ -1,6 +1,14 @@
 export const CATEGORIES = [
-  "Electronics", "Clothing & Textiles", "Appliances", "Furniture",
-  "Jewelry", "Bikes", "Toys", "Other",
+  "Basic Appliances / Lamp",
+  "Bikes",
+  "Computer / Phone",
+  "Electronics",
+  "Furniture / Wood",
+  "Jewelry",
+  "Mechanical",
+  "Sewing / Textiles",
+  "Special Skills",
+  "Other",
 ];
 
 export const OUTCOMES = ["Fixed", "Diagnosed", "Out of Scope", "Not Fixable"];

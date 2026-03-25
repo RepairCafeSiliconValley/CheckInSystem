@@ -44,7 +44,6 @@ export async function toggleEventOpen(id, isOpen) {
 export async function checkinVisitor(eventId, name, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash) {
   const rpcItems = items.map((item, idx) => ({
     item_name: item.name.trim(),
-    category: item.category,
     description: item.description.trim(),
     priority: idx + 1,
   }));

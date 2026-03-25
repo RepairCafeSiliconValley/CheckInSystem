@@ -1,8 +1,6 @@
 import Input from "./Input";
-import Select from "./Select";
 import TextArea from "./TextArea";
 import Card from "./Card";
-import { CATEGORIES } from "../lib/constants";
 
 export default function ItemForm({ index, item, onChange, onRemove, canRemove }) {
   const update = (field, value) => onChange({ ...item, [field]: value });
@@ -16,7 +14,6 @@ export default function ItemForm({ index, item, onChange, onRemove, canRemove })
         {canRemove && <button onClick={onRemove} style={{ background: "none", border: "none", color: "#98a2b3", cursor: "pointer", fontSize: "18px", padding: "4px 8px" }}>✕</button>}
       </div>
       <Input label="Item Name" value={item.name} onChange={(v) => update("name", v)} placeholder="e.g. Coffee machine, winter jacket" required />
-      <Select label="Category" value={item.category} onChange={(v) => update("category", v)} options={CATEGORIES} placeholder="Select a category" required />
       <TextArea label="What's wrong with it?" value={item.description} onChange={(v) => update("description", v)} placeholder="Describe the problem..." required />
     </Card>
   );
