@@ -5,7 +5,13 @@ import Card from "../components/Card";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import ItemForm from "../components/ItemForm";
+import WaiverStep from "../components/WaiverStep";
 import { fetchEventById, checkinVisitor } from "../lib/store";
+import {
+  WAIVER_VERSION,
+  getWaiverFullText,
+  computeWaiverHash,
+} from "../lib/constants";
 
 function ConfirmationScreen({ data, onReset }) {
   return (
@@ -118,18 +124,16 @@ function ConfirmationScreen({ data, onReset }) {
   );
 }
 
-function CheckInForm({ event, onComplete }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [zipCode, setZipCode] = useState("");
-  const [items, setItems] = useState([
-    { name: "", category: "", description: "" },
-  ]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+function CheckInForm({ event, onProceed, initialValues }) {
+  const [name, setName] = useState(initialValues?.name || "");
+  const [email, setEmail] = useState(initialValues?.email || "");
+  const [phone, setPhone] = useState(initialValues?.phone || "");
+  const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
+  const [items, setItems] = useState(
+    initialValues?.items || [{ name: "", category: "", description: "" }]
+  );
 
-  const canSubmit =
+  const canProceed =
     name.trim() &&
     zipCode.trim() &&
     (!email.trim() || email.includes("@")) &&
@@ -145,16 +149,8 @@ function CheckInForm({ event, onComplete }) {
   };
   const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx));
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      const result = await checkinVisitor(event.id, name, email, phone, zipCode, items);
-      onComplete({ name: name.trim(), baseCode: result.baseCode, items: result.items });
-    } catch (err) {
-      setError("Something went wrong. Please try again.");
-      setSubmitting(false);
-    }
+  const handleProceed = () => {
+    onProceed({ name: name.trim(), email, phone, zipCode, items });
   };
 
   return (
@@ -272,28 +268,8 @@ function CheckInForm({ event, onComplete }) {
           </Button>
         </div>
       )}
-      {error && (
-        <div
-          style={{
-            padding: "8px 12px",
-            background: "#fef3f2",
-            borderRadius: "8px",
-            marginBottom: 14,
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "'Outfit', sans-serif",
-              fontSize: "13px",
-              color: "#b42318",
-            }}
-          >
-            {error}
-          </span>
-        </div>
-      )}
-      <Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
-        {submitting ? "Submitting..." : "Check In"}
+      <Button onClick={handleProceed} disabled={!canProceed}>
+        Continue
       </Button>
     </div>
   );
@@ -304,7 +280,40 @@ export default function CheckIn() {
   const eventId = searchParams.get("event");
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [step, setStep] = useState("form"); // "form" | "waiver" | "confirm"
+  const [formData, setFormData] = useState(null);
   const [confirmData, setConfirmData] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleWaiverAccept = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const waiverText = getWaiverFullText();
+      const waiverHash = await computeWaiverHash();
+      const result = await checkinVisitor(
+        event.id,
+        formData.name,
+        formData.email,
+        formData.phone,
+        formData.zipCode,
+        formData.items,
+        WAIVER_VERSION,
+        waiverText,
+        waiverHash
+      );
+      setConfirmData({
+        name: formData.name,
+        baseCode: result.baseCode,
+        items: result.items,
+      });
+      setStep("confirm");
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
+    }
+    setSubmitting(false);
+  };
 
   useEffect(() => {
     if (!eventId) {
@@ -439,15 +448,33 @@ export default function CheckIn() {
       <div
         style={{ maxWidth: 440, margin: "0 auto", padding: "20px 16px 80px" }}
       >
-        {confirmData ? (
+        {step === "confirm" ? (
           <ConfirmationScreen
             data={confirmData}
-            onReset={() => setConfirmData(null)}
+            onReset={() => {
+              setFormData(null);
+              setConfirmData(null);
+              setStep("form");
+            }}
+          />
+        ) : step === "waiver" ? (
+          <WaiverStep
+            onAccept={handleWaiverAccept}
+            onBack={() => {
+              setStep("form");
+              setError(null);
+            }}
+            submitting={submitting}
+            error={error}
           />
         ) : (
           <CheckInForm
             event={event}
-            onComplete={(data) => setConfirmData(data)}
+            onProceed={(data) => {
+              setFormData(data);
+              setStep("waiver");
+            }}
+            initialValues={formData}
           />
         )}
       </div>

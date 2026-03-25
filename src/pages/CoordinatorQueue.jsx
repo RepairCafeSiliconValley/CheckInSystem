@@ -118,6 +118,7 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
             <div>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 700, color: "#1d2939" }}>{g.attendee?.name}</div>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#98a2b3", marginTop: 1 }}>{[g.attendee?.email, g.attendee?.phone, g.attendee?.zip_code].filter(Boolean).join(" · ")}</div>
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "11px", marginTop: 2, fontWeight: 600, color: g.waiver ? "#2e7d32" : "#b42318" }}>{g.waiver ? `Waiver v${g.waiver.waiver_version}` : "No waiver"}</div>
             </div>
             <StatusBadge status={g.groupStatus} />
           </div>

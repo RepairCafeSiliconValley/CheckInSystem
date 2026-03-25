@@ -48,7 +48,10 @@ create or replace function checkin_visitor(
   p_email text,
   p_items jsonb,
   p_phone text default null,
-  p_zip_code text default ''
+  p_zip_code text default '',
+  p_waiver_version text default null,
+  p_waiver_text text default null,
+  p_waiver_hash text default null
 ) returns jsonb as $$
 declare
   v_attendee_id uuid;
@@ -77,6 +80,12 @@ begin
   insert into attendees (event_id, name, email, phone, zip_code)
   values (p_event_id, p_name, p_email, p_phone, p_zip_code)
   returning id into v_attendee_id;
+
+  -- Insert waiver acceptance (if waiver data provided)
+  if p_waiver_version is not null then
+    insert into waiver_acceptances (attendee_id, waiver_version, waiver_text, content_hash)
+    values (v_attendee_id, p_waiver_version, p_waiver_text, p_waiver_hash);
+  end if;
 
   -- Insert each work order with suffixed code (R-M4K-1, R-M4K-2)
   for v_item in select * from jsonb_array_elements(p_items) loop
@@ -108,9 +117,27 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- 5. Enable Realtime for live queue updates
+-- 5. Waiver acceptances table (append-only for audit trail)
+create table waiver_acceptances (
+  id uuid primary key default gen_random_uuid(),
+  attendee_id uuid references attendees(id) not null,
+  waiver_version text not null,
+  waiver_text text not null,
+  content_hash text not null,
+  accepted_at timestamptz not null default now()
+);
+
+-- Enforce immutability via RLS (insert-only, no update/delete)
+alter table waiver_acceptances enable row level security;
+create policy "Allow insert" on waiver_acceptances for insert with check (true);
+create policy "Deny update" on waiver_acceptances for update using (false);
+create policy "Deny delete" on waiver_acceptances for delete using (false);
+create policy "Allow read" on waiver_acceptances for select using (true);
+
+-- 6. Enable Realtime for live queue updates
 alter publication supabase_realtime add table attendees;
 alter publication supabase_realtime add table work_orders;
+alter publication supabase_realtime add table waiver_acceptances;
 
 -- ============================================
 -- MANUAL STEPS (do these in the Supabase Dashboard):
