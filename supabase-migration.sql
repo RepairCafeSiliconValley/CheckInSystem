@@ -18,7 +18,9 @@ create table attendees (
   id uuid primary key default gen_random_uuid(),
   event_id uuid references events(id) not null,
   name text not null,
-  email text not null,
+  email text,
+  phone text,
+  zip_code text not null default '',
   created_at timestamptz default now()
 );
 
@@ -44,7 +46,9 @@ create or replace function checkin_visitor(
   p_event_id uuid,
   p_name text,
   p_email text,
-  p_items jsonb
+  p_items jsonb,
+  p_phone text default null,
+  p_zip_code text default ''
 ) returns jsonb as $$
 declare
   v_attendee_id uuid;
@@ -70,8 +74,8 @@ begin
   end loop;
 
   -- Insert attendee
-  insert into attendees (event_id, name, email)
-  values (p_event_id, p_name, p_email)
+  insert into attendees (event_id, name, email, phone, zip_code)
+  values (p_event_id, p_name, p_email, p_phone, p_zip_code)
   returning id into v_attendee_id;
 
   -- Insert each work order with suffixed code (R-M4K-1, R-M4K-2)

@@ -41,7 +41,7 @@ export async function toggleEventOpen(id, isOpen) {
 
 // ─── Check-in (atomic via RPC) ───
 
-export async function checkinVisitor(eventId, name, email, items) {
+export async function checkinVisitor(eventId, name, email, phone, zipCode, items) {
   const rpcItems = items.map((item, idx) => ({
     item_name: item.name.trim(),
     category: item.category,
@@ -52,8 +52,10 @@ export async function checkinVisitor(eventId, name, email, items) {
   const { data, error } = await supabase.rpc("checkin_visitor", {
     p_event_id: eventId,
     p_name: name.trim(),
-    p_email: email.trim(),
+    p_email: email?.trim() || null,
     p_items: rpcItems,
+    p_phone: phone?.trim() || null,
+    p_zip_code: zipCode.trim(),
   });
 
   if (error) throw error;

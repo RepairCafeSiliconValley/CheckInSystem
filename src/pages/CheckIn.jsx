@@ -121,6 +121,8 @@ function ConfirmationScreen({ data, onReset }) {
 function CheckInForm({ event, onComplete }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [zipCode, setZipCode] = useState("");
   const [items, setItems] = useState([
     { name: "", category: "", description: "" },
   ]);
@@ -129,8 +131,8 @@ function CheckInForm({ event, onComplete }) {
 
   const canSubmit =
     name.trim() &&
-    email.trim() &&
-    email.includes("@") &&
+    zipCode.trim() &&
+    (!email.trim() || email.includes("@")) &&
     items.every((it) => it.name.trim() && it.category && it.description.trim());
   const addItem = () => {
     if (items.length < 2)
@@ -147,7 +149,7 @@ function CheckInForm({ event, onComplete }) {
     setSubmitting(true);
     setError(null);
     try {
-      const result = await checkinVisitor(event.id, name, email, items);
+      const result = await checkinVisitor(event.id, name, email, phone, zipCode, items);
       onComplete({ name: name.trim(), baseCode: result.baseCode, items: result.items });
     } catch (err) {
       setError("Something went wrong. Please try again.");
@@ -214,8 +216,21 @@ function CheckInForm({ event, onComplete }) {
         label="Email Address"
         value={email}
         onChange={setEmail}
-        placeholder="you@example.com"
+        placeholder="you@example.com (optional)"
         type="email"
+      />
+      <Input
+        label="Cell Phone"
+        value={phone}
+        onChange={setPhone}
+        placeholder="(555) 123-4567 (optional)"
+        type="tel"
+      />
+      <Input
+        label="Zip Code"
+        value={zipCode}
+        onChange={setZipCode}
+        placeholder="e.g. 95035"
         required
       />
       <div style={{ height: 1, background: "#e8ebf0", margin: "24px 0" }} />

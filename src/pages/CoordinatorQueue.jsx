@@ -47,6 +47,8 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
     const matchesSearch =
       g.attendee?.name?.toLowerCase().includes(q) ||
       g.attendee?.email?.toLowerCase().includes(q) ||
+      g.attendee?.phone?.toLowerCase().includes(q) ||
+      g.attendee?.zip_code?.toLowerCase().includes(q) ||
       g.orders.some((o) => o.code.toLowerCase().includes(q) || o.item_name.toLowerCase().includes(q));
     return matchesFilter && matchesSearch;
   });
@@ -90,7 +92,7 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
       </p>
 
       <div style={{ marginBottom: 12 }}>
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, email, code, or item..."
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, email, phone, code, or item..."
           style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", border: "1.5px solid #d0d5dd", fontFamily: "'Outfit', sans-serif", fontSize: "14px", color: "#1d2939", background: "#fff", boxSizing: "border-box", outline: "none" }}
           onFocus={(e) => (e.target.style.borderColor = "#1e3a6e")} onBlur={(e) => (e.target.style.borderColor = "#d0d5dd")} />
       </div>
@@ -115,7 +117,7 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 700, color: "#1d2939" }}>{g.attendee?.name}</div>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#98a2b3", marginTop: 1 }}>{g.attendee?.email}</div>
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#98a2b3", marginTop: 1 }}>{[g.attendee?.email, g.attendee?.phone, g.attendee?.zip_code].filter(Boolean).join(" · ")}</div>
             </div>
             <StatusBadge status={g.groupStatus} />
           </div>
