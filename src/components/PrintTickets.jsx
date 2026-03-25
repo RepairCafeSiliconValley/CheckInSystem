@@ -1,8 +1,11 @@
 import { QRCodeSVG } from "qrcode.react";
-import Logo from "./Logo";
 import Button from "./Button";
-import Badge from "./Badge";
 import { OUTCOMES } from "../lib/constants";
+
+const font = "'Courier New', monospace";
+const divider = { borderTop: "1px dashed #000", margin: "10px 0" };
+const label = { fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 2, fontFamily: font, color: "#000" };
+const value = { fontSize: "14px", fontWeight: 700, fontFamily: font, color: "#000", lineHeight: 1.4 };
 
 export default function PrintTickets({ workOrders, attendeeName, eventName, onClose }) {
   const baseUrl = window.location.origin;
@@ -22,52 +25,102 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, onCl
       </div>
 
       {workOrders.map((wo, idx) => (
-        <div key={wo.id} className="print-ticket" style={{ maxWidth: 400, margin: "0 auto", border: "2px solid #1e3a6e", borderRadius: "12px", padding: "24px", background: "#fff", marginBottom: idx < workOrders.length - 1 ? 24 : 0, pageBreakAfter: idx < workOrders.length - 1 ? "always" : "auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-            <Logo size="tiny" />
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "#667085" }}>{eventName}</div>
+        <div
+          key={wo.id}
+          className="print-ticket"
+          style={{
+            width: 280,
+            margin: "0 auto",
+            padding: "12px",
+            background: "#fff",
+            fontFamily: font,
+            color: "#000",
+            marginBottom: idx < workOrders.length - 1 ? 24 : 0,
+            pageBreakAfter: idx < workOrders.length - 1 ? "always" : "auto",
+          }}
+        >
+          {/* Event name */}
+          {eventName && (
+            <div style={{ textAlign: "center", fontSize: "11px", fontFamily: font, color: "#000", marginBottom: 4 }}>
+              {eventName}
+            </div>
+          )}
+
+          <div style={divider} />
+
+          {/* Ticket code */}
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <div style={{
+              display: "inline-block",
+              background: "#000",
+              color: "#fff",
+              padding: "6px 16px",
+              fontSize: "28px",
+              fontWeight: 700,
+              fontFamily: font,
+              letterSpacing: "3px",
+              printColorAdjust: "exact",
+              WebkitPrintColorAdjust: "exact",
+            }}>
+              {wo.code}
             </div>
           </div>
 
-          <div style={{ textAlign: "center", padding: "16px 0", borderTop: "1px solid #e8ebf0", borderBottom: "1px solid #e8ebf0", marginBottom: 16 }}>
-            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "42px", fontWeight: 700, color: "#1e3a6e", letterSpacing: "4px" }}>{wo.code}</div>
+          <div style={divider} />
+
+          {/* Visitor */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={label}>VISITOR</div>
+            <div style={value}>{attendeeName}</div>
           </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", fontWeight: 600, color: "#98a2b3", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 2 }}>Visitor</div>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 600, color: "#1d2939" }}>{attendeeName}</div>
+          {/* Item */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={label}>ITEM</div>
+            <div style={value}>{wo.item_name}</div>
           </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", fontWeight: 600, color: "#98a2b3", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 2 }}>Item</div>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 600, color: "#1d2939" }}>{wo.item_name}</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <Badge text={wo.category} />
-              <Badge text={`Priority ${wo.priority}`} color={wo.priority === 1 ? "#1e3a6e" : "#e07850"} />
+          {/* Category & Priority */}
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ fontSize: "12px", fontFamily: font, color: "#000" }}>
+              {wo.category} · Priority {wo.priority}
             </div>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", fontWeight: 600, color: "#98a2b3", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 2 }}>Problem</div>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "14px", color: "#344054", lineHeight: 1.5 }}>{wo.description}</div>
+          <div style={divider} />
+
+          {/* Problem */}
+          <div style={{ marginBottom: 4 }}>
+            <div style={label}>PROBLEM</div>
+            <div style={{ fontSize: "12px", fontFamily: font, color: "#000", lineHeight: 1.5 }}>
+              {wo.description}
+            </div>
           </div>
 
-          <div style={{ borderTop: "1px dashed #d0d5dd", paddingTop: 12 }}>
-            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", fontWeight: 600, color: "#98a2b3", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>Outcome</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              {OUTCOMES.map((o) => (
-                <div key={o} style={{ padding: "6px 10px", border: "1.5px solid #d0d5dd", borderRadius: "6px", fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#667085", textAlign: "center" }}>☐ {o}</div>
-              ))}
-            </div>
-            <div style={{ marginTop: 10, padding: "8px 10px", border: "1.5px solid #d0d5dd", borderRadius: "6px" }}>
-              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#98a2b3" }}>Fixer name: ___________________________</span>
-            </div>
-            <div style={{ textAlign: "center", marginTop: 12 }}>
-              <QRCodeSVG value={`${baseUrl}/fix/${wo.code}`} size={100} level="M" />
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", color: "#98a2b3", marginTop: 4 }}>
-                Scan to submit outcome
+          <div style={divider} />
+
+          {/* Outcome checkboxes */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={label}>OUTCOME</div>
+            {OUTCOMES.map((o) => (
+              <div key={o} style={{ fontSize: "13px", fontFamily: font, color: "#000", padding: "4px 0" }}>
+                [ ] {o}
               </div>
+            ))}
+          </div>
+
+          {/* Fixer name */}
+          <div style={{ fontSize: "13px", fontFamily: font, color: "#000", marginBottom: 4 }}>
+            Fixer: _______________
+          </div>
+
+          <div style={divider} />
+
+          {/* QR code */}
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <QRCodeSVG value={`${baseUrl}/fix/${wo.code}`} size={90} level="M" />
+            <div style={{ fontSize: "9px", fontFamily: font, color: "#000", marginTop: 4 }}>
+              Scan to submit outcome
             </div>
           </div>
         </div>
@@ -76,8 +129,19 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, onCl
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body { margin: 0; padding: 20px; }
-          .print-ticket { border: 2px solid #000 !important; max-width: none !important; break-inside: avoid; }
+          @page { size: 80mm auto; margin: 2mm; }
+          body { margin: 0; padding: 0; }
+          .print-ticket {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 2mm !important;
+            border: none !important;
+            break-inside: avoid;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
       `}</style>
     </div>
