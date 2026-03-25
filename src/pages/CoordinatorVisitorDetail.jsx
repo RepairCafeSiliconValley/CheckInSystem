@@ -9,6 +9,7 @@ import StatusBadge from "../components/StatusBadge";
 import { CATEGORIES, OUTCOMES } from "../lib/constants";
 import {
   fetchVisitorDetail,
+  fetchWaiverForAttendee,
   updateAttendee,
   updateWorkOrder,
 } from "../lib/store";
@@ -25,6 +26,9 @@ export default function CoordinatorVisitorDetail({
   // Editable visitor fields
   const [attName, setAttName] = useState("");
   const [attEmail, setAttEmail] = useState("");
+  const [attPhone, setAttPhone] = useState("");
+  const [attZipCode, setAttZipCode] = useState("");
+  const [waiver, setWaiver] = useState(null);
 
   // Editable item fields — keyed by work order id
   const [itemEdits, setItemEdits] = useState({});
@@ -37,7 +41,10 @@ export default function CoordinatorVisitorDetail({
       setAttendee(att);
       setOrders(wo);
       setAttName(att.name);
-      setAttEmail(att.email);
+      setAttEmail(att.email || "");
+      setAttPhone(att.phone || "");
+      setAttZipCode(att.zip_code || "");
+      fetchWaiverForAttendee(attendeeId).then((w) => setWaiver(w));
       const edits = {};
       wo.forEach((w) => {
         edits[w.id] = {
@@ -95,7 +102,9 @@ export default function CoordinatorVisitorDetail({
     try {
       await updateAttendee(attendeeId, {
         name: attName.trim(),
-        email: attEmail.trim(),
+        email: attEmail.trim() || null,
+        phone: attPhone.trim() || null,
+        zip_code: attZipCode.trim(),
       });
       for (const wo of orders) {
         const e = itemEdits[wo.id];
@@ -197,10 +206,44 @@ export default function CoordinatorVisitorDetail({
           label="Email"
           value={attEmail}
           onChange={setAttEmail}
-          placeholder="Email"
+          placeholder="Email (optional)"
           type="email"
+        />
+        <Input
+          label="Cell Phone"
+          value={attPhone}
+          onChange={setAttPhone}
+          placeholder="Phone (optional)"
+          type="tel"
+        />
+        <Input
+          label="Zip Code"
+          value={attZipCode}
+          onChange={setAttZipCode}
+          placeholder="Zip code"
           required
         />
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: "8px",
+            background: waiver ? "#e8f5e9" : "#fef3f2",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: waiver ? "#2e7d32" : "#b42318",
+            }}
+          >
+            {waiver
+              ? `Waiver v${waiver.waiver_version} signed ${new Date(waiver.accepted_at).toLocaleString()}`
+              : "No waiver on file"}
+          </span>
+        </div>
       </Card>
 
       {/* Each item */}
