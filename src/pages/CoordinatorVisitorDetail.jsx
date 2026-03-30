@@ -127,6 +127,9 @@ export default function CoordinatorVisitorDetail({
 
   const hasPending = orders.some((o) => o.status === "pending");
   const hasReviewed = orders.some((o) => o.status === "reviewed");
+  const allCategoriesAssigned = orders.every(
+    (o) => (itemEdits[o.id]?.category || o.category) && (itemEdits[o.id]?.category || o.category) !== ""
+  );
 
   const approveAndPrint = async () => {
     await saveAll();
@@ -498,12 +501,19 @@ export default function CoordinatorVisitorDetail({
         )}
 
         {hasPending && (
-          <Button variant="coral" onClick={approveAndPrint}>
-            ✅ Approve & Print{" "}
-            {orders.filter((o) => o.status === "pending").length === 1
-              ? "Ticket"
-              : "All Tickets"}
-          </Button>
+          <>
+            <Button variant="coral" onClick={approveAndPrint} disabled={!allCategoriesAssigned}>
+              Approve & Print{" "}
+              {orders.filter((o) => o.status === "pending").length === 1
+                ? "Ticket"
+                : "All Tickets"}
+            </Button>
+            {!allCategoriesAssigned && (
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318", textAlign: "center", margin: "4px 0 0 0" }}>
+                Assign a category to each item before printing
+              </p>
+            )}
+          </>
         )}
 
         {hasReviewed && !hasPending && (

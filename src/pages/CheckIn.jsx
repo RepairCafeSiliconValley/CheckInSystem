@@ -130,17 +130,17 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [phone, setPhone] = useState(initialValues?.phone || "");
   const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
   const [items, setItems] = useState(
-    initialValues?.items || [{ name: "", category: "", description: "" }]
+    initialValues?.items || [{ name: "", description: "" }]
   );
 
   const canProceed =
     name.trim() &&
     zipCode.trim() &&
     (!email.trim() || email.includes("@")) &&
-    items.every((it) => it.name.trim() && it.category && it.description.trim());
+    items.every((it) => it.name.trim() && it.description.trim());
   const addItem = () => {
     if (items.length < 2)
-      setItems([...items, { name: "", category: "", description: "" }]);
+      setItems([...items, { name: "", description: "" }]);
   };
   const updateItem = (idx, u) => {
     const n = [...items];

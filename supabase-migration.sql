@@ -31,7 +31,7 @@ create table work_orders (
   attendee_id uuid references attendees(id) not null,
   event_id uuid references events(id) not null,
   item_name text not null,
-  category text not null,
+  category text default '',
   description text not null,
   priority integer not null default 1,
   status text not null default 'pending',
@@ -90,13 +90,13 @@ begin
   -- Insert each work order with suffixed code (R-M4K-1, R-M4K-2)
   for v_item in select * from jsonb_array_elements(p_items) loop
     v_index := v_index + 1;
-    insert into work_orders (code, attendee_id, event_id, item_name, category, description, priority)
+    -- Category is omitted here; staff assigns it later
+    insert into work_orders (code, attendee_id, event_id, item_name, description, priority)
     values (
       v_base_code || '-' || v_index,
       v_attendee_id,
       p_event_id,
       v_item->>'item_name',
-      v_item->>'category',
       v_item->>'description',
       (v_item->>'priority')::integer
     );
