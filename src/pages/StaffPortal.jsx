@@ -60,7 +60,7 @@ export default function StaffPortal() {
           w.status === "in-progress" ||
           w.status === "pending",
       );
-      setPrintData({ orders: printableOrders, attendeeName: attendee.name });
+      setPrintData({ orders: printableOrders, attendeeName: attendee.name, isVolunteer: attendee.is_volunteer });
       setPrintingVisitorId(attId);
     } catch (err) {
       console.error("Failed to load print data:", err);
@@ -112,6 +112,7 @@ export default function StaffPortal() {
           <PrintTickets
             workOrders={printData.orders}
             attendeeName={printData.attendeeName}
+            isVolunteer={printData.isVolunteer}
             eventName=""
             onClose={() => {
               setPrintingVisitorId(null);

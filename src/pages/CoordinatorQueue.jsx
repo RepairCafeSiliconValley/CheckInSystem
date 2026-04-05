@@ -116,9 +116,13 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
         <Card key={g.attendee?.id} onClick={() => onSelectVisitor(g.attendee?.id)} style={{ marginBottom: 10, padding: "16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 700, color: "#1d2939" }}>{g.attendee?.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 700, color: "#1d2939" }}>{g.attendee?.name}</span>
+                {g.attendee?.is_volunteer && (
+                  <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", fontWeight: 700, color: "#1e3a6e", background: "#e8f0fe", padding: "1px 6px", borderRadius: "4px" }}>VOL</span>
+                )}
+              </div>
               <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#98a2b3", marginTop: 1 }}>{[g.attendee?.email, g.attendee?.phone, g.attendee?.zip_code].filter(Boolean).join(" · ")}</div>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "11px", marginTop: 2, fontWeight: 600, color: g.waiver ? "#2e7d32" : "#b42318" }}>{g.waiver ? `Waiver v${g.waiver.waiver_version}` : "No waiver"}</div>
             </div>
             <StatusBadge status={g.groupStatus} />
           </div>

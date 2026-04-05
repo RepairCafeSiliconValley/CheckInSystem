@@ -4,14 +4,13 @@ import Logo from "../components/Logo";
 import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Input from "../components/Input";
-import { fetchWorkOrderByCode, submitFixerOutcome } from "../lib/store";
+import { fetchWorkOrderById, submitFixerOutcome } from "../lib/store";
 import { OUTCOMES } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
   Fixed: "✅",
   Diagnosed: "🔍",
-  "Out of Scope": "↩️",
-  "Not Fixable": "❌",
+  "Not Fixed": "❌",
 };
 
 function SuccessScreen({ outcome, itemName }) {
@@ -63,7 +62,7 @@ function SuccessScreen({ outcome, itemName }) {
 }
 
 export default function FixerSubmit() {
-  const { code } = useParams();
+  const { id } = useParams();
   const [workOrder, setWorkOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fixerName, setFixerName] = useState("");
@@ -72,11 +71,11 @@ export default function FixerSubmit() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchWorkOrderByCode(code).then((wo) => {
+    fetchWorkOrderById(id).then((wo) => {
       setWorkOrder(wo);
       setLoading(false);
     });
-  }, [code]);
+  }, [id]);
 
   const handleOutcome = async (outcome) => {
     if (!fixerName.trim()) {
@@ -86,7 +85,7 @@ export default function FixerSubmit() {
     setSubmitting(true);
     setError(null);
     try {
-      await submitFixerOutcome(code, fixerName, outcome);
+      await submitFixerOutcome(workOrder.id, fixerName, outcome);
       setSubmitted(outcome);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -424,7 +423,7 @@ export default function FixerSubmit() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns: "1fr 1fr 1fr",
                       gap: 8,
                     }}
                   >

@@ -9,7 +9,6 @@ import StatusBadge from "../components/StatusBadge";
 import { CATEGORIES, OUTCOMES } from "../lib/constants";
 import {
   fetchVisitorDetail,
-  fetchWaiverForAttendee,
   updateAttendee,
   updateWorkOrder,
 } from "../lib/store";
@@ -28,7 +27,6 @@ export default function CoordinatorVisitorDetail({
   const [attEmail, setAttEmail] = useState("");
   const [attPhone, setAttPhone] = useState("");
   const [attZipCode, setAttZipCode] = useState("");
-  const [waiver, setWaiver] = useState(null);
 
   // Editable item fields — keyed by work order id
   const [itemEdits, setItemEdits] = useState({});
@@ -44,7 +42,6 @@ export default function CoordinatorVisitorDetail({
       setAttEmail(att.email || "");
       setAttPhone(att.phone || "");
       setAttZipCode(att.zip_code || "");
-      fetchWaiverForAttendee(attendeeId).then((w) => setWaiver(w));
       const edits = {};
       wo.forEach((w) => {
         edits[w.id] = {
@@ -229,23 +226,49 @@ export default function CoordinatorVisitorDetail({
         <div
           style={{
             marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: "8px",
-            background: waiver ? "#e8f5e9" : "#fef3f2",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
           }}
         >
-          <span
+          <label
             style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
               fontFamily: "'Outfit', sans-serif",
-              fontSize: "13px",
-              fontWeight: 600,
-              color: waiver ? "#2e7d32" : "#b42318",
+              fontSize: "14px",
+              fontWeight: 500,
+              color: "#344054",
+              cursor: "pointer",
             }}
           >
-            {waiver
-              ? `Waiver v${waiver.waiver_version} signed ${new Date(waiver.accepted_at).toLocaleString()}`
-              : "No waiver on file"}
-          </span>
+            <input
+              type="checkbox"
+              checked={attendee.is_volunteer || false}
+              onChange={async (e) => {
+                await updateAttendee(attendeeId, { is_volunteer: e.target.checked });
+                await loadData();
+              }}
+              style={{ width: 18, height: 18, cursor: "pointer" }}
+            />
+            Volunteer
+          </label>
+          {attendee.is_volunteer && (
+            <span
+              style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#1e3a6e",
+                background: "#e8f0fe",
+                padding: "2px 8px",
+                borderRadius: "4px",
+              }}
+            >
+              VOL
+            </span>
+          )}
         </div>
       </Card>
 
@@ -381,7 +404,7 @@ export default function CoordinatorVisitorDetail({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
+                    gridTemplateColumns: "1fr 1fr 1fr",
                     gap: 8,
                   }}
                 >
@@ -404,8 +427,7 @@ export default function CoordinatorVisitorDetail({
                     >
                       {o === "Fixed" && "✅ "}
                       {o === "Diagnosed" && "🔍 "}
-                      {o === "Out of Scope" && "↩️ "}
-                      {o === "Not Fixable" && "❌ "}
+                      {o === "Not Fixed" && "❌ "}
                       {o}
                     </button>
                   ))}
