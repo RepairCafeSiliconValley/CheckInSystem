@@ -67,14 +67,13 @@ export async function checkinVisitor(eventId, name, email, phone, zipCode, items
 // ─── Visitor Groups (for coordinator queue) ───
 
 export async function fetchVisitorGroups(eventId) {
-  const [attendeesRes, ordersRes, waiversRes] = await Promise.all([
+  const [attendeesRes, ordersRes] = await Promise.all([
     supabase.from("attendees").select("*").eq("event_id", eventId),
     supabase
       .from("work_orders")
       .select("*")
       .eq("event_id", eventId)
       .order("priority", { ascending: true }),
-    supabase.from("waiver_acceptances").select("attendee_id, waiver_version, accepted_at"),
   ]);
 
   if (attendeesRes.error) throw attendeesRes.error;
@@ -83,18 +82,12 @@ export async function fetchVisitorGroups(eventId) {
   const attendees = attendeesRes.data;
   const orders = ordersRes.data;
 
-  // Index waivers by attendee_id
-  const waiverMap = {};
-  (waiversRes.data || []).forEach((w) => {
-    waiverMap[w.attendee_id] = w;
-  });
-
   // Group by attendee
   const grouped = {};
   orders.forEach((wo) => {
     if (!grouped[wo.attendee_id]) {
       const att = attendees.find((a) => a.id === wo.attendee_id);
-      grouped[wo.attendee_id] = { attendee: att, orders: [], waiver: waiverMap[wo.attendee_id] || null };
+      grouped[wo.attendee_id] = { attendee: att, orders: [] };
     }
     grouped[wo.attendee_id].orders.push(wo);
   });
@@ -135,35 +128,22 @@ export async function fetchVisitorDetail(attendeeId) {
   return { attendee: attRes.data, orders: ordersRes.data };
 }
 
-// ─── Work order by code (public fixer page) ───
+// ─── Work order by ID (public fixer page) ───
 
-export async function fetchWorkOrderByCode(code) {
+export async function fetchWorkOrderById(id) {
   const { data } = await supabase
     .from("work_orders")
     .select("*, attendees(name)")
-    .eq("code", code)
-    .single();
-  return data;
-}
-
-// ─── Waiver ───
-
-export async function fetchWaiverForAttendee(attendeeId) {
-  const { data } = await supabase
-    .from("waiver_acceptances")
-    .select("*")
-    .eq("attendee_id", attendeeId)
-    .order("accepted_at", { ascending: false })
-    .limit(1)
+    .eq("id", id)
     .single();
   return data;
 }
 
 // ─── Fixer outcome (public, via RPC) ───
 
-export async function submitFixerOutcome(code, fixerName, outcome) {
+export async function submitFixerOutcome(workOrderId, fixerName, outcome) {
   const { error } = await supabase.rpc("submit_fixer_outcome", {
-    p_code: code,
+    p_work_order_id: workOrderId,
     p_fixer_name: fixerName.trim(),
     p_outcome: outcome,
   });

@@ -12,7 +12,7 @@ function formatCheckInTime(dateStr) {
   return new Date(dateStr).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-export default function PrintTickets({ workOrders, attendeeName, eventName, onClose }) {
+export default function PrintTickets({ workOrders, attendeeName, eventName, isVolunteer, onClose }) {
   const baseUrl = window.location.origin;
   const [printMode, setPrintMode] = useState("receipt");
   const isLabel = printMode === "label";
@@ -83,7 +83,7 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, onCl
               printColorAdjust: "exact",
               WebkitPrintColorAdjust: "exact",
             }}>
-              {wo.code}
+              {wo.code}{isVolunteer ? "*" : ""}
             </div>
           </div>
 
@@ -149,7 +149,7 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, onCl
 
           {/* QR code */}
           <div style={{ textAlign: "center", padding: isLabel ? "4px 0" : "8px 0" }}>
-            <QRCodeSVG value={`${baseUrl}/fix/${wo.code}`} size={isLabel ? 100 : 90} level="M" />
+            <QRCodeSVG value={`${baseUrl}/fix/${wo.id}`} size={isLabel ? 100 : 90} level="M" />
             <div style={{ fontSize: "9px", fontFamily: font, color: "#000", marginTop: 4 }}>
               Scan to submit outcome
             </div>

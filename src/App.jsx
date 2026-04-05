@@ -7,7 +7,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/checkin" element={<CheckIn />} />
-      <Route path="/fix/:code" element={<FixerSubmit />} />
+      <Route path="/fix/:id" element={<FixerSubmit />} />
       <Route path="/staff" element={<StaffPortal />} />
       <Route path="*" element={<Navigate to="/staff" replace />} />
     </Routes>
