@@ -112,7 +112,6 @@ export default function StaffPortal() {
             workOrders={printData.orders}
             attendeeName={printData.attendeeName}
             isVolunteer={printData.isVolunteer}
-            eventName=""
             onClose={() => {
               setPrintingVisitorId(null);
               setPrintData(null);

@@ -1,56 +1,92 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
 import { OUTCOMES } from "../lib/constants";
 
 const font = "'Courier New', monospace";
-const label = { fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 2, fontFamily: font, color: "#000" };
-const value = { fontSize: "14px", fontWeight: 700, fontFamily: font, color: "#000", lineHeight: 1.4 };
+const labelStyle = {
+  fontSize: "10px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "1px",
+  fontFamily: font,
+  color: "#000",
+};
+const valueStyle = {
+  fontSize: "14px",
+  fontWeight: 700,
+  fontFamily: font,
+  color: "#000",
+};
 
 function formatCheckInTime(dateStr) {
   if (!dateStr) return null;
-  return new Date(dateStr).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return new Date(dateStr).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
-export default function PrintTickets({ workOrders, attendeeName, eventName, isVolunteer, onClose }) {
+export default function PrintTickets({
+  workOrders,
+  attendeeName,
+  isVolunteer,
+  onClose,
+}) {
   const baseUrl = window.location.origin;
-  const [printMode, setPrintMode] = useState("receipt");
-  const isLabel = printMode === "label";
-  const divider = { borderTop: "1px dashed #000", margin: isLabel ? "4px 0" : "10px 0" };
+  const divider = { borderTop: "1px dashed #000", margin: "10px 0" };
 
-  const handlePrint = useCallback((mode) => {
-    setPrintMode(mode);
-    // Allow state to flush before opening print dialog
+  const handlePrint = useCallback(() => {
     setTimeout(() => window.print(), 50);
   }, []);
 
-  const ticketLabel = workOrders.length === 1 ? "Ticket" : `${workOrders.length} Tickets`;
+  const ticketLabel =
+    workOrders.length === 1 ? "Ticket" : `${workOrders.length} Tickets`;
 
   return (
     <div>
       <div className="no-print">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <Button variant="ghost" onClick={onClose} style={{ width: "auto" }}>← Back</Button>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 20,
+          }}
+        >
+          <Button variant="ghost" onClick={onClose} style={{ width: "auto" }}>
+            ← Back
+          </Button>
           <div style={{ display: "flex", gap: 8 }}>
-            <Button variant="primary" onClick={() => handlePrint("receipt")} style={{ width: "auto", padding: "10px 24px" }}>
-              🖨️ Print Receipt (80mm)
-            </Button>
-            <Button variant="primary" onClick={() => handlePrint("label")} style={{ width: "auto", padding: "10px 24px" }}>
-              🏷️ Print Label (4×6)
+            <Button
+              variant="primary"
+              onClick={handlePrint}
+              style={{ width: "auto", padding: "10px 24px" }}
+            >
+              🖨️ Print
             </Button>
           </div>
         </div>
-        <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", textAlign: "center", marginBottom: 16 }}>
-          Preview of {ticketLabel.toLowerCase()} that will be printed and pinned to the board.
+        <p
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "13px",
+            color: "#667085",
+            textAlign: "center",
+            marginBottom: 16,
+          }}
+        >
+          Preview of {ticketLabel.toLowerCase()} that will be printed and pinned
+          to the board.
         </p>
       </div>
 
       {workOrders.map((wo, idx) => (
         <div
           key={wo.id}
-          className={`print-ticket ${isLabel ? "print-ticket--label" : ""}`}
+          className="print-ticket"
           style={{
-            width: isLabel ? 380 : 280,
+            width: 280,
             margin: "0 auto",
             padding: "12px",
             background: "#fff",
@@ -60,80 +96,99 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, isVo
             pageBreakAfter: idx < workOrders.length - 1 ? "always" : "auto",
           }}
         >
-          {/* Event name */}
-          {eventName && (
-            <div style={{ textAlign: "center", fontSize: "11px", fontFamily: font, color: "#000", marginBottom: 4 }}>
-              {eventName}
+          {/* Top row: time + ticket code */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 8,
+            }}
+          >
+            {formatCheckInTime(wo.created_at) && (
+              <div
+                style={{
+                  border: "1px solid #000",
+                  padding: "4px 10px",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  fontFamily: font,
+                  color: "#000",
+                }}
+              >
+                {formatCheckInTime(wo.created_at)}
+              </div>
+            )}
+            <div
+              style={{
+                background: "#000",
+                color: "#fff",
+                padding: "4px 12px",
+                fontSize: "18px",
+                fontWeight: 700,
+                fontFamily: font,
+                letterSpacing: "2px",
+                printColorAdjust: "exact",
+                WebkitPrintColorAdjust: "exact",
+              }}
+            >
+              {wo.code}
+              {isVolunteer ? "*" : ""}
             </div>
-          )}
+          </div>
 
-          <div style={divider} />
-
-          {/* Ticket code */}
-          <div style={{ textAlign: "center", padding: isLabel ? "4px 0" : "8px 0" }}>
-            <div style={{
-              display: "inline-block",
-              background: "#000",
-              color: "#fff",
-              padding: "6px 16px",
-              fontSize: "28px",
+          {/* Category */}
+          <div
+            style={{
+              fontSize: "13px",
               fontWeight: 700,
               fontFamily: font,
-              letterSpacing: "3px",
-              printColorAdjust: "exact",
-              WebkitPrintColorAdjust: "exact",
-            }}>
-              {wo.code}{isVolunteer ? "*" : ""}
-            </div>
+              color: "#000",
+              textTransform: "uppercase",
+              marginBottom: 4,
+            }}
+          >
+            {wo.category}
           </div>
 
           <div style={divider} />
-
-          {/* Check-in time */}
-          {formatCheckInTime(wo.created_at) && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={label}>CHECKED IN</div>
-              <div style={value}>{formatCheckInTime(wo.created_at)}</div>
-            </div>
-          )}
-
-          {/* Visitor */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={label}>VISITOR</div>
-            <div style={value}>{attendeeName}</div>
-          </div>
 
           {/* Item */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={label}>ITEM</div>
-            <div style={value}>{wo.item_name}</div>
+          <div style={{ marginBottom: 6 }}>
+            <span style={labelStyle}>ITEM: </span>
+            <span style={valueStyle}>{wo.item_name}</span>
           </div>
 
-          {/* Category & Priority */}
+          {/* Issue */}
           <div style={{ marginBottom: 4 }}>
-            <div style={{ fontSize: "12px", fontFamily: font, color: "#000" }}>
-              {wo.category} · Priority {wo.priority}
-            </div>
+            <span style={labelStyle}>ISSUE: </span>
+            <span style={valueStyle}>{wo.description}</span>
           </div>
 
           <div style={divider} />
 
-          {/* Problem */}
+          {/* Client */}
           <div style={{ marginBottom: 4 }}>
-            <div style={label}>PROBLEM</div>
-            <div style={{ fontSize: "12px", fontFamily: font, color: "#000", lineHeight: 1.5 }}>
-              {wo.description}
-            </div>
+            <span style={labelStyle}>CLIENT: </span>
+            <span style={valueStyle}>{attendeeName}</span>
           </div>
 
           <div style={divider} />
 
           {/* Outcome checkboxes */}
-          <div style={{ marginBottom: isLabel ? 4 : 8 }}>
-            <div style={label}>OUTCOME</div>
-            <div style={isLabel ? { display: "flex", flexWrap: "wrap", gap: "2px 12px" } : {}}>
+          <div style={{ marginBottom: 8 }}>
+            <div style={labelStyle}>OUTCOME</div>
+            <div style={{ marginTop: 4 }}>
               {OUTCOMES.map((o) => (
-                <div key={o} style={{ fontSize: "13px", fontFamily: font, color: "#000", padding: isLabel ? "1px 0" : "4px 0" }}>
+                <div
+                  key={o}
+                  style={{
+                    fontSize: "13px",
+                    fontFamily: font,
+                    color: "#000",
+                    padding: "4px 0",
+                  }}
+                >
                   [ ] {o}
                 </div>
               ))}
@@ -141,16 +196,33 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, isVo
           </div>
 
           {/* Fixer name */}
-          <div style={{ fontSize: "13px", fontFamily: font, color: "#000", marginBottom: 4 }}>
-            Fixer: _______________
+          <div style={{ marginBottom: 4 }}>
+            <span style={labelStyle}>FIXER: </span>
+            <span
+              style={{
+                borderBottom: "1px solid #000",
+                display: "inline-block",
+                width: "70%",
+                verticalAlign: "middle",
+              }}
+            >
+              &nbsp;
+            </span>
           </div>
 
           <div style={divider} />
 
           {/* QR code */}
-          <div style={{ textAlign: "center", padding: isLabel ? "4px 0" : "8px 0" }}>
-            <QRCodeSVG value={`${baseUrl}/fix/${wo.id}`} size={isLabel ? 100 : 90} level="M" />
-            <div style={{ fontSize: "9px", fontFamily: font, color: "#000", marginTop: 4 }}>
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <QRCodeSVG value={`${baseUrl}/fix/${wo.id}`} size={90} level="M" />
+            <div
+              style={{
+                fontSize: "9px",
+                fontFamily: font,
+                color: "#000",
+                marginTop: 4,
+              }}
+            >
               Scan to submit outcome
             </div>
           </div>
@@ -160,21 +232,18 @@ export default function PrintTickets({ workOrders, attendeeName, eventName, isVo
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          @page { size: ${isLabel ? "4in 6in" : "80mm auto"}; margin: ${isLabel ? "3mm" : "2mm"}; }
+          @page { size: 80mm auto; margin: 2mm; }
           body { margin: 0; padding: 0; }
           .print-ticket {
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: ${isLabel ? "3mm" : "2mm"} !important;
+            padding: 2mm !important;
             border: none !important;
             break-inside: avoid;
             color: #000 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-          }
-          .print-ticket--label {
-            font-size: 14px !important;
           }
         }
       `}</style>
