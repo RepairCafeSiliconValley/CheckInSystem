@@ -159,6 +159,17 @@ export async function fetchWaiverForAttendee(attendeeId) {
   return data;
 }
 
+// ─── Fixer outcome (public, via RPC) ───
+
+export async function submitFixerOutcome(code, fixerName, outcome) {
+  const { error } = await supabase.rpc("submit_fixer_outcome", {
+    p_code: code,
+    p_fixer_name: fixerName.trim(),
+    p_outcome: outcome,
+  });
+  if (error) throw error;
+}
+
 // ─── Updates ───
 
 export async function updateAttendee(id, updates) {

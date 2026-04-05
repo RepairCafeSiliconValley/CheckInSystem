@@ -4,7 +4,7 @@ import Logo from "../components/Logo";
 import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Input from "../components/Input";
-import { fetchWorkOrderByCode, updateWorkOrder } from "../lib/store";
+import { fetchWorkOrderByCode, submitFixerOutcome } from "../lib/store";
 import { OUTCOMES } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
@@ -86,11 +86,7 @@ export default function FixerSubmit() {
     setSubmitting(true);
     setError(null);
     try {
-      await updateWorkOrder(workOrder.id, {
-        fixer_name: fixerName.trim(),
-        outcome,
-        status: "completed",
-      });
+      await submitFixerOutcome(code, fixerName, outcome);
       setSubmitted(outcome);
     } catch {
       setError("Something went wrong. Please try again.");
