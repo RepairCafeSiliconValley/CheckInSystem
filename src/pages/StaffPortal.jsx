@@ -56,8 +56,7 @@ export default function StaffPortal() {
       const { attendee, orders } = await fetchVisitorDetail(attId);
       const printableOrders = orders.filter(
         (w) =>
-          w.status === "reviewed" ||
-          w.status === "in-progress" ||
+          w.status === "pending_assignment" ||
           w.status === "pending",
       );
       setPrintData({ orders: printableOrders, attendeeName: attendee.name, isVolunteer: attendee.is_volunteer });

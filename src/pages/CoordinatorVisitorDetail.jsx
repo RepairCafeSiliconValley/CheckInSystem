@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Card from "../components/Card";
 import Input from "../components/Input";
 import Select from "../components/Select";
@@ -21,6 +21,7 @@ export default function CoordinatorVisitorDetail({
   const [attendee, setAttendee] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
 
   // Editable visitor fields
   const [attName, setAttName] = useState("");
@@ -30,12 +31,30 @@ export default function CoordinatorVisitorDetail({
 
   // Editable item fields — keyed by work order id
   const [itemEdits, setItemEdits] = useState({});
-  const [saved, setSaved] = useState(false);
+
+  // Refs to always have latest values in async callbacks without stale closures
+  const attNameRef = useRef("");
+  const attEmailRef = useRef("");
+  const attPhoneRef = useRef("");
+  const attZipCodeRef = useRef("");
+  const itemEditsRef = useRef({});
+  const ordersRef = useRef([]);
+
+  attNameRef.current = attName;
+  attEmailRef.current = attEmail;
+  attPhoneRef.current = attPhone;
+  attZipCodeRef.current = attZipCode;
+  itemEditsRef.current = itemEdits;
+  ordersRef.current = orders;
+
+  const showSaved = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   const loadData = async () => {
     try {
-      const { attendee: att, orders: wo } =
-        await fetchVisitorDetail(attendeeId);
+      const { attendee: att, orders: wo } = await fetchVisitorDetail(attendeeId);
       setAttendee(att);
       setOrders(wo);
       setAttName(att.name);
@@ -64,14 +83,7 @@ export default function CoordinatorVisitorDetail({
 
   if (loading) {
     return (
-      <p
-        style={{
-          fontFamily: "'Outfit', sans-serif",
-          color: "#667085",
-          textAlign: "center",
-          padding: 32,
-        }}
-      >
+      <p style={{ fontFamily: "'Outfit', sans-serif", color: "#667085", textAlign: "center", padding: 32 }}>
         Loading...
       </p>
     );
@@ -80,9 +92,7 @@ export default function CoordinatorVisitorDetail({
   if (!attendee) {
     return (
       <div>
-        <Button variant="ghost" onClick={onBack}>
-          ← Back
-        </Button>
+        <Button variant="ghost" onClick={onBack}>← Back</Button>
         <p>Visitor not found.</p>
       </div>
     );
@@ -95,16 +105,49 @@ export default function CoordinatorVisitorDetail({
     }));
   };
 
+  // Save only attendee fields (on blur of any attendee text input)
+  const saveAttendee = async () => {
+    try {
+      await updateAttendee(attendeeId, {
+        name: attNameRef.current.trim(),
+        email: attEmailRef.current.trim() || null,
+        phone: attPhoneRef.current.trim() || null,
+        zip_code: attZipCodeRef.current.trim(),
+      });
+      showSaved();
+    } catch (err) {
+      console.error("Failed to save attendee:", err);
+    }
+  };
+
+  // Save only a single work order (on blur or category change)
+  const saveWorkOrder = async (woId) => {
+    const e = itemEditsRef.current[woId];
+    if (!e) return;
+    try {
+      await updateWorkOrder(woId, {
+        item_name: e.item_name.trim(),
+        category: e.category,
+        description: e.description.trim(),
+        fixer_name: e.fixer_name.trim(),
+      });
+      showSaved();
+    } catch (err) {
+      console.error("Failed to save work order:", err);
+    }
+  };
+
+  // Save everything — used by Approve & Print and back navigation
   const saveAll = async () => {
     try {
       await updateAttendee(attendeeId, {
-        name: attName.trim(),
-        email: attEmail.trim() || null,
-        phone: attPhone.trim() || null,
-        zip_code: attZipCode.trim(),
+        name: attNameRef.current.trim(),
+        email: attEmailRef.current.trim() || null,
+        phone: attPhoneRef.current.trim() || null,
+        zip_code: attZipCodeRef.current.trim(),
       });
-      for (const wo of orders) {
-        const e = itemEdits[wo.id];
+      for (const wo of ordersRef.current) {
+        const e = itemEditsRef.current[wo.id];
         if (e) {
           await updateWorkOrder(wo.id, {
             item_name: e.item_name.trim(),
@@ -114,16 +157,18 @@ export default function CoordinatorVisitorDetail({
           });
         }
       }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-      await loadData();
     } catch (err) {
       console.error("Failed to save:", err);
     }
   };
 
+  const handleBack = async () => {
+    await saveAll();
+    onBack();
+  };
+
   const hasPending = orders.some((o) => o.status === "pending");
-  const hasReviewed = orders.some((o) => o.status === "reviewed");
+  const hasPendingAssignment = orders.some((o) => o.status === "pending_assignment");
   const allCategoriesAssigned = orders.every(
     (o) => (itemEdits[o.id]?.category || o.category) && (itemEdits[o.id]?.category || o.category) !== ""
   );
@@ -132,7 +177,7 @@ export default function CoordinatorVisitorDetail({
     await saveAll();
     for (const wo of orders) {
       if (wo.status === "pending") {
-        await updateWorkOrder(wo.id, { status: "reviewed" });
+        await updateWorkOrder(wo.id, { status: "pending_assignment", printed_at: new Date().toISOString() });
       }
     }
     await loadData();
@@ -143,14 +188,9 @@ export default function CoordinatorVisitorDetail({
     onPrint(attendeeId);
   };
 
-  const setOrderStatus = async (woId, status) => {
-    await updateWorkOrder(woId, { status });
-    await loadData();
-  };
-
   const setOrderOutcome = async (woId, outcome) => {
     const e = itemEdits[woId];
-    const updates = { outcome, status: "completed" };
+    const updates = { outcome, status: "completed", completed_at: new Date().toISOString() };
     if (e?.fixer_name?.trim()) updates.fixer_name = e.fixer_name.trim();
     await updateWorkOrder(woId, updates);
     await loadData();
@@ -158,9 +198,10 @@ export default function CoordinatorVisitorDetail({
 
   const editOutcome = async (woId) => {
     await updateWorkOrder(woId, {
-      status: "in-progress",
+      status: "pending_assignment",
       fixer_name: "",
       outcome: null,
+      completed_at: null,
     });
     await loadData();
   };
@@ -175,9 +216,21 @@ export default function CoordinatorVisitorDetail({
           marginBottom: 20,
         }}
       >
-        <Button variant="ghost" onClick={onBack} style={{ width: "auto" }}>
+        <Button variant="ghost" onClick={handleBack} style={{ width: "auto" }}>
           ← Queue
         </Button>
+        {saved && (
+          <span
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "12px",
+              color: "#2e7d32",
+              fontWeight: 600,
+            }}
+          >
+            Saved
+          </span>
+        )}
       </div>
 
       {/* Visitor info */}
@@ -199,6 +252,7 @@ export default function CoordinatorVisitorDetail({
           label="Name"
           value={attName}
           onChange={setAttName}
+          onBlur={saveAttendee}
           placeholder="Full name"
           required
         />
@@ -206,6 +260,7 @@ export default function CoordinatorVisitorDetail({
           label="Email"
           value={attEmail}
           onChange={setAttEmail}
+          onBlur={saveAttendee}
           placeholder="Email (optional)"
           type="email"
         />
@@ -213,6 +268,7 @@ export default function CoordinatorVisitorDetail({
           label="Cell Phone"
           value={attPhone}
           onChange={setAttPhone}
+          onBlur={saveAttendee}
           placeholder="Phone (optional)"
           type="tel"
         />
@@ -220,6 +276,7 @@ export default function CoordinatorVisitorDetail({
           label="Zip Code"
           value={attZipCode}
           onChange={setAttZipCode}
+          onBlur={saveAttendee}
           placeholder="Zip code"
           required
         />
@@ -311,20 +368,25 @@ export default function CoordinatorVisitorDetail({
               <StatusBadge status={wo.status} />
             </div>
 
-            {/* Editable fields (always visible for pending/reviewed) */}
-            {(wo.status === "pending" || wo.status === "reviewed") && (
+            {/* Editable fields (always visible for pending/pending_assignment) */}
+            {(wo.status === "pending" || wo.status === "pending_assignment") && (
               <>
                 <Input
                   label="Item Name"
                   value={e.item_name || ""}
                   onChange={(v) => updateItem(wo.id, "item_name", v)}
+                  onBlur={() => saveWorkOrder(wo.id)}
                   placeholder="Item name"
                   required
                 />
                 <Select
                   label="Category"
                   value={e.category || ""}
-                  onChange={(v) => updateItem(wo.id, "category", v)}
+                  onChange={(v) => {
+                    updateItem(wo.id, "category", v);
+                    // Save immediately on selection — use setTimeout to let state update first
+                    setTimeout(() => saveWorkOrder(wo.id), 0);
+                  }}
                   options={CATEGORIES}
                   placeholder="Category"
                   required
@@ -333,6 +395,7 @@ export default function CoordinatorVisitorDetail({
                   label="Problem"
                   value={e.description || ""}
                   onChange={(v) => updateItem(wo.id, "description", v)}
+                  onBlur={() => saveWorkOrder(wo.id)}
                   placeholder="Describe the problem"
                   required
                   rows={2}
@@ -340,8 +403,8 @@ export default function CoordinatorVisitorDetail({
               </>
             )}
 
-            {/* Read-only summary for in-progress/completed */}
-            {(wo.status === "in-progress" || wo.status === "completed") && (
+            {/* Read-only summary for completed */}
+            {wo.status === "completed" && (
               <div style={{ marginBottom: 12 }}>
                 <div
                   style={{
@@ -369,25 +432,14 @@ export default function CoordinatorVisitorDetail({
               </div>
             )}
 
-            {/* Status-specific actions */}
-            {wo.status === "reviewed" && (
-              <div style={{ marginTop: 8 }}>
-                <Button
-                  variant="primary"
-                  onClick={() => setOrderStatus(wo.id, "in-progress")}
-                  style={{ padding: "10px 20px", fontSize: "13px" }}
-                >
-                  Mark as With Fixer
-                </Button>
-              </div>
-            )}
-
-            {wo.status === "in-progress" && (
+            {/* Outcome recording for pending_assignment */}
+            {wo.status === "pending_assignment" && (
               <div style={{ marginTop: 8 }}>
                 <Input
                   label="Fixer Name (optional)"
                   value={e.fixer_name || ""}
                   onChange={(v) => updateItem(wo.id, "fixer_name", v)}
+                  onBlur={() => saveWorkOrder(wo.id)}
                   placeholder="Who worked on this?"
                 />
                 <p
@@ -431,21 +483,6 @@ export default function CoordinatorVisitorDetail({
                       {o}
                     </button>
                   ))}
-                </div>
-                <div
-                  style={{
-                    marginTop: 10,
-                    borderTop: "1px solid #e8ebf0",
-                    paddingTop: 10,
-                  }}
-                >
-                  <Button
-                    variant="ghost"
-                    onClick={() => setOrderStatus(wo.id, "reviewed")}
-                    style={{ fontSize: "13px", padding: "8px 12px" }}
-                  >
-                    ← Back to Ready (undo With Fixer)
-                  </Button>
                 </div>
               </div>
             )}
@@ -506,22 +543,6 @@ export default function CoordinatorVisitorDetail({
           marginBottom: 16,
         }}
       >
-        <Button onClick={saveAll}>Save Changes</Button>
-        {saved && (
-          <div style={{ textAlign: "center" }}>
-            <span
-              style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "13px",
-                color: "#2e7d32",
-                fontWeight: 600,
-              }}
-            >
-              Changes saved!
-            </span>
-          </div>
-        )}
-
         {hasPending && (
           <>
             <Button variant="coral" onClick={approveAndPrint} disabled={!allCategoriesAssigned}>
@@ -538,11 +559,11 @@ export default function CoordinatorVisitorDetail({
           </>
         )}
 
-        {hasReviewed && !hasPending && (
+        {hasPendingAssignment && !hasPending && (
           <Button variant="outline" onClick={reprintAll}>
             🖨️ Reprint{" "}
             {orders.filter(
-              (o) => o.status === "reviewed" || o.status === "in-progress",
+              (o) => o.status === "pending_assignment",
             ).length === 1
               ? "Ticket"
               : "Tickets"}

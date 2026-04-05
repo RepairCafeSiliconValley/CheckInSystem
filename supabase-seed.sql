@@ -19,7 +19,7 @@ values
 insert into work_orders (code, attendee_id, event_id, item_name, category, description, priority, status)
 values
   ('R-M4K', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'KitchenAid Mixer', 'Appliances', 'Motor makes grinding noise, won''t turn on consistently', 1, 'pending'),
-  ('R-G7P', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Winter jacket', 'Clothing & Textiles', 'Zipper is stuck halfway, pull tab broke off', 2, 'reviewed'),
+  ('R-G7P', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Winter jacket', 'Clothing & Textiles', 'Zipper is stuck halfway, pull tab broke off', 2, 'pending_assignment'),
   ('R-J2N', '00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Bluetooth speaker', 'Electronics', 'Charges but no sound comes out, tried resetting', 1, 'completed');
 
 -- Update the completed one with outcome

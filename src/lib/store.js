@@ -105,8 +105,8 @@ export async function fetchVisitorGroups(eventId) {
 
 function getGroupStatus(orders) {
   if (orders.some((o) => o.status === "pending")) return "pending";
-  if (orders.some((o) => o.status === "in-progress")) return "in-progress";
-  if (orders.some((o) => o.status === "reviewed")) return "reviewed";
+  if (orders.some((o) => o.status === "assigned")) return "assigned";
+  if (orders.some((o) => o.status === "pending_assignment")) return "pending_assignment";
   return "completed";
 }
 

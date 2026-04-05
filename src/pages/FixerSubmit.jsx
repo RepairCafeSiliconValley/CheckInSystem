@@ -270,8 +270,7 @@ export default function FixerSubmit() {
             )}
 
             {/* Form — reviewed or in-progress */}
-            {(workOrder.status === "reviewed" ||
-              workOrder.status === "in-progress") && (
+            {workOrder.status === "pending_assignment" && (
               <>
                 <h2
                   style={{

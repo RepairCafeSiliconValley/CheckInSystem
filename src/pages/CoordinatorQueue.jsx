@@ -57,16 +57,14 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
   const counts = {
     all: visitorGroups.length,
     pending: visitorGroups.filter((g) => g.groupStatus === "pending").length,
-    reviewed: visitorGroups.filter((g) => g.groupStatus === "reviewed").length,
-    "in-progress": visitorGroups.filter((g) => g.groupStatus === "in-progress").length,
+    pending_assignment: visitorGroups.filter((g) => g.groupStatus === "pending_assignment").length,
     completed: visitorGroups.filter((g) => g.groupStatus === "completed").length,
   };
 
   const filterButtons = [
     { key: "all", label: "All" },
     { key: "pending", label: "Pending" },
-    { key: "reviewed", label: "Ready" },
-    { key: "in-progress", label: "Active" },
+    { key: "pending_assignment", label: "Waiting" },
     { key: "completed", label: "Done" },
   ];
 
