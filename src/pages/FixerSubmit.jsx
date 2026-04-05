@@ -334,7 +334,7 @@ export default function FixerSubmit() {
                         marginBottom: 2,
                       }}
                     >
-                      Visitor
+                      Client
                     </div>
                     <div
                       style={{
@@ -384,7 +384,7 @@ export default function FixerSubmit() {
                         marginBottom: 2,
                       }}
                     >
-                      Problem
+                      Issue
                     </div>
                     <p
                       style={{

@@ -246,7 +246,7 @@ export default function CoordinatorVisitorDetail({
             margin: "0 0 12px 0",
           }}
         >
-          Visitor
+          Client
         </h3>
         <Input
           label="Name"
@@ -392,11 +392,11 @@ export default function CoordinatorVisitorDetail({
                   required
                 />
                 <TextArea
-                  label="Problem"
+                  label="Issue"
                   value={e.description || ""}
                   onChange={(v) => updateItem(wo.id, "description", v)}
                   onBlur={() => saveWorkOrder(wo.id)}
-                  placeholder="Describe the problem"
+                  placeholder="Describe the issue"
                   required
                   rows={2}
                 />
