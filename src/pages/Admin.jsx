@@ -56,7 +56,7 @@ export default function Admin() {
       </Card>
       <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 700, color: "#1d2939", margin: "0 0 12px 0" }}>Events</h3>
       {events.map((ev) => {
-        const s = stats[ev.id] || { attendeeCount: 0, orderCount: 0, fixedCount: 0 };
+        const s = stats[ev.id] || { attendeeCount: 0, orderCount: 0, fixedCount: 0, diagnosedCount: 0, notFixedCount: 0 };
         const checkinUrl = `${baseUrl}/checkin?event=${ev.id}`;
         return (
           <Card key={ev.id} style={{ marginBottom: 10 }}>
@@ -71,7 +71,9 @@ export default function Admin() {
             <div style={{ display: "flex", gap: 16, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
               <span>{s.attendeeCount} visitors</span>
               <span>{s.orderCount} items</span>
-              <span style={{ color: "#2e7d32" }}>{s.fixedCount} fixed</span>
+              <span style={{ color: "#2e7d32", opacity: s.fixedCount ? 1 : 0.4 }}>{s.fixedCount} fixed</span>
+              <span style={{ color: "#b54708", opacity: s.diagnosedCount ? 1 : 0.4 }}>{s.diagnosedCount} diagnosed</span>
+              <span style={{ color: "#b42318", opacity: s.notFixedCount ? 1 : 0.4 }}>{s.notFixedCount} not fixed</span>
             </div>
             <div style={{ marginTop: 10, padding: "8px 12px", background: "#f0f4f8", borderRadius: "8px", fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "#475467", wordBreak: "break-all" }}>
               {checkinUrl}

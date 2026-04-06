@@ -183,8 +183,10 @@ export async function fetchEventStats(eventId) {
   const attendeeCount = attendeesRes.count || 0;
   const orders = ordersRes.data || [];
   const fixed = orders.filter((w) => w.outcome === "Fixed").length;
+  const diagnosed = orders.filter((w) => w.outcome === "Diagnosed").length;
+  const notFixed = orders.filter((w) => w.outcome === "Not Fixed").length;
 
-  return { attendeeCount, orderCount: orders.length, fixedCount: fixed };
+  return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed };
 }
 
 // ─── Realtime ───

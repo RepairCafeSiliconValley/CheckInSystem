@@ -105,6 +105,7 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
         ))}
       </div>
 
+
       {filtered.length === 0 && (
         <div style={{ textAlign: "center", padding: "32px 16px" }}>
           <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "14px", color: "#98a2b3" }}>{search ? "No results found." : "No visitors in this category."}</p>
