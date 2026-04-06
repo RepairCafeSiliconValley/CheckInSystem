@@ -176,10 +176,7 @@ export default function FixerSubmit() {
         style={{ maxWidth: 440, margin: "0 auto", padding: "20px 16px 80px" }}
       >
         {submitted ? (
-          <SuccessScreen
-            outcome={submitted}
-            itemName={workOrder.item_name}
-          />
+          <SuccessScreen outcome={submitted} itemName={workOrder.item_name} />
         ) : (
           <>
             <div style={{ textAlign: "center", marginBottom: 28 }}>
@@ -191,7 +188,15 @@ export default function FixerSubmit() {
             {/* Pending — not yet reviewed */}
             {workOrder.status === "pending" && (
               <Card>
-                <div style={{ fontSize: "32px", marginBottom: 12, textAlign: "center" }}>⏳</div>
+                <div
+                  style={{
+                    fontSize: "32px",
+                    marginBottom: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  ⏳
+                </div>
                 <h2
                   style={{
                     fontFamily: "'Outfit', sans-serif",
@@ -223,7 +228,15 @@ export default function FixerSubmit() {
             {/* Already completed */}
             {workOrder.status === "completed" && (
               <Card>
-                <div style={{ fontSize: "32px", marginBottom: 12, textAlign: "center" }}>✅</div>
+                <div
+                  style={{
+                    fontSize: "32px",
+                    marginBottom: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  ✅
+                </div>
                 <h2
                   style={{
                     fontFamily: "'Outfit', sans-serif",
@@ -404,10 +417,10 @@ export default function FixerSubmit() {
                 {/* Fixer name + outcome */}
                 <Card>
                   <Input
-                    label="Your Name"
+                    label="Fixer Name"
                     value={fixerName}
                     onChange={setFixerName}
-                    placeholder="Enter your name"
+                    placeholder="Enter name of fixer"
                     required
                   />
 
