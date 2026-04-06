@@ -160,7 +160,9 @@ export default function FixerSubmit() {
     );
   }
 
-  const visitorName = workOrder.attendees?.name || "Visitor";
+  const visitorName = workOrder.attendees
+    ? `${workOrder.attendees.first_name} ${workOrder.attendees.last_name.charAt(0).toUpperCase()}.`
+    : "Visitor";
 
   return (
     <div

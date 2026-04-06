@@ -10,10 +10,10 @@ insert into events (id, name, date, location)
 values ('00000000-0000-0000-0000-000000000001', 'Milpitas Library', '2026-03-15', 'Milpitas, CA');
 
 -- Insert two mock attendees
-insert into attendees (id, event_id, name, email)
+insert into attendees (id, event_id, first_name, last_name, email)
 values
-  ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Maria Garcia', 'maria.g@email.com'),
-  ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'James Chen', 'jchen88@email.com');
+  ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Maria', 'Garcia', 'maria.g@email.com'),
+  ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'James', 'Chen', 'jchen88@email.com');
 
 -- Insert mock work orders
 insert into work_orders (code, attendee_id, event_id, item_name, category, description, priority, status)
@@ -28,7 +28,7 @@ update work_orders set outcome = 'Fixed', fixer_name = 'Sam' where code = 'R-J2N
 -- View everything joined together
 select
   e.name as event,
-  a.name as visitor,
+  a.first_name || ' ' || a.last_name as visitor,
   a.email,
   wo.code,
   wo.item_name,
@@ -40,4 +40,4 @@ select
 from work_orders wo
 join attendees a on a.id = wo.attendee_id
 join events e on e.id = wo.event_id
-order by a.name, wo.priority;
+order by a.first_name, wo.priority;

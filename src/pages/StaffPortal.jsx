@@ -59,7 +59,10 @@ export default function StaffPortal() {
           w.status === "pending_assignment" ||
           w.status === "pending",
       );
-      setPrintData({ orders: printableOrders, attendeeName: attendee.name, isVolunteer: attendee.is_volunteer });
+      const abbreviated = attendee.last_name
+        ? `${attendee.first_name} ${attendee.last_name.charAt(0).toUpperCase()}.`
+        : attendee.first_name;
+      setPrintData({ orders: printableOrders, attendeeName: abbreviated, isVolunteer: attendee.is_volunteer });
       setPrintingVisitorId(attId);
     } catch (err) {
       console.error("Failed to load print data:", err);

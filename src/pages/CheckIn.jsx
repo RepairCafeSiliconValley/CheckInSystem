@@ -54,7 +54,7 @@ function ConfirmationScreen({ data, onReset }) {
           lineHeight: 1.5,
         }}
       >
-        Thanks {data.name}! Please head to the check-in desk so a coordinator
+        Thanks {data.firstName}! Please head to the check-in desk so a coordinator
         can review your item{data.items.length > 1 ? "s" : ""} and print your
         ticket{data.items.length > 1 ? "s" : ""}.
       </p>
@@ -125,7 +125,8 @@ function ConfirmationScreen({ data, onReset }) {
 }
 
 function CheckInForm({ event, onProceed, initialValues }) {
-  const [name, setName] = useState(initialValues?.name || "");
+  const [firstName, setFirstName] = useState(initialValues?.firstName || "");
+  const [lastName, setLastName] = useState(initialValues?.lastName || "");
   const [email, setEmail] = useState(initialValues?.email || "");
   const [phone, setPhone] = useState(initialValues?.phone || "");
   const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
@@ -134,7 +135,8 @@ function CheckInForm({ event, onProceed, initialValues }) {
   );
 
   const canProceed =
-    name.trim() &&
+    firstName.trim() &&
+    lastName.trim() &&
     zipCode.trim() &&
     (!email.trim() || email.includes("@")) &&
     items.every((it) => it.name.trim() && it.description.trim());
@@ -150,7 +152,7 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx));
 
   const handleProceed = () => {
-    onProceed({ name: name.trim(), email, phone, zipCode, items });
+    onProceed({ firstName: firstName.trim(), lastName: lastName.trim(), email, phone, zipCode, items });
   };
 
   return (
@@ -202,10 +204,17 @@ function CheckInForm({ event, onProceed, initialValues }) {
         Enter your info below, then bring your item to the check-in desk.
       </p>
       <Input
-        label="Full Name"
-        value={name}
-        onChange={setName}
-        placeholder="Your name"
+        label="First Name"
+        value={firstName}
+        onChange={setFirstName}
+        placeholder="First name"
+        required
+      />
+      <Input
+        label="Last Name"
+        value={lastName}
+        onChange={setLastName}
+        placeholder="Last name"
         required
       />
       <Input
@@ -294,7 +303,8 @@ export default function CheckIn() {
       const waiverHash = await computeWaiverHash();
       const result = await checkinVisitor(
         event.id,
-        formData.name,
+        formData.firstName,
+        formData.lastName,
         formData.email,
         formData.phone,
         formData.zipCode,
@@ -304,7 +314,7 @@ export default function CheckIn() {
         waiverHash
       );
       setConfirmData({
-        name: formData.name,
+        firstName: formData.firstName,
         baseCode: result.baseCode,
         items: result.items,
       });

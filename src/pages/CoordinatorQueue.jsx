@@ -45,7 +45,8 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
     const q = search.toLowerCase();
     if (!q) return matchesFilter;
     const matchesSearch =
-      g.attendee?.name?.toLowerCase().includes(q) ||
+      g.attendee?.first_name?.toLowerCase().includes(q) ||
+      g.attendee?.last_name?.toLowerCase().includes(q) ||
       g.attendee?.email?.toLowerCase().includes(q) ||
       g.attendee?.phone?.toLowerCase().includes(q) ||
       g.attendee?.zip_code?.toLowerCase().includes(q) ||
@@ -115,7 +116,7 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 700, color: "#1d2939" }}>{g.attendee?.name}</span>
+                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 700, color: "#1d2939" }}>{g.attendee?.first_name} {g.attendee?.last_name}</span>
                 {g.attendee?.is_volunteer && (
                   <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "10px", fontWeight: 700, color: "#1e3a6e", background: "#e8f0fe", padding: "1px 6px", borderRadius: "4px" }}>VOL</span>
                 )}

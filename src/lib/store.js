@@ -41,7 +41,7 @@ export async function toggleEventOpen(id, isOpen) {
 
 // ─── Check-in (atomic via RPC) ───
 
-export async function checkinVisitor(eventId, name, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash) {
+export async function checkinVisitor(eventId, firstName, lastName, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash) {
   const rpcItems = items.map((item, idx) => ({
     item_name: item.name.trim(),
     description: item.description.trim(),
@@ -50,7 +50,8 @@ export async function checkinVisitor(eventId, name, email, phone, zipCode, items
 
   const { data, error } = await supabase.rpc("checkin_visitor", {
     p_event_id: eventId,
-    p_name: name.trim(),
+    p_first_name: firstName.trim(),
+    p_last_name: lastName.trim(),
     p_email: email?.trim() || null,
     p_items: rpcItems,
     p_phone: phone?.trim() || null,
@@ -133,7 +134,7 @@ export async function fetchVisitorDetail(attendeeId) {
 export async function fetchWorkOrderById(id) {
   const { data } = await supabase
     .from("work_orders")
-    .select("*, attendees(name)")
+    .select("*, attendees(first_name, last_name)")
     .eq("id", id)
     .single();
   return data;

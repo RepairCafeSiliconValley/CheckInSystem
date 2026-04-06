@@ -24,7 +24,8 @@ export default function CoordinatorVisitorDetail({
   const [saved, setSaved] = useState(false);
 
   // Editable visitor fields
-  const [attName, setAttName] = useState("");
+  const [attFirstName, setAttFirstName] = useState("");
+  const [attLastName, setAttLastName] = useState("");
   const [attEmail, setAttEmail] = useState("");
   const [attPhone, setAttPhone] = useState("");
   const [attZipCode, setAttZipCode] = useState("");
@@ -33,14 +34,16 @@ export default function CoordinatorVisitorDetail({
   const [itemEdits, setItemEdits] = useState({});
 
   // Refs to always have latest values in async callbacks without stale closures
-  const attNameRef = useRef("");
+  const attFirstNameRef = useRef("");
+  const attLastNameRef = useRef("");
   const attEmailRef = useRef("");
   const attPhoneRef = useRef("");
   const attZipCodeRef = useRef("");
   const itemEditsRef = useRef({});
   const ordersRef = useRef([]);
 
-  attNameRef.current = attName;
+  attFirstNameRef.current = attFirstName;
+  attLastNameRef.current = attLastName;
   attEmailRef.current = attEmail;
   attPhoneRef.current = attPhone;
   attZipCodeRef.current = attZipCode;
@@ -57,7 +60,8 @@ export default function CoordinatorVisitorDetail({
       const { attendee: att, orders: wo } = await fetchVisitorDetail(attendeeId);
       setAttendee(att);
       setOrders(wo);
-      setAttName(att.name);
+      setAttFirstName(att.first_name);
+      setAttLastName(att.last_name);
       setAttEmail(att.email || "");
       setAttPhone(att.phone || "");
       setAttZipCode(att.zip_code || "");
@@ -109,7 +113,8 @@ export default function CoordinatorVisitorDetail({
   const saveAttendee = async () => {
     try {
       await updateAttendee(attendeeId, {
-        name: attNameRef.current.trim(),
+        first_name: attFirstNameRef.current.trim(),
+        last_name: attLastNameRef.current.trim(),
         email: attEmailRef.current.trim() || null,
         phone: attPhoneRef.current.trim() || null,
         zip_code: attZipCodeRef.current.trim(),
@@ -141,7 +146,8 @@ export default function CoordinatorVisitorDetail({
   const saveAll = async () => {
     try {
       await updateAttendee(attendeeId, {
-        name: attNameRef.current.trim(),
+        first_name: attFirstNameRef.current.trim(),
+        last_name: attLastNameRef.current.trim(),
         email: attEmailRef.current.trim() || null,
         phone: attPhoneRef.current.trim() || null,
         zip_code: attZipCodeRef.current.trim(),
@@ -249,11 +255,19 @@ export default function CoordinatorVisitorDetail({
           Client
         </h3>
         <Input
-          label="Name"
-          value={attName}
-          onChange={setAttName}
+          label="First Name"
+          value={attFirstName}
+          onChange={setAttFirstName}
           onBlur={saveAttendee}
-          placeholder="Full name"
+          placeholder="First name"
+          required
+        />
+        <Input
+          label="Last Name"
+          value={attLastName}
+          onChange={setAttLastName}
+          onBlur={saveAttendee}
+          placeholder="Last name"
           required
         />
         <Input
