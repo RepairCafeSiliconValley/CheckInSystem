@@ -11,7 +11,9 @@ export const CATEGORIES = [
   "Other",
 ];
 
-export const OUTCOMES = ["Fixed", "Diagnosed", "Not Fixed"];
+export const OUTCOMES = ["Fixed", "Diagnosed", "Not Fixed", "Taken Home"];
+export const STAFF_ONLY_OUTCOMES = ["Languished", "Abandoned"];
+export const ALL_OUTCOMES = [...OUTCOMES, ...STAFF_ONLY_OUTCOMES];
 
 // ─── Waiver ───
 // IMPORTANT: When changing WAIVER_SECTIONS text below, you MUST bump

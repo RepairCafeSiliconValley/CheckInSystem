@@ -185,8 +185,11 @@ export async function fetchEventStats(eventId) {
   const fixed = orders.filter((w) => w.outcome === "Fixed").length;
   const diagnosed = orders.filter((w) => w.outcome === "Diagnosed").length;
   const notFixed = orders.filter((w) => w.outcome === "Not Fixed").length;
+  const languished = orders.filter((w) => w.outcome === "Languished").length;
+  const abandoned = orders.filter((w) => w.outcome === "Abandoned").length;
+  const takenHome = orders.filter((w) => w.outcome === "Taken Home").length;
 
-  return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed };
+  return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed, languishedCount: languished, abandonedCount: abandoned, takenHomeCount: takenHome };
 }
 
 // ─── Realtime ───

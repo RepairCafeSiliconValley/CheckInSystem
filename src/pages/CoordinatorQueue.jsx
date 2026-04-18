@@ -131,7 +131,7 @@ export default function CoordinatorQueue({ onSelectVisitor, selectedEventId, onE
               <span style={{ fontFamily: "'Space Mono', monospace", fontSize: "13px", fontWeight: 700, color: "#1e3a6e" }}>{o.code}</span>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#344054", flex: 1 }}>{o.item_name}</span>
               <Badge text={`P${o.priority}`} color={o.priority === 1 ? "#1e3a6e" : "#e07850"} />
-              {o.outcome && <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: "#2e7d32", fontWeight: 600 }}>{o.outcome}</span>}
+              {o.outcome && <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: ["Languished", "Abandoned", "Taken Home"].includes(o.outcome) ? "#98a2b3" : "#2e7d32", fontWeight: 600 }}>{o.outcome}</span>}
             </div>
           ))}
         </Card>

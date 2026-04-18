@@ -6,7 +6,7 @@ import TextArea from "../components/TextArea";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
-import { CATEGORIES, OUTCOMES } from "../lib/constants";
+import { CATEGORIES, OUTCOMES, STAFF_ONLY_OUTCOMES } from "../lib/constants";
 import {
   fetchVisitorDetail,
   updateAttendee,
@@ -57,7 +57,8 @@ export default function CoordinatorVisitorDetail({
 
   const loadData = async () => {
     try {
-      const { attendee: att, orders: wo } = await fetchVisitorDetail(attendeeId);
+      const { attendee: att, orders: wo } =
+        await fetchVisitorDetail(attendeeId);
       setAttendee(att);
       setOrders(wo);
       setAttFirstName(att.first_name);
@@ -87,7 +88,14 @@ export default function CoordinatorVisitorDetail({
 
   if (loading) {
     return (
-      <p style={{ fontFamily: "'Outfit', sans-serif", color: "#667085", textAlign: "center", padding: 32 }}>
+      <p
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          color: "#667085",
+          textAlign: "center",
+          padding: 32,
+        }}
+      >
         Loading...
       </p>
     );
@@ -96,7 +104,9 @@ export default function CoordinatorVisitorDetail({
   if (!attendee) {
     return (
       <div>
-        <Button variant="ghost" onClick={onBack}>← Back</Button>
+        <Button variant="ghost" onClick={onBack}>
+          ← Back
+        </Button>
         <p>Visitor not found.</p>
       </div>
     );
@@ -174,16 +184,23 @@ export default function CoordinatorVisitorDetail({
   };
 
   const hasPending = orders.some((o) => o.status === "pending");
-  const hasPendingAssignment = orders.some((o) => o.status === "pending_assignment");
+  const hasPendingAssignment = orders.some(
+    (o) => o.status === "pending_assignment",
+  );
   const allCategoriesAssigned = orders.every(
-    (o) => (itemEdits[o.id]?.category || o.category) && (itemEdits[o.id]?.category || o.category) !== ""
+    (o) =>
+      (itemEdits[o.id]?.category || o.category) &&
+      (itemEdits[o.id]?.category || o.category) !== "",
   );
 
   const approveAndPrint = async () => {
     await saveAll();
     for (const wo of orders) {
       if (wo.status === "pending") {
-        await updateWorkOrder(wo.id, { status: "pending_assignment", printed_at: new Date().toISOString() });
+        await updateWorkOrder(wo.id, {
+          status: "pending_assignment",
+          printed_at: new Date().toISOString(),
+        });
       }
     }
     await loadData();
@@ -196,7 +213,11 @@ export default function CoordinatorVisitorDetail({
 
   const setOrderOutcome = async (woId, outcome) => {
     const e = itemEdits[woId];
-    const updates = { outcome, status: "completed", completed_at: new Date().toISOString() };
+    const updates = {
+      outcome,
+      status: "completed",
+      completed_at: new Date().toISOString(),
+    };
     if (e?.fixer_name?.trim()) updates.fixer_name = e.fixer_name.trim();
     await updateWorkOrder(woId, updates);
     await loadData();
@@ -318,7 +339,9 @@ export default function CoordinatorVisitorDetail({
               type="checkbox"
               checked={attendee.is_volunteer || false}
               onChange={async (e) => {
-                await updateAttendee(attendeeId, { is_volunteer: e.target.checked });
+                await updateAttendee(attendeeId, {
+                  is_volunteer: e.target.checked,
+                });
                 await loadData();
               }}
               style={{ width: 18, height: 18, cursor: "pointer" }}
@@ -383,7 +406,8 @@ export default function CoordinatorVisitorDetail({
             </div>
 
             {/* Editable fields (always visible for pending/pending_assignment) */}
-            {(wo.status === "pending" || wo.status === "pending_assignment") && (
+            {(wo.status === "pending" ||
+              wo.status === "pending_assignment") && (
               <>
                 <Input
                   label="Item Name"
@@ -470,7 +494,7 @@ export default function CoordinatorVisitorDetail({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gridTemplateColumns: "1fr 1fr",
                     gap: 8,
                   }}
                 >
@@ -494,6 +518,38 @@ export default function CoordinatorVisitorDetail({
                       {o === "Fixed" && "✅ "}
                       {o === "Diagnosed" && "🔍 "}
                       {o === "Not Fixed" && "❌ "}
+                      {o === "Taken Home" && "🥡 "}
+                      {o}
+                    </button>
+                  ))}
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  {STAFF_ONLY_OUTCOMES.map((o) => (
+                    <button
+                      key={o}
+                      onClick={() => setOrderOutcome(wo.id, o)}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        border: "1.5px dashed #d0d5dd",
+                        background: "#f9fafb",
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        color: "#98a2b3",
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {o === "Languished" && "⏳ "}
+                      {o === "Abandoned" && "🏚️ "}
                       {o}
                     </button>
                   ))}
@@ -506,7 +562,13 @@ export default function CoordinatorVisitorDetail({
                 <div
                   style={{
                     padding: "10px",
-                    background: "#e8f5e9",
+                    background: [
+                      "Languished",
+                      "Abandoned",
+                      "Taken Home",
+                    ].includes(wo.outcome)
+                      ? "#f2f4f7"
+                      : "#e8f5e9",
                     borderRadius: "8px",
                     textAlign: "center",
                     marginBottom: 8,
@@ -517,7 +579,11 @@ export default function CoordinatorVisitorDetail({
                       fontFamily: "'Outfit', sans-serif",
                       fontSize: "14px",
                       fontWeight: 600,
-                      color: "#2e7d32",
+                      color: ["Languished", "Abandoned", "Taken Home"].includes(
+                        wo.outcome,
+                      )
+                        ? "#667085"
+                        : "#2e7d32",
                     }}
                   >
                     {wo.outcome}
@@ -559,14 +625,26 @@ export default function CoordinatorVisitorDetail({
       >
         {hasPending && (
           <>
-            <Button variant="coral" onClick={approveAndPrint} disabled={!allCategoriesAssigned}>
+            <Button
+              variant="coral"
+              onClick={approveAndPrint}
+              disabled={!allCategoriesAssigned}
+            >
               Approve & Print{" "}
               {orders.filter((o) => o.status === "pending").length === 1
                 ? "Ticket"
                 : "All Tickets"}
             </Button>
             {!allCategoriesAssigned && (
-              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318", textAlign: "center", margin: "4px 0 0 0" }}>
+              <p
+                style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "13px",
+                  color: "#b42318",
+                  textAlign: "center",
+                  margin: "4px 0 0 0",
+                }}
+              >
                 Assign a category to each item before printing
               </p>
             )}
@@ -576,9 +654,8 @@ export default function CoordinatorVisitorDetail({
         {hasPendingAssignment && !hasPending && (
           <Button variant="outline" onClick={reprintAll}>
             🖨️ Reprint{" "}
-            {orders.filter(
-              (o) => o.status === "pending_assignment",
-            ).length === 1
+            {orders.filter((o) => o.status === "pending_assignment").length ===
+            1
               ? "Ticket"
               : "Tickets"}
           </Button>

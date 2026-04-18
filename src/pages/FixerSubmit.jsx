@@ -11,6 +11,7 @@ const OUTCOME_EMOJI = {
   Fixed: "✅",
   Diagnosed: "🔍",
   "Not Fixed": "❌",
+  "Taken Home": "🥡",
 };
 
 function SuccessScreen({ outcome, itemName }) {
@@ -437,7 +438,7 @@ export default function FixerSubmit() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
+                      gridTemplateColumns: "1fr 1fr",
                       gap: 8,
                     }}
                   >
