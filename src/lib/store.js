@@ -96,19 +96,11 @@ export async function fetchVisitorGroups(eventId) {
   return Object.values(grouped)
     .map((g) => ({
       ...g,
-      groupStatus: getGroupStatus(g.orders),
       latestCreatedAt: Math.max(
         ...g.orders.map((o) => new Date(o.created_at).getTime())
       ),
     }))
     .sort((a, b) => b.latestCreatedAt - a.latestCreatedAt);
-}
-
-function getGroupStatus(orders) {
-  if (orders.some((o) => o.status === "pending")) return "pending";
-  if (orders.some((o) => o.status === "assigned")) return "assigned";
-  if (orders.some((o) => o.status === "pending_assignment")) return "pending_assignment";
-  return "completed";
 }
 
 // ─── Single visitor data ───
