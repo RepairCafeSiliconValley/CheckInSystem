@@ -21,10 +21,10 @@ export async function fetchEventById(id) {
   return data;
 }
 
-export async function createEvent(name, date, location) {
+export async function createEvent(name, date, location, maxItems = 2) {
   const { data, error } = await supabase
     .from("events")
-    .insert({ name, date, location })
+    .insert({ name, date, location, max_items: maxItems })
     .select()
     .single();
   if (error) throw error;
@@ -35,6 +35,14 @@ export async function toggleEventOpen(id, isOpen) {
   const { error } = await supabase
     .from("events")
     .update({ is_open: isOpen })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateEventMaxItems(id, maxItems) {
+  const { error } = await supabase
+    .from("events")
+    .update({ max_items: maxItems })
     .eq("id", id);
   if (error) throw error;
 }

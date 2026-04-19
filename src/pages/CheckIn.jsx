@@ -140,8 +140,9 @@ function CheckInForm({ event, onProceed, initialValues }) {
     zipCode.trim() &&
     (!email.trim() || email.includes("@")) &&
     items.every((it) => it.name.trim() && it.description.trim());
+  const maxItems = event.max_items || 2;
   const addItem = () => {
-    if (items.length < 2)
+    if (items.length < maxItems)
       setItems([...items, { name: "", description: "" }]);
   };
   const updateItem = (idx, u) => {
@@ -258,7 +259,7 @@ function CheckInForm({ event, onProceed, initialValues }) {
           margin: "0 0 16px 0",
         }}
       >
-        You may bring up to 2 items. Item #1 is your top priority.
+        You may bring up to {maxItems} {maxItems === 1 ? "item" : "items"}. Item #1 is your top priority.
       </p>
       {items.map((item, idx) => (
         <ItemForm
@@ -270,10 +271,10 @@ function CheckInForm({ event, onProceed, initialValues }) {
           canRemove={items.length > 1}
         />
       ))}
-      {items.length < 2 && (
+      {items.length < maxItems && (
         <div style={{ marginBottom: 24 }}>
           <Button variant="outline" onClick={addItem}>
-            + Add Second Item
+            + Add Item #{items.length + 1}
           </Button>
         </div>
       )}

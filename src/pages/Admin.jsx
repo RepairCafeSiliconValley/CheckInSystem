@@ -4,15 +4,17 @@ import Card from "../components/Card";
 import Input from "../components/Input";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
-import { fetchEvents, createEvent, fetchEventStats, toggleEventOpen } from "../lib/store";
+import { fetchEvents, createEvent, fetchEventStats, toggleEventOpen, updateEventMaxItems } from "../lib/store";
 
 export default function Admin() {
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventLocation, setEventLocation] = useState("");
+  const [maxItems, setMaxItems] = useState(2);
   const [events, setEvents] = useState([]);
   const [stats, setStats] = useState({});
   const [creating, setCreating] = useState(false);
+  const [editingMaxItems, setEditingMaxItems] = useState(null);
 
   const loadEvents = async () => {
     const evs = await fetchEvents();
@@ -31,10 +33,11 @@ export default function Admin() {
     if (!eventName.trim() || !eventDate) return;
     setCreating(true);
     try {
-      await createEvent(eventName.trim(), eventDate, eventLocation.trim());
+      await createEvent(eventName.trim(), eventDate, eventLocation.trim(), maxItems);
       setEventName("");
       setEventDate("");
       setEventLocation("");
+      setMaxItems(2);
       await loadEvents();
     } catch (err) {
       console.error("Failed to create event:", err);
@@ -52,6 +55,7 @@ export default function Admin() {
         <Input label="Event Name" value={eventName} onChange={setEventName} placeholder="e.g. Milpitas Library" required />
         <Input label="Date" value={eventDate} onChange={setEventDate} placeholder="YYYY-MM-DD" type="date" required />
         <Input label="Location" value={eventLocation} onChange={setEventLocation} placeholder="e.g. Milpitas, CA" />
+        <Input label="Max Items per Visitor" value={maxItems} onChange={(v) => setMaxItems(Number(v))} type="number" placeholder="2" />
         <Button onClick={handleCreate} disabled={!eventName.trim() || !eventDate || creating}>{creating ? "Creating..." : "Create Event"}</Button>
       </Card>
       <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 700, color: "#1d2939", margin: "0 0 12px 0" }}>Events</h3>
@@ -65,6 +69,30 @@ export default function Admin() {
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <Badge text={ev.is_open ? "Open" : "Closed"} color={ev.is_open ? "#2e7d32" : "#b42318"} />
                 <Badge text={ev.date} />
+                {editingMaxItems === ev.id && ev.is_open ? (
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    defaultValue={ev.max_items || 2}
+                    autoFocus
+                    onBlur={async (e) => {
+                      const val = Math.min(10, Math.max(1, Number(e.target.value) || 2));
+                      await updateEventMaxItems(ev.id, val);
+                      setEditingMaxItems(null);
+                      await loadEvents();
+                    }}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter") e.target.blur();
+                      if (e.key === "Escape") setEditingMaxItems(null);
+                    }}
+                    style={{ width: 48, padding: "3px 6px", borderRadius: "6px", border: "1.5px solid #1e3a6e", fontFamily: "'Space Mono', monospace", fontSize: "12px", fontWeight: 700, textAlign: "center" }}
+                  />
+                ) : (
+                  <span onClick={() => ev.is_open && setEditingMaxItems(ev.id)} style={{ cursor: ev.is_open ? "pointer" : "default", opacity: ev.is_open ? 1 : 0.4 }}>
+                    <Badge text={`${ev.max_items || 2} items max`} />
+                  </span>
+                )}
               </div>
             </div>
             {ev.location && <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", marginBottom: 8 }}>{ev.location}</div>}
