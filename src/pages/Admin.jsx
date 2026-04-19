@@ -96,15 +96,19 @@ export default function Admin() {
               </div>
             </div>
             {ev.location && <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", marginBottom: 8 }}>{ev.location}</div>}
-            <div style={{ display: "flex", gap: 16, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
-              <span>{s.attendeeCount} visitors</span>
-              <span>{s.orderCount} items</span>
-              <span style={{ color: "#2e7d32", opacity: s.fixedCount ? 1 : 0.4 }}>{s.fixedCount} fixed</span>
-              <span style={{ color: "#b54708", opacity: s.diagnosedCount ? 1 : 0.4 }}>{s.diagnosedCount} diagnosed</span>
-              <span style={{ color: "#b42318", opacity: s.notFixedCount ? 1 : 0.4 }}>{s.notFixedCount} not fixed</span>
-              <span style={{ color: "#98a2b3", opacity: s.languishedCount ? 1 : 0.4 }}>{s.languishedCount} languished</span>
-              <span style={{ color: "#98a2b3", opacity: s.abandonedCount ? 1 : 0.4 }}>{s.abandonedCount} abandoned</span>
-              <span style={{ color: "#98a2b3", opacity: s.takenHomeCount ? 1 : 0.4 }}>{s.takenHomeCount} taken home</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
+              <div style={{ display: "flex", gap: 16 }}>
+                <span>{s.attendeeCount} visitors</span>
+                <span>{s.orderCount} items</span>
+              </div>
+              <div style={{ display: "flex", gap: 16, paddingTop: 4, borderTop: "1px solid #e4e7ec" }}>
+                <span style={{ color: "#2e7d32", opacity: s.fixedCount ? 1 : 0.4 }}>{s.fixedCount} fixed</span>
+                <span style={{ color: "#b54708", opacity: s.diagnosedCount ? 1 : 0.4 }}>{s.diagnosedCount} diagnosed</span>
+                <span style={{ color: "#b42318", opacity: s.notFixedCount ? 1 : 0.4 }}>{s.notFixedCount} not fixed</span>
+                <span style={{ color: "#98a2b3", opacity: s.languishedCount ? 1 : 0.4 }}>{s.languishedCount} languished</span>
+                <span style={{ color: "#98a2b3", opacity: s.abandonedCount ? 1 : 0.4 }}>{s.abandonedCount} abandoned</span>
+                <span style={{ color: "#98a2b3", opacity: s.takenHomeCount ? 1 : 0.4 }}>{s.takenHomeCount} taken home</span>
+              </div>
             </div>
             <div style={{ marginTop: 10, padding: "8px 12px", background: "#f0f4f8", borderRadius: "8px", fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "#475467", wordBreak: "break-all" }}>
               {checkinUrl}
