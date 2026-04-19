@@ -4,7 +4,7 @@ import Card from "../components/Card";
 import Input from "../components/Input";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
-import { fetchEvents, createEvent, fetchEventStats, toggleEventOpen, updateEventMaxItems } from "../lib/store";
+import { fetchEvents, createEvent, fetchEventStats, toggleEventOpen, updateEventMaxItems, exportAttendeesCSV } from "../lib/store";
 
 export default function Admin() {
   const [eventName, setEventName] = useState("");
@@ -112,7 +112,7 @@ export default function Admin() {
             <div style={{ marginTop: 12, textAlign: "center" }}>
               <QRCodeSVG value={checkinUrl} size={160} level="M" />
             </div>
-            <div style={{ marginTop: 14, textAlign: "center" }}>
+            <div style={{ marginTop: 14, textAlign: "center", display: "flex", justifyContent: "center", gap: 8 }}>
               <Button
                 variant={ev.is_open ? "danger" : "success"}
                 onClick={async () => {
@@ -122,6 +122,13 @@ export default function Admin() {
                 style={{ padding: "8px 20px", fontSize: "13px", width: "auto", display: "inline-block" }}
               >
                 {ev.is_open ? "Close Check-In" : "Reopen Check-In"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => exportAttendeesCSV(ev.id, ev.name)}
+                style={{ padding: "8px 20px", fontSize: "13px", width: "auto", display: "inline-block" }}
+              >
+                Export Attendees
               </Button>
             </div>
           </Card>

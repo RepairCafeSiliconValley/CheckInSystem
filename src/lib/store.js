@@ -192,6 +192,48 @@ export async function fetchEventStats(eventId) {
   return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed, languishedCount: languished, abandonedCount: abandoned, takenHomeCount: takenHome };
 }
 
+// ─── Export ───
+
+export async function exportAttendeesCSV(eventId, eventName) {
+  const { data, error } = await supabase
+    .from("attendees")
+    .select("first_name, last_name, email, phone, zip_code, is_volunteer, created_at")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const esc = (v) => {
+    if (v == null) return "";
+    const s = String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  };
+
+  const header = "First Name,Last Name,Email,Phone,Zip Code,Volunteer,Checked In";
+  const rows = data.map((a) =>
+    [
+      esc(a.first_name),
+      esc(a.last_name),
+      esc(a.email),
+      esc(a.phone),
+      esc(a.zip_code),
+      a.is_volunteer ? "Yes" : "No",
+      new Date(a.created_at).toLocaleString(),
+    ].join(",")
+  );
+
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const safeName = eventName.replace(/[^a-zA-Z0-9]/g, "-");
+  a.download = `${safeName}-attendees-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Realtime ───
 
 export function subscribeToEvent(eventId, onUpdate) {
