@@ -68,9 +68,11 @@ grant execute on function get_fixer_work_order(uuid) to anon, authenticated;
 
 -- ─── 3. Hardening: pin search_path on the in-use SECURITY DEFINER functions ───
 
+-- NOTE: checkin_visitor calls gen_random_bytes() from the pgcrypto extension,
+-- which Supabase installs in the `extensions` schema — so it must stay on the path.
 alter function public.checkin_visitor(
   uuid, text, text, text, jsonb, text, text, text, text, text
-) set search_path = public, pg_temp;
+) set search_path = public, extensions, pg_temp;
 
 alter function public.submit_fixer_outcome(uuid, text, text)
   set search_path = public, pg_temp;
