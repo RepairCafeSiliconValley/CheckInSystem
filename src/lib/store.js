@@ -133,11 +133,9 @@ export async function fetchVisitorDetail(attendeeId) {
 
 export async function fetchWorkOrderById(id) {
   const { data } = await supabase
-    .from("work_orders")
-    .select("*, attendees(first_name, last_name)")
-    .eq("id", id)
-    .single();
-  return data;
+    .rpc("get_fixer_work_order", { p_id: id })
+    .maybeSingle();
+  return data; // null when not found; client_name is pre-abbreviated server-side
 }
 
 // ─── Fixer outcome (public, via RPC) ───
