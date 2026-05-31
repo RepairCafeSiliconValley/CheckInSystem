@@ -13,6 +13,8 @@ import {
   computeWaiverHash,
 } from "../lib/constants";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function ConfirmationScreen({ data, onReset }) {
   return (
     <div style={{ textAlign: "center" }}>
@@ -133,12 +135,16 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [items, setItems] = useState(
     initialValues?.items || [{ name: "", description: "" }]
   );
+  const [emailTouched, setEmailTouched] = useState(false);
+
+  const emailValid = !email.trim() || EMAIL_REGEX.test(email.trim());
+  const showEmailError = emailTouched && !emailValid;
 
   const canProceed =
     firstName.trim() &&
     lastName.trim() &&
     zipCode.trim() &&
-    (!email.trim() || email.includes("@")) &&
+    emailValid &&
     items.every((it) => it.name.trim() && it.description.trim());
   const maxItems = event.max_items || 2;
   const addItem = () => {
@@ -222,9 +228,17 @@ function CheckInForm({ event, onProceed, initialValues }) {
         label="Email Address"
         value={email}
         onChange={setEmail}
+        onBlur={() => setEmailTouched(true)}
         placeholder="you@example.com (optional)"
         type="email"
       />
+      {showEmailError && (
+        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
+          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+            Please enter a valid email address, or leave this field blank.
+          </span>
+        </div>
+      )}
       <Input
         label="Cell Phone"
         value={phone}
