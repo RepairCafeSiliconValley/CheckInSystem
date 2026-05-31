@@ -14,6 +14,14 @@ import {
 } from "../lib/constants";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ZIP_REGEX = /^\d{5}$/;
+const PHONE_REGEX = /^\d{10}$/;
+
+function formatPhone(digits) {
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+}
 
 function ConfirmationScreen({ data, onReset }) {
   return (
@@ -130,22 +138,41 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [firstName, setFirstName] = useState(initialValues?.firstName || "");
   const [lastName, setLastName] = useState(initialValues?.lastName || "");
   const [email, setEmail] = useState(initialValues?.email || "");
-  const [phone, setPhone] = useState(initialValues?.phone || "");
+  const [phone, setPhone] = useState(formatPhone((initialValues?.phone || "").replace(/\D/g, "")));
   const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
   const [items, setItems] = useState(
     initialValues?.items || [{ name: "", description: "" }]
   );
   const [emailTouched, setEmailTouched] = useState(false);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [zipTouched, setZipTouched] = useState(false);
 
   const emailValid = !email.trim() || EMAIL_REGEX.test(email.trim());
   const showEmailError = emailTouched && !emailValid;
+
+  const phoneDigits = phone.replace(/\D/g, "");
+  const phoneValid = !phone.trim() || PHONE_REGEX.test(phoneDigits);
+  const showPhoneError = phoneTouched && !phoneValid;
+
+  const zipValid = !zipCode.trim() || ZIP_REGEX.test(zipCode.trim());
+  const showZipError = zipTouched && !zipValid;
 
   const canProceed =
     firstName.trim() &&
     lastName.trim() &&
     zipCode.trim() &&
+    zipValid &&
     emailValid &&
+    phoneValid &&
     items.every((it) => it.name.trim() && it.description.trim());
+
+  const handlePhoneChange = (val) => {
+    const digits = val.replace(/\D/g, "").slice(0, 10);
+    setPhone(formatPhone(digits));
+  };
+  const handleZipChange = (val) => {
+    setZipCode(val.replace(/\D/g, "").slice(0, 5));
+  };
   const maxItems = event.max_items || 2;
   const addItem = () => {
     if (items.length < maxItems)
@@ -159,7 +186,14 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx));
 
   const handleProceed = () => {
-    onProceed({ firstName: firstName.trim(), lastName: lastName.trim(), email, phone, zipCode, items });
+    onProceed({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email,
+      phone: phoneDigits,
+      zipCode,
+      items,
+    });
   };
 
   return (
@@ -242,17 +276,37 @@ function CheckInForm({ event, onProceed, initialValues }) {
       <Input
         label="Cell Phone"
         value={phone}
-        onChange={setPhone}
-        placeholder="(555) 123-4567 (optional)"
+        onChange={handlePhoneChange}
+        onBlur={() => setPhoneTouched(true)}
+        placeholder="408-555-0101 (optional)"
         type="tel"
+        inputMode="numeric"
+        maxLength={12}
       />
+      {showPhoneError && (
+        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
+          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+            Please enter a valid 10-digit phone number, or leave this field blank.
+          </span>
+        </div>
+      )}
       <Input
         label="Zip Code"
         value={zipCode}
-        onChange={setZipCode}
+        onChange={handleZipChange}
+        onBlur={() => setZipTouched(true)}
         placeholder="e.g. 95035"
         required
+        inputMode="numeric"
+        maxLength={5}
       />
+      {showZipError && (
+        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
+          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+            Please enter a valid 5-digit ZIP code.
+          </span>
+        </div>
+      )}
       <div style={{ height: 1, background: "#e8ebf0", margin: "24px 0" }} />
       <h3
         style={{
