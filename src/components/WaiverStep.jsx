@@ -10,7 +10,7 @@ export default function WaiverStep({ onAccept, onBack, submitting, error }) {
     <div>
       <div style={{ textAlign: "center", marginBottom: 24 }}>
         <div style={{ display: "inline-block" }}>
-          <Logo size="small" />
+          <Logo size="small" variant="horizontal" />
         </div>
       </div>
 
