@@ -34,7 +34,7 @@ function ConfirmationScreen({ data, onReset }) {
           width: 64,
           height: 64,
           borderRadius: "50%",
-          background: "#e8f5e9",
+          background: "#e8eef7",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -42,31 +42,30 @@ function ConfirmationScreen({ data, onReset }) {
           fontSize: "28px",
         }}
       >
-        ✓
+        →
       </div>
       <h2
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: "14px",
+          fontWeight: 400,
+          color: "#1d2939",
+          margin: "0 0 6px 0",
+        }}
+      >
+        Hi {data.firstName}, you're almost done!
+      </h2>
+      <p
         style={{
           fontFamily: "'Outfit', sans-serif",
           fontSize: "22px",
           fontWeight: 700,
           color: "#1d2939",
-          margin: "0 0 6px 0",
-        }}
-      >
-        You're checked in!
-      </h2>
-      <p
-        style={{
-          fontFamily: "'Outfit', sans-serif",
-          fontSize: "14px",
-          color: "#667085",
           margin: "0 0 20px 0",
-          lineHeight: 1.5,
+          lineHeight: 1.3,
         }}
       >
-        Thanks {data.firstName}! Please head to the check-in desk so a coordinator
-        can review your item{data.items.length > 1 ? "s" : ""} and print your
-        ticket{data.items.length > 1 ? "s" : ""}.
+        Please proceed to the check-in desk to finish registering.
       </p>
       <div
         style={{
