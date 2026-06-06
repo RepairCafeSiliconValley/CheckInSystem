@@ -49,7 +49,7 @@ export async function updateEventMaxItems(id, maxItems) {
 
 // ─── Check-in (atomic via RPC) ───
 
-export async function checkinVisitor(eventId, firstName, lastName, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash) {
+export async function checkinVisitor(eventId, firstName, lastName, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash, newsletterOptIn) {
   const rpcItems = items.map((item, idx) => ({
     item_name: item.name.trim(),
     description: item.description.trim(),
@@ -67,6 +67,7 @@ export async function checkinVisitor(eventId, firstName, lastName, email, phone,
     p_waiver_version: waiverVersion || null,
     p_waiver_text: waiverText || null,
     p_waiver_hash: waiverHash || null,
+    p_newsletter_opt_in: !!newsletterOptIn,
   });
 
   if (error) throw error;
@@ -195,7 +196,7 @@ export async function fetchEventStats(eventId) {
 export async function exportAttendeesCSV(eventId, eventName) {
   const { data, error } = await supabase
     .from("attendees")
-    .select("first_name, last_name, email, phone, zip_code, is_volunteer, created_at")
+    .select("first_name, last_name, email, phone, zip_code, is_volunteer, newsletter_opt_in, created_at")
     .eq("event_id", eventId)
     .order("created_at", { ascending: true });
   if (error) throw error;
@@ -208,7 +209,7 @@ export async function exportAttendeesCSV(eventId, eventName) {
       : s;
   };
 
-  const header = "First Name,Last Name,Email,Phone,Zip Code,Volunteer,Checked In";
+  const header = "First Name,Last Name,Email,Phone,Zip Code,Volunteer,Newsletter,Checked In";
   const rows = data.map((a) =>
     [
       esc(a.first_name),
@@ -217,6 +218,7 @@ export async function exportAttendeesCSV(eventId, eventName) {
       esc(a.phone),
       esc(a.zip_code),
       a.is_volunteer ? "Yes" : "No",
+      a.newsletter_opt_in ? "Yes" : "No",
       new Date(a.created_at).toLocaleString(),
     ].join(",")
   );

@@ -139,6 +139,9 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [email, setEmail] = useState(initialValues?.email || "");
   const [phone, setPhone] = useState(formatPhone((initialValues?.phone || "").replace(/\D/g, "")));
   const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
+  const [newsletterOptIn, setNewsletterOptIn] = useState(
+    initialValues?.newsletterOptIn ?? true
+  );
   const [items, setItems] = useState(
     initialValues?.items || [{ name: "", description: "" }]
   );
@@ -148,6 +151,7 @@ function CheckInForm({ event, onProceed, initialValues }) {
 
   const emailValid = !email.trim() || EMAIL_REGEX.test(email.trim());
   const showEmailError = emailTouched && !emailValid;
+  const hasUsableEmail = !!email.trim() && EMAIL_REGEX.test(email.trim());
 
   const phoneDigits = phone.replace(/\D/g, "");
   const phoneValid = !phone.trim() || PHONE_REGEX.test(phoneDigits);
@@ -192,6 +196,7 @@ function CheckInForm({ event, onProceed, initialValues }) {
       phone: phoneDigits,
       zipCode,
       items,
+      newsletterOptIn: hasUsableEmail && newsletterOptIn,
     });
   };
 
@@ -272,6 +277,42 @@ function CheckInForm({ event, onProceed, initialValues }) {
           </span>
         </div>
       )}
+      <label
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 10,
+          marginTop: -8,
+          marginBottom: 16,
+          cursor: hasUsableEmail ? "pointer" : "not-allowed",
+          opacity: hasUsableEmail ? 1 : 0.5,
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={newsletterOptIn}
+          disabled={!hasUsableEmail}
+          onChange={(e) => setNewsletterOptIn(e.target.checked)}
+          style={{
+            marginTop: 2,
+            width: 18,
+            height: 18,
+            accentColor: "#1e3a6e",
+            cursor: hasUsableEmail ? "pointer" : "not-allowed",
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "14px",
+            color: "#1d2939",
+            lineHeight: 1.4,
+          }}
+        >
+          Subscribe to Repair Café Silicon Valley's newsletter.
+        </span>
+      </label>
       <Input
         label="Cell Phone"
         value={phone}
@@ -379,7 +420,8 @@ export default function CheckIn() {
         formData.items,
         WAIVER_VERSION,
         waiverText,
-        waiverHash
+        waiverHash,
+        formData.newsletterOptIn
       );
       setConfirmData({
         firstName: formData.firstName,
