@@ -18,7 +18,7 @@ function SuccessScreen({ outcome, itemName }) {
   return (
     <div style={{ textAlign: "center" }}>
       <div style={{ display: "inline-block", marginBottom: 24 }}>
-        <Logo size="small" />
+        <Logo size="small" variant="horizontal" />
       </div>
       <div
         style={{
@@ -128,7 +128,7 @@ export default function FixerSubmit() {
       >
         <div style={{ textAlign: "center", maxWidth: 400 }}>
           <div style={{ display: "inline-block", marginBottom: 24 }}>
-            <Logo />
+            <Logo variant="horizontal" />
           </div>
           <Card>
             <div style={{ fontSize: "32px", marginBottom: 12 }}>😕</div>
@@ -180,7 +180,7 @@ export default function FixerSubmit() {
           <>
             <div style={{ textAlign: "center", marginBottom: 28 }}>
               <div style={{ display: "inline-block" }}>
-                <Logo size="small" />
+                <Logo size="small" variant="horizontal" />
               </div>
             </div>
 

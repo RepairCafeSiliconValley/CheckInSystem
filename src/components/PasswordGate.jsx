@@ -27,7 +27,7 @@ export default function PasswordGate({ onUnlock }) {
   return (
     <div style={{ minHeight: "100vh", background: "#f5f6f8", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ maxWidth: 380, width: "100%", textAlign: "center" }}>
-        <div style={{ display: "inline-block", marginBottom: 32 }}><Logo /></div>
+        <div style={{ display: "inline-block", marginBottom: 32 }}><Logo variant="horizontal" /></div>
         <Card style={{ textAlign: "left" }}>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#f0f4f8", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: "22px" }}>🔒</div>

@@ -13,18 +13,28 @@ import {
   computeWaiverHash,
 } from "../lib/constants";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ZIP_REGEX = /^\d{5}$/;
+const PHONE_REGEX = /^\d{10}$/;
+
+function formatPhone(digits) {
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+}
+
 function ConfirmationScreen({ data, onReset }) {
   return (
     <div style={{ textAlign: "center" }}>
       <div style={{ display: "inline-block", marginBottom: 24 }}>
-        <Logo size="small" />
+        <Logo size="small" variant="horizontal" />
       </div>
       <div
         style={{
           width: 64,
           height: 64,
           borderRadius: "50%",
-          background: "#e8f5e9",
+          background: "#e8eef7",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -32,31 +42,30 @@ function ConfirmationScreen({ data, onReset }) {
           fontSize: "28px",
         }}
       >
-        ✓
+        →
       </div>
       <h2
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: "14px",
+          fontWeight: 400,
+          color: "#1d2939",
+          margin: "0 0 6px 0",
+        }}
+      >
+        Hi {data.firstName}, you're almost done!
+      </h2>
+      <p
         style={{
           fontFamily: "'Outfit', sans-serif",
           fontSize: "22px",
           fontWeight: 700,
           color: "#1d2939",
-          margin: "0 0 6px 0",
-        }}
-      >
-        You're checked in!
-      </h2>
-      <p
-        style={{
-          fontFamily: "'Outfit', sans-serif",
-          fontSize: "14px",
-          color: "#667085",
           margin: "0 0 20px 0",
-          lineHeight: 1.5,
+          lineHeight: 1.3,
         }}
       >
-        Thanks {data.firstName}! Please head to the check-in desk so a coordinator
-        can review your item{data.items.length > 1 ? "s" : ""} and print your
-        ticket{data.items.length > 1 ? "s" : ""}.
+        Please proceed to the check-in desk to finish registering.
       </p>
       <div
         style={{
@@ -128,18 +137,45 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [firstName, setFirstName] = useState(initialValues?.firstName || "");
   const [lastName, setLastName] = useState(initialValues?.lastName || "");
   const [email, setEmail] = useState(initialValues?.email || "");
-  const [phone, setPhone] = useState(initialValues?.phone || "");
+  const [phone, setPhone] = useState(formatPhone((initialValues?.phone || "").replace(/\D/g, "")));
   const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
+  const [newsletterOptIn, setNewsletterOptIn] = useState(
+    initialValues?.newsletterOptIn ?? true
+  );
   const [items, setItems] = useState(
     initialValues?.items || [{ name: "", description: "" }]
   );
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [zipTouched, setZipTouched] = useState(false);
+
+  const emailValid = !email.trim() || EMAIL_REGEX.test(email.trim());
+  const showEmailError = emailTouched && !emailValid;
+  const hasUsableEmail = !!email.trim() && EMAIL_REGEX.test(email.trim());
+
+  const phoneDigits = phone.replace(/\D/g, "");
+  const phoneValid = !phone.trim() || PHONE_REGEX.test(phoneDigits);
+  const showPhoneError = phoneTouched && !phoneValid;
+
+  const zipValid = !zipCode.trim() || ZIP_REGEX.test(zipCode.trim());
+  const showZipError = zipTouched && !zipValid;
 
   const canProceed =
     firstName.trim() &&
     lastName.trim() &&
     zipCode.trim() &&
-    (!email.trim() || email.includes("@")) &&
+    zipValid &&
+    emailValid &&
+    phoneValid &&
     items.every((it) => it.name.trim() && it.description.trim());
+
+  const handlePhoneChange = (val) => {
+    const digits = val.replace(/\D/g, "").slice(0, 10);
+    setPhone(formatPhone(digits));
+  };
+  const handleZipChange = (val) => {
+    setZipCode(val.replace(/\D/g, "").slice(0, 5));
+  };
   const maxItems = event.max_items || 2;
   const addItem = () => {
     if (items.length < maxItems)
@@ -153,14 +189,22 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx));
 
   const handleProceed = () => {
-    onProceed({ firstName: firstName.trim(), lastName: lastName.trim(), email, phone, zipCode, items });
+    onProceed({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email,
+      phone: phoneDigits,
+      zipCode,
+      items,
+      newsletterOptIn: hasUsableEmail && newsletterOptIn,
+    });
   };
 
   return (
     <div>
       <div style={{ textAlign: "center", marginBottom: 28 }}>
         <div style={{ display: "inline-block" }}>
-          <Logo />
+          <Logo variant="horizontal" />
         </div>
         <div
           style={{
@@ -222,23 +266,87 @@ function CheckInForm({ event, onProceed, initialValues }) {
         label="Email Address"
         value={email}
         onChange={setEmail}
+        onBlur={() => setEmailTouched(true)}
         placeholder="you@example.com (optional)"
         type="email"
       />
+      {showEmailError && (
+        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
+          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+            Please enter a valid email address, or leave this field blank.
+          </span>
+        </div>
+      )}
+      <label
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 10,
+          marginTop: -8,
+          marginBottom: 16,
+          cursor: hasUsableEmail ? "pointer" : "not-allowed",
+          opacity: hasUsableEmail ? 1 : 0.5,
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={newsletterOptIn}
+          disabled={!hasUsableEmail}
+          onChange={(e) => setNewsletterOptIn(e.target.checked)}
+          style={{
+            marginTop: 2,
+            width: 18,
+            height: 18,
+            accentColor: "#1e3a6e",
+            cursor: hasUsableEmail ? "pointer" : "not-allowed",
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "14px",
+            color: "#1d2939",
+            lineHeight: 1.4,
+          }}
+        >
+          Subscribe to Repair Café Silicon Valley's newsletter.
+        </span>
+      </label>
       <Input
         label="Cell Phone"
         value={phone}
-        onChange={setPhone}
-        placeholder="(555) 123-4567 (optional)"
+        onChange={handlePhoneChange}
+        onBlur={() => setPhoneTouched(true)}
+        placeholder="408-555-0101 (optional)"
         type="tel"
+        inputMode="numeric"
+        maxLength={12}
       />
+      {showPhoneError && (
+        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
+          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+            Please enter a valid 10-digit phone number, or leave this field blank.
+          </span>
+        </div>
+      )}
       <Input
         label="Zip Code"
         value={zipCode}
-        onChange={setZipCode}
+        onChange={handleZipChange}
+        onBlur={() => setZipTouched(true)}
         placeholder="e.g. 95035"
         required
+        inputMode="numeric"
+        maxLength={5}
       />
+      {showZipError && (
+        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
+          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+            Please enter a valid 5-digit ZIP code.
+          </span>
+        </div>
+      )}
       <div style={{ height: 1, background: "#e8ebf0", margin: "24px 0" }} />
       <h3
         style={{
@@ -312,7 +420,8 @@ export default function CheckIn() {
         formData.items,
         WAIVER_VERSION,
         waiverText,
-        waiverHash
+        waiverHash,
+        formData.newsletterOptIn
       );
       setConfirmData({
         firstName: formData.firstName,
@@ -369,7 +478,7 @@ export default function CheckIn() {
       >
         <div style={{ textAlign: "center", maxWidth: 400 }}>
           <div style={{ display: "inline-block", marginBottom: 24 }}>
-            <Logo />
+            <Logo variant="horizontal" />
           </div>
           <Card>
             <div style={{ fontSize: "32px", marginBottom: 12 }}>😕</div>
@@ -415,7 +524,7 @@ export default function CheckIn() {
       >
         <div style={{ textAlign: "center", maxWidth: 400 }}>
           <div style={{ display: "inline-block", marginBottom: 24 }}>
-            <Logo />
+            <Logo variant="horizontal" />
           </div>
           <Card>
             <div style={{ fontSize: "32px", marginBottom: 12 }}>🔒</div>

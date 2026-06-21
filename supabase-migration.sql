@@ -22,6 +22,7 @@ create table attendees (
   email text,
   phone text,
   zip_code text not null default '',
+  newsletter_opt_in boolean not null default false,
   created_at timestamptz default now()
 );
 
@@ -53,7 +54,8 @@ create or replace function checkin_visitor(
   p_zip_code text default '',
   p_waiver_version text default null,
   p_waiver_text text default null,
-  p_waiver_hash text default null
+  p_waiver_hash text default null,
+  p_newsletter_opt_in boolean default false
 ) returns jsonb as $$
 declare
   v_attendee_id uuid;
@@ -79,8 +81,8 @@ begin
   end loop;
 
   -- Insert attendee
-  insert into attendees (event_id, first_name, last_name, email, phone, zip_code)
-  values (p_event_id, p_first_name, p_last_name, p_email, p_phone, p_zip_code)
+  insert into attendees (event_id, first_name, last_name, email, phone, zip_code, newsletter_opt_in)
+  values (p_event_id, p_first_name, p_last_name, p_email, p_phone, p_zip_code, p_newsletter_opt_in)
   returning id into v_attendee_id;
 
   -- Insert waiver acceptance (if waiver data provided)
