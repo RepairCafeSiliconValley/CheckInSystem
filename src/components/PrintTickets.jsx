@@ -133,7 +133,7 @@ export default function PrintTickets({
               }}
             >
               {wo.code}
-              {isVolunteer ? "*" : ""}
+              {isVolunteer ? "V" : ""}
             </div>
           </div>
 
