@@ -548,8 +548,8 @@ export default function CheckIn() {
                 margin: 0,
               }}
             >
-              This event is no longer accepting items for repair. Thank you for
-              your interest!
+              We are not accepting registrations right now. Please check back
+              later or speak with a volunteer for assistance.
             </p>
           </Card>
         </div>

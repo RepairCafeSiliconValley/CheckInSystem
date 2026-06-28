@@ -79,9 +79,10 @@ export default function Landing() {
           </div>
           <Card>
             <div style={{ fontSize: "32px", marginBottom: 12 }}>🛠️</div>
-            <h2 style={headingStyle}>No check-in is active right now</h2>
+            <h2 style={headingStyle}>Check-In Closed</h2>
             <p style={bodyStyle}>
-              Please come back during a Repair Cafe event.
+              We are not accepting registrations right now. Please check back
+              later or speak with a volunteer for assistance.
             </p>
           </Card>
         </div>
@@ -104,8 +105,8 @@ export default function Landing() {
             Choose your event
           </h2>
           <p style={{ ...bodyStyle, marginBottom: 16 }}>
-            More than one Repair Cafe is happening right now. Tap the one you're
-            at to check in.
+            More than one Repair Cafe is happening right now. Select an event to
+            register at.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {events.map((ev) => (
