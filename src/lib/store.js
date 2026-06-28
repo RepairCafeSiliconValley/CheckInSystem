@@ -21,6 +21,16 @@ export async function fetchEventById(id) {
   return data;
 }
 
+export async function fetchOpenEvents() {
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("is_open", true)
+    .order("date", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function createEvent(name, date, location, maxItems = 2) {
   const { data, error } = await supabase
     .from("events")
