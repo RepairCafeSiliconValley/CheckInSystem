@@ -548,8 +548,8 @@ export default function CheckIn() {
                 margin: 0,
               }}
             >
-              This event is no longer accepting items for repair. Thank you for
-              your interest!
+              We are not accepting registrations right now. Please check back
+              later or speak with a volunteer for assistance.
             </p>
           </Card>
         </div>
@@ -599,7 +599,7 @@ export default function CheckIn() {
         )}
       </div>
       {/* <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "12px", textAlign: "center", background: "#f5f6f8" }}>
-        <Link to="/staff" style={{ background: "none", border: "none", fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: "#c0c5ce", cursor: "pointer", padding: "4px 8px", textDecoration: "none" }}>Staff Portal →</Link>
+        <Link to="/admin" style={{ background: "none", border: "none", fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: "#c0c5ce", cursor: "pointer", padding: "4px 8px", textDecoration: "none" }}>Staff Portal →</Link>
       </div> */}
     </div>
   );
