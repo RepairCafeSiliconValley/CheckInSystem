@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
+import TicketCodeBadge, {
+  TICKET_CODE_BADGE_MODE,
+} from "./TicketCodeBadge";
 import { OUTCOMES } from "../lib/constants";
 
 const font = "'Courier New', monospace";
@@ -18,7 +21,6 @@ const valueStyle = {
   fontFamily: font,
   color: "#000",
 };
-
 function formatCheckInTime(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleTimeString([], {
@@ -108,9 +110,8 @@ export default function PrintTickets({
             {formatCheckInTime(wo.created_at) && (
               <div
                 style={{
-                  border: "1px solid #000",
                   padding: "4px 10px",
-                  fontSize: "16px",
+                  fontSize: "18px",
                   fontWeight: 700,
                   fontFamily: font,
                   color: "#000",
@@ -119,32 +120,22 @@ export default function PrintTickets({
                 {formatCheckInTime(wo.created_at)}
               </div>
             )}
-            <div
-              style={{
-                background: "#000",
-                color: "#fff",
-                padding: "4px 12px",
-                fontSize: "18px",
-                fontWeight: 700,
-                fontFamily: font,
-                letterSpacing: "2px",
-                printColorAdjust: "exact",
-                WebkitPrintColorAdjust: "exact",
-              }}
-            >
-              {wo.code}
-              {isVolunteer ? "V" : ""}
-            </div>
+            <TicketCodeBadge
+              code={wo.code}
+              isVolunteer={isVolunteer}
+              mode={TICKET_CODE_BADGE_MODE.FULL}
+            />
           </div>
 
           {/* Category */}
           <div
             style={{
-              fontSize: "13px",
+              fontSize: "15px",
               fontWeight: 700,
               fontFamily: font,
               color: "#000",
               textTransform: "uppercase",
+              textAlign: "center",
               marginBottom: 4,
             }}
           >
@@ -213,17 +204,36 @@ export default function PrintTickets({
           <div style={divider} />
 
           {/* QR code */}
-          <div style={{ textAlign: "center", padding: "8px 0" }}>
-            <QRCodeSVG value={`${baseUrl}/fix/${wo.id}`} size={90} level="M" />
-            <div
-              style={{
-                fontSize: "9px",
-                fontFamily: font,
-                color: "#000",
-                marginTop: 4,
-              }}
-            >
-              Scan to submit outcome
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 12,
+              padding: "8px 0",
+            }}
+          >
+            <TicketCodeBadge
+              code={wo.code}
+              isVolunteer={isVolunteer}
+              mode={TICKET_CODE_BADGE_MODE.COMPACT}
+            />
+            <div style={{ textAlign: "center" }}>
+              <QRCodeSVG
+                value={`${baseUrl}/fix/${wo.id}`}
+                size={90}
+                level="M"
+              />
+              <div
+                style={{
+                  fontSize: "9px",
+                  fontFamily: font,
+                  color: "#000",
+                  marginTop: 4,
+                }}
+              >
+                Scan to submit outcome
+              </div>
             </div>
           </div>
         </div>
