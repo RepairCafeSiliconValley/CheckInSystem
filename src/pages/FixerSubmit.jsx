@@ -4,6 +4,7 @@ import Logo from "../components/Logo";
 import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Input from "../components/Input";
+import Button from "../components/Button";
 import { fetchWorkOrderById, submitFixerOutcome } from "../lib/store";
 import { OUTCOMES } from "../lib/constants";
 
@@ -69,6 +70,7 @@ export default function FixerSubmit() {
   const [fixerName, setFixerName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
+  const [selectedOutcome, setSelectedOutcome] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -78,16 +80,19 @@ export default function FixerSubmit() {
     });
   }, [id]);
 
-  const handleOutcome = async (outcome) => {
-    if (!fixerName.trim()) {
-      setError("Please enter your name.");
-      return;
-    }
+  const handleSelectOutcome = (outcome) => {
+    setSelectedOutcome(outcome);
+    setError(null);
+  };
+
+  const handleSubmit = async () => {
+    // Name + outcome are guaranteed present here — the Submit button stays
+    // disabled until both are set (see its `disabled` prop below).
     setSubmitting(true);
     setError(null);
     try {
-      await submitFixerOutcome(workOrder.id, fixerName, outcome);
-      setSubmitted(outcome);
+      await submitFixerOutcome(workOrder.id, fixerName, selectedOutcome);
+      setSubmitted(selectedOutcome);
     } catch {
       setError("Something went wrong. Please try again.");
       setSubmitting(false);
@@ -162,6 +167,14 @@ export default function FixerSubmit() {
   }
 
   const visitorName = workOrder.client_name || "Visitor";
+
+  // Dynamic hint explaining why the Submit button is disabled.
+  const hasName = fixerName.trim().length > 0;
+  let submitHint = "";
+  if (!hasName && !selectedOutcome)
+    submitHint = "Enter your name and select an outcome to submit.";
+  else if (!hasName) submitHint = "Enter your name to submit.";
+  else if (!selectedOutcome) submitHint = "Select an outcome to submit.";
 
   return (
     <div
@@ -431,7 +444,8 @@ export default function FixerSubmit() {
                       margin: "0 0 8px 0",
                     }}
                   >
-                    Repair Outcome:
+                    Repair Outcome
+                    <span style={{ color: "#e07850" }}> *</span>
                   </p>
                   <div
                     style={{
@@ -440,27 +454,61 @@ export default function FixerSubmit() {
                       gap: 8,
                     }}
                   >
-                    {OUTCOMES.map((o) => (
-                      <button
-                        key={o}
-                        onClick={() => handleOutcome(o)}
-                        disabled={submitting}
+                    {OUTCOMES.map((o) => {
+                      const isSelected = o === selectedOutcome;
+                      return (
+                        <button
+                          key={o}
+                          onClick={() => handleSelectOutcome(o)}
+                          disabled={submitting}
+                          style={{
+                            padding: "14px 12px",
+                            borderRadius: "8px",
+                            border: isSelected
+                              ? "1.5px solid #1e3a6e"
+                              : "1.5px solid #d0d5dd",
+                            background: isSelected ? "#eef2f9" : "#fff",
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "14px",
+                            fontWeight: isSelected ? 600 : 500,
+                            color: submitting
+                              ? "#98a2b3"
+                              : isSelected
+                                ? "#1e3a6e"
+                                : "#475467",
+                            cursor: submitting ? "not-allowed" : "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {OUTCOME_EMOJI[o]} {o}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: 16 }}>
+                    <Button
+                      variant="primary"
+                      onClick={handleSubmit}
+                      disabled={
+                        submitting || !selectedOutcome || !fixerName.trim()
+                      }
+                    >
+                      {submitting ? "Submitting…" : "Submit Outcome"}
+                    </Button>
+                    {!submitting && submitHint && (
+                      <p
                         style={{
-                          padding: "14px 12px",
-                          borderRadius: "8px",
-                          border: "1.5px solid #d0d5dd",
-                          background: "#fff",
                           fontFamily: "'Outfit', sans-serif",
-                          fontSize: "14px",
-                          fontWeight: 500,
-                          color: submitting ? "#98a2b3" : "#475467",
-                          cursor: submitting ? "not-allowed" : "pointer",
-                          transition: "all 0.15s",
+                          fontSize: "12px",
+                          color: "#98a2b3",
+                          textAlign: "center",
+                          margin: "8px 0 0 0",
                         }}
                       >
-                        {OUTCOME_EMOJI[o]} {o}
-                      </button>
-                    ))}
+                        {submitHint}
+                      </p>
+                    )}
                   </div>
 
                   {error && (
