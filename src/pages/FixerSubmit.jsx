@@ -74,6 +74,7 @@ export default function FixerSubmit() {
   useEffect(() => {
     fetchWorkOrderById(id).then((wo) => {
       setWorkOrder(wo);
+      setFixerName(wo?.fixer_name || "");
       setLoading(false);
     });
   }, [id]);
