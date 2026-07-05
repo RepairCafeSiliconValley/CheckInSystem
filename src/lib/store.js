@@ -151,11 +151,12 @@ export async function fetchWorkOrderById(id) {
 
 // ─── Fixer outcome (public, via RPC) ───
 
-export async function submitFixerOutcome(workOrderId, fixerName, outcome) {
+export async function submitFixerOutcome(workOrderId, fixerName, outcome, notFixedReason = null) {
   const { error } = await supabase.rpc("submit_fixer_outcome", {
     p_work_order_id: workOrderId,
     p_fixer_name: fixerName.trim(),
     p_outcome: outcome,
+    p_not_fixed_reason: notFixedReason || null,
   });
   if (error) throw error;
 }
@@ -194,11 +195,11 @@ export async function fetchEventStats(eventId) {
   const fixed = orders.filter((w) => w.outcome === "Fixed").length;
   const diagnosed = orders.filter((w) => w.outcome === "Diagnosed").length;
   const notFixed = orders.filter((w) => w.outcome === "Not Fixed").length;
-  const languished = orders.filter((w) => w.outcome === "Languished").length;
-  const abandoned = orders.filter((w) => w.outcome === "Abandoned").length;
   const takenHome = orders.filter((w) => w.outcome === "Taken Home").length;
+  // Canceled items carry status='canceled' (outcome is null); the reason lives in cancel_reason.
+  const canceled = orders.filter((w) => w.status === "canceled").length;
 
-  return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed, languishedCount: languished, abandonedCount: abandoned, takenHomeCount: takenHome };
+  return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed, takenHomeCount: takenHome, canceledCount: canceled };
 }
 
 // ─── Export ───
