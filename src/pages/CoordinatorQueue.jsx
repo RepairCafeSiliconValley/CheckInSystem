@@ -4,6 +4,7 @@ import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
 import {
   fetchVisitorGroups,
+  fetchQueueGroups,
   fetchEvents,
   subscribeToEvent,
 } from "../lib/store";
@@ -12,6 +13,7 @@ export default function CoordinatorQueue({
   onSelectVisitor,
   selectedEventId,
   onEventChange,
+  hidePII = false,
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -22,13 +24,15 @@ export default function CoordinatorQueue({
   const loadData = useCallback(async () => {
     if (!selectedEventId) return;
     try {
-      const groups = await fetchVisitorGroups(selectedEventId);
+      const groups = hidePII
+        ? await fetchQueueGroups(selectedEventId)
+        : await fetchVisitorGroups(selectedEventId);
       setVisitorGroups(groups);
     } catch (err) {
       console.error("Failed to load queue:", err);
     }
     setLoading(false);
-  }, [selectedEventId]);
+  }, [selectedEventId, hidePII]);
 
   useEffect(() => {
     fetchEvents().then(setEvents);
@@ -55,10 +59,10 @@ export default function CoordinatorQueue({
     if (!q) return matchesFilter;
     const matchesSearch =
       g.attendee?.first_name?.toLowerCase().includes(q) ||
-      g.attendee?.last_name?.toLowerCase().includes(q) ||
-      g.attendee?.email?.toLowerCase().includes(q) ||
-      g.attendee?.phone?.toLowerCase().includes(q) ||
-      g.attendee?.zip_code?.toLowerCase().includes(q) ||
+      (!hidePII && g.attendee?.last_name?.toLowerCase().includes(q)) ||
+      (!hidePII && g.attendee?.email?.toLowerCase().includes(q)) ||
+      (!hidePII && g.attendee?.phone?.toLowerCase().includes(q)) ||
+      (!hidePII && g.attendee?.zip_code?.toLowerCase().includes(q)) ||
       g.orders.some(
         (o) =>
           o.code.toLowerCase().includes(q) ||
@@ -161,7 +165,11 @@ export default function CoordinatorQueue({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, email, phone, code, or item..."
+          placeholder={
+            hidePII
+              ? "Search by name, code, or item..."
+              : "Search by name, email, phone, code, or item..."
+          }
           style={{
             width: "100%",
             padding: "11px 14px",
@@ -243,7 +251,8 @@ export default function CoordinatorQueue({
                     color: "#1d2939",
                   }}
                 >
-                  {g.attendee?.first_name} {g.attendee?.last_name}
+                  {g.attendee?.first_name}{" "}
+                  {hidePII ? g.attendee?.last_initial : g.attendee?.last_name}
                 </span>
                 {g.attendee?.is_volunteer && (
                   <span
@@ -261,18 +270,20 @@ export default function CoordinatorQueue({
                   </span>
                 )}
               </div>
-              <div
-                style={{
-                  fontFamily: "'Outfit', sans-serif",
-                  fontSize: "12px",
-                  color: "#98a2b3",
-                  marginTop: 1,
-                }}
-              >
-                {[g.attendee?.email, g.attendee?.phone, g.attendee?.zip_code]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </div>
+              {!hidePII && (
+                <div
+                  style={{
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: "12px",
+                    color: "#98a2b3",
+                    marginTop: 1,
+                  }}
+                >
+                  {[g.attendee?.email, g.attendee?.phone, g.attendee?.zip_code]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
+              )}
             </div>
           </div>
           {g.orders.map((o) => (

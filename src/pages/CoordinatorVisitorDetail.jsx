@@ -9,6 +9,7 @@ import StatusBadge from "../components/StatusBadge";
 import { CATEGORIES, OUTCOMES, STAFF_ONLY_OUTCOMES } from "../lib/constants";
 import {
   fetchVisitorDetail,
+  fetchQueueVisitorDetail,
   updateAttendee,
   updateWorkOrder,
 } from "../lib/store";
@@ -17,6 +18,7 @@ export default function CoordinatorVisitorDetail({
   attendeeId,
   onBack,
   onPrint,
+  hidePII = false,
 }) {
   const [attendee, setAttendee] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -57,12 +59,13 @@ export default function CoordinatorVisitorDetail({
 
   const loadData = async () => {
     try {
-      const { attendee: att, orders: wo } =
-        await fetchVisitorDetail(attendeeId);
+      const { attendee: att, orders: wo } = hidePII
+        ? await fetchQueueVisitorDetail(attendeeId)
+        : await fetchVisitorDetail(attendeeId);
       setAttendee(att);
       setOrders(wo);
-      setAttFirstName(att.first_name);
-      setAttLastName(att.last_name);
+      setAttFirstName(att.first_name || "");
+      setAttLastName(att.last_name || "");
       setAttEmail(att.email || "");
       setAttPhone(att.phone || "");
       setAttZipCode(att.zip_code || "");
@@ -119,8 +122,10 @@ export default function CoordinatorVisitorDetail({
     }));
   };
 
-  // Save only attendee fields (on blur of any attendee text input)
+  // Save only attendee fields (on blur of any attendee text input).
+  // The queue role can't edit attendee PII (blocked by RLS), so this is a no-op there.
   const saveAttendee = async () => {
+    if (hidePII) return;
     try {
       await updateAttendee(attendeeId, {
         first_name: attFirstNameRef.current.trim(),
@@ -152,16 +157,19 @@ export default function CoordinatorVisitorDetail({
     }
   };
 
-  // Save everything — used by Approve & Print and back navigation
+  // Save everything — used by Approve & Print and back navigation.
+  // Attendee PII is skipped for the queue role (RLS blocks it); work orders only.
   const saveAll = async () => {
     try {
-      await updateAttendee(attendeeId, {
-        first_name: attFirstNameRef.current.trim(),
-        last_name: attLastNameRef.current.trim(),
-        email: attEmailRef.current.trim() || null,
-        phone: attPhoneRef.current.trim() || null,
-        zip_code: attZipCodeRef.current.trim(),
-      });
+      if (!hidePII) {
+        await updateAttendee(attendeeId, {
+          first_name: attFirstNameRef.current.trim(),
+          last_name: attLastNameRef.current.trim(),
+          email: attEmailRef.current.trim() || null,
+          phone: attPhoneRef.current.trim() || null,
+          zip_code: attZipCodeRef.current.trim(),
+        });
+      }
       for (const wo of ordersRef.current) {
         const e = itemEditsRef.current[wo.id];
         if (e) {
@@ -275,6 +283,39 @@ export default function CoordinatorVisitorDetail({
         >
           Client
         </h3>
+        {hidePII ? (
+          <div
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "18px",
+              fontWeight: 700,
+              color: "#1d2939",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span>
+              {attendee.first_name} {attendee.last_initial}
+            </span>
+            {attendee.is_volunteer && (
+              <span
+                style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "#1e3a6e",
+                  background: "#e8f0fe",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                }}
+              >
+                VOL
+              </span>
+            )}
+          </div>
+        ) : (
+          <>
         <Input
           label="First Name"
           value={attFirstName}
@@ -364,6 +405,8 @@ export default function CoordinatorVisitorDetail({
             </span>
           )}
         </div>
+          </>
+        )}
       </Card>
 
       {/* Each item */}

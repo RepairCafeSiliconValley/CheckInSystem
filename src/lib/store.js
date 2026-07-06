@@ -122,6 +122,63 @@ export async function fetchVisitorGroups(eventId) {
     .sort((a, b) => b.latestCreatedAt - a.latestCreatedAt);
 }
 
+// ─── PII-free queue data (front-desk / queue route) ───
+// Attendee names come from the get_queue_* RPCs, which return only
+// first_name + last_initial (surname abbreviated in SQL). No email/phone/zip
+// ever reaches the client. Work orders carry no attendee PII, so they're read
+// directly. Grouping mirrors fetchVisitorGroups.
+
+export async function fetchQueueGroups(eventId) {
+  const [attendeesRes, ordersRes] = await Promise.all([
+    supabase.rpc("get_queue_attendees", { p_event_id: eventId }),
+    supabase
+      .from("work_orders")
+      .select("*")
+      .eq("event_id", eventId)
+      .order("priority", { ascending: true }),
+  ]);
+
+  if (attendeesRes.error) throw attendeesRes.error;
+  if (ordersRes.error) throw ordersRes.error;
+
+  const attendees = attendeesRes.data;
+  const orders = ordersRes.data;
+
+  const grouped = {};
+  orders.forEach((wo) => {
+    if (!grouped[wo.attendee_id]) {
+      const att = attendees.find((a) => a.id === wo.attendee_id);
+      grouped[wo.attendee_id] = { attendee: att, orders: [] };
+    }
+    grouped[wo.attendee_id].orders.push(wo);
+  });
+
+  return Object.values(grouped)
+    .map((g) => ({
+      ...g,
+      latestCreatedAt: Math.max(
+        ...g.orders.map((o) => new Date(o.created_at).getTime())
+      ),
+    }))
+    .sort((a, b) => b.latestCreatedAt - a.latestCreatedAt);
+}
+
+export async function fetchQueueVisitorDetail(attendeeId) {
+  const [attRes, ordersRes] = await Promise.all([
+    supabase.rpc("get_queue_attendee", { p_id: attendeeId }).maybeSingle(),
+    supabase
+      .from("work_orders")
+      .select("*")
+      .eq("attendee_id", attendeeId)
+      .order("priority", { ascending: true }),
+  ]);
+
+  if (attRes.error) throw attRes.error;
+  if (ordersRes.error) throw ordersRes.error;
+
+  return { attendee: attRes.data, orders: ordersRes.data };
+}
+
 // ─── Single visitor data ───
 
 export async function fetchVisitorDetail(attendeeId) {
@@ -276,9 +333,15 @@ export function subscribeToEvent(eventId, onUpdate) {
 
 // ─── Auth ───
 
-export async function signIn(password) {
+// Two shared staff accounts, distinguished by email. RLS policies grant PII /
+// admin access to ADMIN_EMAIL only; QUEUE_EMAIL is limited to the PII-free
+// queue RPCs (get_queue_attendees / get_queue_attendee).
+export const ADMIN_EMAIL = "admin@repaircafe.app";
+export const QUEUE_EMAIL = "queue@repaircafe.app";
+
+export async function signIn(password, email = ADMIN_EMAIL) {
   const { error } = await supabase.auth.signInWithPassword({
-    email: "admin@repaircafe.app",
+    email,
     password,
   });
   return !error;
