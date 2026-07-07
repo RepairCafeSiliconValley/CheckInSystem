@@ -120,9 +120,9 @@ export default function PrintTickets({
               </div>
             )}
             <TicketCodeBadge
-              code={wo.code}
+              code={wo.priority}
               isVolunteer={isVolunteer}
-              mode={TICKET_CODE_BADGE_MODE.FULL}
+              mode={TICKET_CODE_BADGE_MODE.PRIORITY}
             />
           </div>
 
