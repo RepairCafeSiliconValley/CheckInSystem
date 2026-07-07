@@ -4,7 +4,6 @@ import Button from "./Button";
 import TicketCodeBadge, {
   TICKET_CODE_BADGE_MODE,
 } from "./TicketCodeBadge";
-import { OUTCOMES } from "../lib/constants";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -166,62 +165,61 @@ export default function PrintTickets({
 
           <div style={divider} />
 
-          {/* Outcome checkboxes */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={labelStyle}>OUTCOME</div>
-            <div style={{ marginTop: 4 }}>
-              {OUTCOMES.map((o) => (
-                <div
-                  key={o}
-                  style={{
-                    fontSize: "13px",
-                    fontFamily: font,
-                    color: "#000",
-                    padding: "4px 0",
-                  }}
-                >
-                  [ ] {o}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Fixer name */}
-          <div style={{ marginBottom: 4 }}>
-            <span style={labelStyle}>FIXER: </span>
-            <span
-              style={{
-                borderBottom: "1px solid #000",
-                display: "inline-block",
-                width: "70%",
-                verticalAlign: "middle",
-              }}
-            >
-              &nbsp;
-            </span>
-          </div>
-
-          <div style={divider} />
-
-          {/* QR code */}
           <div
             style={{
               display: "flex",
-              justifyContent: "center",
+              justifyContent: "space-between",
               alignItems: "center",
-              gap: 12,
               padding: "8px 0",
             }}
           >
-            <TicketCodeBadge
-              code={wo.code}
-              isVolunteer={isVolunteer}
-              mode={TICKET_CODE_BADGE_MODE.COMPACT}
-            />
-            <div style={{ textAlign: "center" }}>
+            <div
+              style={{
+                width: 92,
+              }}
+            >
+              <div
+                style={{
+                  width: 88,
+                  height: 88,
+                  border: "1px dashed #000",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div
+                style={{
+                  display: "inline-block",
+                  height: 20,
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                minWidth: 92,
+              }}
+            >
+              <TicketCodeBadge
+                code={wo.code}
+                isVolunteer={isVolunteer}
+                mode={TICKET_CODE_BADGE_MODE.COMPACT}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                width: 92,
+              }}
+            >
               <QRCodeSVG
                 value={`${baseUrl}/fix/${wo.id}`}
-                size={90}
+                size={88}
                 level="M"
               />
               <div
@@ -230,6 +228,7 @@ export default function PrintTickets({
                   fontFamily: font,
                   color: "#000",
                   marginTop: 4,
+                  textAlign: "center",
                 }}
               >
                 Scan to submit outcome
