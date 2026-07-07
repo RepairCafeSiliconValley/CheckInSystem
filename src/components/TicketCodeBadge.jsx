@@ -2,7 +2,6 @@ const font = "'Courier New', monospace";
 
 export const TICKET_CODE_BADGE_MODE = Object.freeze({
   COMPACT: "compact",
-  FULL: "full",
   PRIORITY: "priority",
 });
 
@@ -14,21 +13,20 @@ const TICKET_CODE_BADGE_COLOR_THEME = Object.freeze({
 export default function TicketCodeBadge({
   code,
   isVolunteer,
-  mode = TICKET_CODE_BADGE_MODE.FULL,
+  mode = TICKET_CODE_BADGE_MODE.COMPACT,
 }) {
   const isPriorityMode = mode === TICKET_CODE_BADGE_MODE.PRIORITY;
   const colorTheme =
-    mode === TICKET_CODE_BADGE_MODE.FULL ||
     isPriorityMode
       ? TICKET_CODE_BADGE_COLOR_THEME.DARK_ON_LIGHT
       : TICKET_CODE_BADGE_COLOR_THEME.LIGHT_ON_DARK;
-  const showVolunteerFlag =
-    (mode === TICKET_CODE_BADGE_MODE.FULL || isPriorityMode) && isVolunteer;
+  const showVolunteerFlag = isPriorityMode && isVolunteer;
   const isDarkOnLight =
     colorTheme === TICKET_CODE_BADGE_COLOR_THEME.DARK_ON_LIGHT;
   const backgroundColor = isDarkOnLight ? "#fff" : "#000";
   const color = isDarkOnLight ? "#000" : "#fff";
   const displayCode = isPriorityMode ? `#${code}` : code;
+  const topMarginOffset = isPriorityMode ? `0px` : `-20px`;
 
   return (
     <div
@@ -44,6 +42,7 @@ export default function TicketCodeBadge({
         minWidth: isPriorityMode ? 56 : undefined,
         printColorAdjust: "exact",
         WebkitPrintColorAdjust: "exact",
+        marginTop: topMarginOffset,
       }}
     >
       {displayCode}

@@ -35,7 +35,7 @@ export default function PrintTickets({
   onClose,
 }) {
   const baseUrl = window.location.origin;
-  const divider = { borderTop: "1px dashed #000", margin: "10px 0" };
+  const divider = { borderTop: "1px solid #000", margin: "10px 0" };
 
   const handlePrint = useCallback(() => {
     setTimeout(() => window.print(), 50);
@@ -125,6 +125,7 @@ export default function PrintTickets({
               mode={TICKET_CODE_BADGE_MODE.PRIORITY}
             />
           </div>
+          <div style={divider} />
 
           {/* Category */}
           <div
