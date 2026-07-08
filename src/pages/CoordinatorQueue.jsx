@@ -75,13 +75,15 @@ export default function CoordinatorQueue({
       (o) => o.status === "pending_assignment",
     ).length,
     completed: allOrders.filter((o) => o.status === "completed").length,
+    canceled: allOrders.filter((o) => o.status === "canceled").length,
   };
 
   const filterButtons = [
     { key: "all", label: "All" },
     { key: "pending", label: "Pending" },
     { key: "pending_assignment", label: "Waiting" },
-    { key: "completed", label: "Done" },
+    { key: "completed", label: "Completed" },
+    { key: "canceled", label: "Canceled" },
   ];
 
   if (loading) {
@@ -318,11 +320,7 @@ export default function CoordinatorQueue({
                   style={{
                     fontFamily: "'Outfit', sans-serif",
                     fontSize: "11px",
-                    color: ["Languished", "Abandoned", "Taken Home"].includes(
-                      o.outcome,
-                    )
-                      ? "#98a2b3"
-                      : "#2e7d32",
+                    color: o.outcome === "Taken Home" ? "#98a2b3" : "#2e7d32",
                     fontWeight: 600,
                   }}
                 >

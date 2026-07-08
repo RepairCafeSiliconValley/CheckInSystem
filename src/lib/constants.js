@@ -11,9 +11,29 @@ export const CATEGORIES = [
   "Other",
 ];
 
+// Recording an outcome always moves a work order to status='completed'.
 export const OUTCOMES = ["Fixed", "Diagnosed", "Not Fixed", "Taken Home"];
-export const STAFF_ONLY_OUTCOMES = ["Languished", "Abandoned"];
-export const ALL_OUTCOMES = [...OUTCOMES, ...STAFF_ONLY_OUTCOMES];
+
+// Canceling (status='canceled', outcome stays NULL) records one of these reasons.
+// Staff-only; a coordinator can cancel at any point before an outcome is recorded.
+export const CANCEL_REASONS = [
+  "Disallowed Item",
+  "Registration Closed",
+  "Mistake",
+  "Never Checked In",
+  "No Show",
+  "Languished",
+];
+
+// When the outcome is "Not Fixed", one of these is stored in not_fixed_reason.
+export const NOT_FIXED_REASONS = [
+  "Spare parts not available",
+  "Spare parts too expensive",
+  "No way to open product",
+  "Repair information not available",
+  "Lack of equipment",
+  "Item too worn out",
+];
 
 // ─── Waiver ───
 // IMPORTANT: When changing WAIVER_SECTIONS text below, you MUST bump
