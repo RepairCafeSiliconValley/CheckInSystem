@@ -71,6 +71,10 @@ alter function public.submit_fixer_outcome(uuid, text, text, text)
 -- ─── 4. Replace get_fixer_work_order to return not_fixed_reason ───
 -- Lets the public /fix/ "Already Completed" screen show why an item wasn't
 -- fixed. No cancel_reason exposed — the canceled screen uses only status.
+-- Adding a column to RETURNS TABLE changes the return type, so CREATE OR REPLACE
+-- can't do it in place — drop the old function first.
+drop function if exists get_fixer_work_order(uuid);
+
 create or replace function get_fixer_work_order(p_id uuid)
 returns table (
   id uuid,
