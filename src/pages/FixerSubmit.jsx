@@ -363,8 +363,9 @@ export default function FixerSubmit() {
               </Card>
             )}
 
-            {/* Form — reviewed or in-progress */}
-            {workOrder.status === "pending_assignment" && (
+            {/* Form — waiting for a fixer, or already claimed (With Fixer) */}
+            {(workOrder.status === "pending_assignment" ||
+              workOrder.status === "assigned") && (
               <>
                 <h2
                   style={{

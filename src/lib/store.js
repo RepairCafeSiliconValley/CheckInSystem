@@ -161,6 +161,19 @@ export async function submitFixerOutcome(workOrderId, fixerName, outcome, notFix
   if (error) throw error;
 }
 
+// ─── Claim + notify (public, via Edge Function) ───
+// A fixer takes the ticket off the board: sets the work order to 'assigned'
+// (With Fixer), records the fixer name, and best-effort texts the client via
+// Twilio. The Edge Function holds the Twilio secret and reads the phone
+// server-side — the browser never sees it. Returns { ok, status, texted, reason }.
+export async function claimAndNotify(workOrderId, fixerName) {
+  const { data, error } = await supabase.functions.invoke("claim-and-notify", {
+    body: { work_order_id: workOrderId, fixer_name: fixerName.trim() },
+  });
+  if (error) throw error;
+  return data;
+}
+
 // ─── Updates ───
 
 export async function updateAttendee(id, updates) {

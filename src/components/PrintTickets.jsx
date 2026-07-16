@@ -176,23 +176,28 @@ export default function PrintTickets({
           >
             <div
               style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
                 width: 92,
               }}
             >
-              <div
-                style={{
-                  width: 88,
-                  height: 88,
-                  border: "1px dashed #000",
-                  boxSizing: "border-box",
-                }}
+              <QRCodeSVG
+                value={`${baseUrl}/claim/${wo.id}`}
+                size={88}
+                level="M"
               />
               <div
                 style={{
-                  display: "inline-block",
-                  height: 20,
+                  fontSize: "9px",
+                  fontFamily: font,
+                  color: "#000",
+                  marginTop: 4,
+                  textAlign: "center",
                 }}
-              />
+              >
+                Scan to start / call client
+              </div>
             </div>
 
             <div
