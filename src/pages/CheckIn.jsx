@@ -393,6 +393,57 @@ function CheckInForm({ event, onProceed, initialValues }) {
   );
 }
 
+const deadEndBodyStyle = {
+  fontFamily: "'Outfit', sans-serif",
+  fontSize: "14px",
+  color: "#667085",
+  lineHeight: 1.5,
+  margin: 0,
+};
+
+const deadEndLinkStyle = {
+  fontFamily: "'Outfit', sans-serif",
+  fontWeight: 600,
+  color: "#1e3a6e",
+  textDecoration: "none",
+};
+
+function DeadEndCard({ emoji, title, children }) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f6f8",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div style={{ textAlign: "center", maxWidth: 400 }}>
+        <div style={{ display: "inline-block", marginBottom: 24 }}>
+          <Logo variant="horizontal" />
+        </div>
+        <Card>
+          <div style={{ fontSize: "32px", marginBottom: 12 }}>{emoji}</div>
+          <h2
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "18px",
+              fontWeight: 700,
+              color: "#1d2939",
+              margin: "0 0 8px 0",
+            }}
+          >
+            {title}
+          </h2>
+          {children}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export default function CheckIn() {
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get("event");
@@ -466,94 +517,32 @@ export default function CheckIn() {
 
   if (!event) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#f5f6f8",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-        }}
-      >
-        <div style={{ textAlign: "center", maxWidth: 400 }}>
-          <div style={{ display: "inline-block", marginBottom: 24 }}>
-            <Logo variant="horizontal" />
-          </div>
-          <Card>
-            <div style={{ fontSize: "32px", marginBottom: 12 }}>😕</div>
-            <h2
-              style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "18px",
-                fontWeight: 700,
-                color: "#1d2939",
-                margin: "0 0 8px 0",
-              }}
-            >
-              Invalid Check-In Link
-            </h2>
-            <p
-              style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "14px",
-                color: "#667085",
-                lineHeight: 1.5,
-                margin: 0,
-              }}
-            >
-              This check-in link isn't valid — ask a volunteer for help.
-            </p>
-          </Card>
-        </div>
-      </div>
+      <DeadEndCard emoji="😕" title="Invalid Check-In Link">
+        <p style={deadEndBodyStyle}>
+          This check-in link isn't valid — ask a volunteer for help, or{" "}
+          <Link to="/" style={deadEndLinkStyle}>
+            find another event here
+          </Link>
+          .
+        </p>
+      </DeadEndCard>
     );
   }
 
   if (!event.is_open) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#f5f6f8",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-        }}
-      >
-        <div style={{ textAlign: "center", maxWidth: 400 }}>
-          <div style={{ display: "inline-block", marginBottom: 24 }}>
-            <Logo variant="horizontal" />
-          </div>
-          <Card>
-            <div style={{ fontSize: "32px", marginBottom: 12 }}>🔒</div>
-            <h2
-              style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "18px",
-                fontWeight: 700,
-                color: "#1d2939",
-                margin: "0 0 8px 0",
-              }}
-            >
-              Check-In Closed
-            </h2>
-            <p
-              style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "14px",
-                color: "#667085",
-                lineHeight: 1.5,
-                margin: 0,
-              }}
-            >
-              We are not accepting registrations right now. Please check back
-              later or speak with a volunteer for assistance.
-            </p>
-          </Card>
-        </div>
-      </div>
+      <DeadEndCard emoji="🔒" title={`${event.name} — Check-In Closed`}>
+        <p style={deadEndBodyStyle}>
+          We're not accepting registrations for this event right now. Please
+          check back later or speak with a volunteer for assistance.
+        </p>
+        <p style={{ ...deadEndBodyStyle, marginTop: 16 }}>
+          Looking for a different event?{" "}
+          <Link to="/" style={deadEndLinkStyle}>
+            Click here
+          </Link>
+        </p>
+      </DeadEndCard>
     );
   }
 

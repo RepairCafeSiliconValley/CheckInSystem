@@ -4,8 +4,9 @@ import Logo from "../components/Logo";
 import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Input from "../components/Input";
+import Button from "../components/Button";
 import { fetchWorkOrderById, submitFixerOutcome } from "../lib/store";
-import { OUTCOMES } from "../lib/constants";
+import { OUTCOMES, NOT_FIXED_REASONS } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
   Fixed: "✅",
@@ -69,25 +70,38 @@ export default function FixerSubmit() {
   const [fixerName, setFixerName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
+  const [selectedOutcome, setSelectedOutcome] = useState(null);
+  const [notFixedReason, setNotFixedReason] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchWorkOrderById(id).then((wo) => {
       setWorkOrder(wo);
+      setFixerName(wo?.fixer_name || "");
       setLoading(false);
     });
   }, [id]);
 
-  const handleOutcome = async (outcome) => {
-    if (!fixerName.trim()) {
-      setError("Please enter your name.");
-      return;
-    }
+  const handleSelectOutcome = (outcome) => {
+    setSelectedOutcome(outcome);
+    // Clear any not-fixed reason when switching to a different outcome.
+    if (outcome !== "Not Fixed") setNotFixedReason(null);
+    setError(null);
+  };
+
+  const handleSubmit = async () => {
+    // Name + outcome (+ reason when Not Fixed) are guaranteed present here — the
+    // Submit button stays disabled until they're set (see its `disabled` prop below).
     setSubmitting(true);
     setError(null);
     try {
-      await submitFixerOutcome(workOrder.id, fixerName, outcome);
-      setSubmitted(outcome);
+      await submitFixerOutcome(
+        workOrder.id,
+        fixerName,
+        selectedOutcome,
+        selectedOutcome === "Not Fixed" ? notFixedReason : null,
+      );
+      setSubmitted(selectedOutcome);
     } catch {
       setError("Something went wrong. Please try again.");
       setSubmitting(false);
@@ -162,6 +176,20 @@ export default function FixerSubmit() {
   }
 
   const visitorName = workOrder.client_name || "Visitor";
+
+  // Not Fixed additionally requires a reason before submitting.
+  const needsNotFixedReason =
+    selectedOutcome === "Not Fixed" && !notFixedReason;
+
+  // Dynamic hint explaining why the Submit button is disabled.
+  const hasName = fixerName.trim().length > 0;
+  let submitHint = "";
+  if (!hasName && !selectedOutcome)
+    submitHint = "Enter your name and select an outcome to submit.";
+  else if (!hasName) submitHint = "Enter your name to submit.";
+  else if (!selectedOutcome) submitHint = "Select an outcome to submit.";
+  else if (needsNotFixedReason)
+    submitHint = "Select a reason it wasn't fixed to submit.";
 
   return (
     <div
@@ -279,7 +307,59 @@ export default function FixerSubmit() {
                       by {workOrder.fixer_name}
                     </span>
                   )}
+                  {workOrder.not_fixed_reason && (
+                    <div
+                      style={{
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: "12px",
+                        color: "#667085",
+                        marginTop: 4,
+                      }}
+                    >
+                      Reason: {workOrder.not_fixed_reason}
+                    </div>
+                  )}
                 </div>
+              </Card>
+            )}
+
+            {/* Canceled — no repair work to do */}
+            {workOrder.status === "canceled" && (
+              <Card>
+                <div
+                  style={{
+                    fontSize: "32px",
+                    marginBottom: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  🚫
+                </div>
+                <h2
+                  style={{
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: "18px",
+                    fontWeight: 700,
+                    color: "#1d2939",
+                    margin: "0 0 8px 0",
+                    textAlign: "center",
+                  }}
+                >
+                  Item Canceled
+                </h2>
+                <p
+                  style={{
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: "14px",
+                    color: "#667085",
+                    lineHeight: 1.5,
+                    margin: 0,
+                    textAlign: "center",
+                  }}
+                >
+                  This item was canceled — there's nothing to do here. Please
+                  check with the coordinator.
+                </p>
               </Card>
             )}
 
@@ -431,7 +511,8 @@ export default function FixerSubmit() {
                       margin: "0 0 8px 0",
                     }}
                   >
-                    Repair Outcome:
+                    Repair Outcome
+                    <span style={{ color: "#e07850" }}> *</span>
                   </p>
                   <div
                     style={{
@@ -440,27 +521,119 @@ export default function FixerSubmit() {
                       gap: 8,
                     }}
                   >
-                    {OUTCOMES.map((o) => (
-                      <button
-                        key={o}
-                        onClick={() => handleOutcome(o)}
-                        disabled={submitting}
+                    {OUTCOMES.map((o) => {
+                      const isSelected = o === selectedOutcome;
+                      return (
+                        <button
+                          key={o}
+                          onClick={() => handleSelectOutcome(o)}
+                          disabled={submitting}
+                          style={{
+                            padding: "14px 12px",
+                            borderRadius: "8px",
+                            border: isSelected
+                              ? "1.5px solid #1e3a6e"
+                              : "1.5px solid #d0d5dd",
+                            background: isSelected ? "#eef2f9" : "#fff",
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "14px",
+                            fontWeight: isSelected ? 600 : 500,
+                            color: submitting
+                              ? "#98a2b3"
+                              : isSelected
+                                ? "#1e3a6e"
+                                : "#475467",
+                            cursor: submitting ? "not-allowed" : "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {OUTCOME_EMOJI[o]} {o}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Not-Fixed reason — required when "Not Fixed" is selected */}
+                  {selectedOutcome === "Not Fixed" && (
+                    <div style={{ marginTop: 12 }}>
+                      <p
                         style={{
-                          padding: "14px 12px",
-                          borderRadius: "8px",
-                          border: "1.5px solid #d0d5dd",
-                          background: "#fff",
-                          fontFamily: "'Outfit', sans-serif",
-                          fontSize: "14px",
-                          fontWeight: 500,
-                          color: submitting ? "#98a2b3" : "#475467",
-                          cursor: submitting ? "not-allowed" : "pointer",
-                          transition: "all 0.15s",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          color: "#344054",
+                          margin: "0 0 8px 0",
                         }}
                       >
-                        {OUTCOME_EMOJI[o]} {o}
-                      </button>
-                    ))}
+                        Why wasn't it fixed?
+                        <span style={{ color: "#e07850" }}> *</span>
+                      </p>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: 8,
+                        }}
+                      >
+                        {NOT_FIXED_REASONS.map((r) => {
+                          const isSelected = r === notFixedReason;
+                          return (
+                            <button
+                              key={r}
+                              onClick={() => setNotFixedReason(r)}
+                              disabled={submitting}
+                              style={{
+                                padding: "10px 12px",
+                                borderRadius: "8px",
+                                border: isSelected
+                                  ? "1.5px solid #1e3a6e"
+                                  : "1.5px solid #d0d5dd",
+                                background: isSelected ? "#eef2f9" : "#fff",
+                                fontFamily: "'Outfit', sans-serif",
+                                fontSize: "13px",
+                                fontWeight: isSelected ? 600 : 500,
+                                color: submitting
+                                  ? "#98a2b3"
+                                  : isSelected
+                                    ? "#1e3a6e"
+                                    : "#475467",
+                                cursor: submitting ? "not-allowed" : "pointer",
+                                transition: "all 0.15s",
+                              }}
+                            >
+                              {r}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 16 }}>
+                    <Button
+                      variant="primary"
+                      onClick={handleSubmit}
+                      disabled={
+                        submitting ||
+                        !selectedOutcome ||
+                        !fixerName.trim() ||
+                        needsNotFixedReason
+                      }
+                    >
+                      {submitting ? "Submitting…" : "Submit Outcome"}
+                    </Button>
+                    {!submitting && submitHint && (
+                      <p
+                        style={{
+                          fontFamily: "'Outfit', sans-serif",
+                          fontSize: "12px",
+                          color: "#98a2b3",
+                          textAlign: "center",
+                          margin: "8px 0 0 0",
+                        }}
+                      >
+                        {submitHint}
+                      </p>
+                    )}
                   </div>
 
                   {error && (

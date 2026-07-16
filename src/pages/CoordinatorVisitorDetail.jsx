@@ -6,7 +6,7 @@ import TextArea from "../components/TextArea";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
-import { CATEGORIES, OUTCOMES, STAFF_ONLY_OUTCOMES } from "../lib/constants";
+import { CATEGORIES, OUTCOMES, CANCEL_REASONS, NOT_FIXED_REASONS } from "../lib/constants";
 import {
   fetchVisitorDetail,
   updateAttendee,
@@ -32,6 +32,10 @@ export default function CoordinatorVisitorDetail({
 
   // Editable item fields — keyed by work order id
   const [itemEdits, setItemEdits] = useState({});
+
+  // Which work order (if any) is showing the cancel-reason / not-fixed-reason picker
+  const [cancelingId, setCancelingId] = useState(null);
+  const [notFixingId, setNotFixingId] = useState(null);
 
   // Refs to always have latest values in async callbacks without stale closures
   const attFirstNameRef = useRef("");
@@ -187,11 +191,13 @@ export default function CoordinatorVisitorDetail({
   const hasPendingAssignment = orders.some(
     (o) => o.status === "pending_assignment",
   );
-  const allCategoriesAssigned = orders.every(
-    (o) =>
-      (itemEdits[o.id]?.category || o.category) &&
-      (itemEdits[o.id]?.category || o.category) !== "",
-  );
+  const allCategoriesAssigned = orders
+    .filter((o) => o.status === "pending")
+    .every(
+      (o) =>
+        (itemEdits[o.id]?.category || o.category) &&
+        (itemEdits[o.id]?.category || o.category) !== "",
+    );
 
   const approveAndPrint = async () => {
     await saveAll();
@@ -211,23 +217,43 @@ export default function CoordinatorVisitorDetail({
     onPrint(attendeeId);
   };
 
-  const setOrderOutcome = async (woId, outcome) => {
+  const setOrderOutcome = async (woId, outcome, notFixedReason = null) => {
     const e = itemEdits[woId];
     const updates = {
       outcome,
+      not_fixed_reason: notFixedReason,
       status: "completed",
       completed_at: new Date().toISOString(),
     };
     if (e?.fixer_name?.trim()) updates.fixer_name = e.fixer_name.trim();
     await updateWorkOrder(woId, updates);
+    setNotFixingId(null);
     await loadData();
   };
 
-  const editOutcome = async (woId) => {
+  // Cancel is available at any point before an outcome is recorded (pending or
+  // pending_assignment). Canceled rows keep outcome=null; the why lives in cancel_reason.
+  const cancelOrder = async (woId, reason) => {
     await updateWorkOrder(woId, {
-      status: "pending_assignment",
+      status: "canceled",
+      outcome: null,
+      cancel_reason: reason,
+      completed_at: new Date().toISOString(),
+    });
+    setCancelingId(null);
+    await loadData();
+  };
+
+  // Revert a completed OR canceled item back into the active flow. Items canceled
+  // before their ticket was printed (no printed_at) go back to 'pending'.
+  const editOutcome = async (woId) => {
+    const wo = orders.find((o) => o.id === woId);
+    await updateWorkOrder(woId, {
+      status: wo?.printed_at ? "pending_assignment" : "pending",
       fixer_name: "",
       outcome: null,
+      cancel_reason: null,
+      not_fixed_reason: null,
       completed_at: null,
     });
     await loadData();
@@ -441,8 +467,8 @@ export default function CoordinatorVisitorDetail({
               </>
             )}
 
-            {/* Read-only summary for completed */}
-            {wo.status === "completed" && (
+            {/* Read-only summary for completed / canceled */}
+            {(wo.status === "completed" || wo.status === "canceled") && (
               <div style={{ marginBottom: 12 }}>
                 <div
                   style={{
@@ -455,7 +481,7 @@ export default function CoordinatorVisitorDetail({
                 >
                   {wo.item_name}
                 </div>
-                <Badge text={wo.category} />
+                {wo.category && <Badge text={wo.category} />}
                 <p
                   style={{
                     fontFamily: "'Outfit', sans-serif",
@@ -498,115 +524,239 @@ export default function CoordinatorVisitorDetail({
                     gap: 8,
                   }}
                 >
-                  {OUTCOMES.map((o) => (
-                    <button
-                      key={o}
-                      onClick={() => setOrderOutcome(wo.id, o)}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: "8px",
-                        border: "1.5px solid #d0d5dd",
-                        background: "#fff",
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        color: "#475467",
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {o === "Fixed" && "✅ "}
-                      {o === "Diagnosed" && "🔍 "}
-                      {o === "Not Fixed" && "❌ "}
-                      {o === "Taken Home" && "🥡 "}
-                      {o}
-                    </button>
-                  ))}
+                  {OUTCOMES.map((o) => {
+                    const isNotFixedOpen =
+                      o === "Not Fixed" && notFixingId === wo.id;
+                    return (
+                      <button
+                        key={o}
+                        onClick={() =>
+                          o === "Not Fixed"
+                            ? setNotFixingId(
+                                notFixingId === wo.id ? null : wo.id,
+                              )
+                            : setOrderOutcome(wo.id, o)
+                        }
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: "8px",
+                          border: isNotFixedOpen
+                            ? "1.5px solid #1e3a6e"
+                            : "1.5px solid #d0d5dd",
+                          background: isNotFixedOpen ? "#eef2f9" : "#fff",
+                          fontFamily: "'Outfit', sans-serif",
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          color: "#475467",
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {o === "Fixed" && "✅ "}
+                        {o === "Diagnosed" && "🔍 "}
+                        {o === "Not Fixed" && "❌ "}
+                        {o === "Taken Home" && "🥡 "}
+                        {o}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                    marginTop: 8,
-                  }}
-                >
-                  {STAFF_ONLY_OUTCOMES.map((o) => (
-                    <button
-                      key={o}
-                      onClick={() => setOrderOutcome(wo.id, o)}
+
+                {/* Not-Fixed reason picker — appears when "Not Fixed" is chosen */}
+                {notFixingId === wo.id && (
+                  <div style={{ marginTop: 8 }}>
+                    <p
                       style={{
-                        padding: "8px 12px",
-                        borderRadius: "8px",
-                        border: "1.5px dashed #d0d5dd",
-                        background: "#f9fafb",
                         fontFamily: "'Outfit', sans-serif",
                         fontSize: "12px",
-                        fontWeight: 500,
-                        color: "#98a2b3",
-                        cursor: "pointer",
-                        transition: "all 0.15s",
+                        fontWeight: 600,
+                        color: "#344054",
+                        margin: "0 0 6px 0",
                       }}
                     >
-                      {o === "Languished" && "⏳ "}
-                      {o === "Abandoned" && "🏚️ "}
-                      {o}
-                    </button>
-                  ))}
-                </div>
+                      Why wasn't it fixed?
+                    </p>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 8,
+                      }}
+                    >
+                      {NOT_FIXED_REASONS.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() =>
+                            setOrderOutcome(wo.id, "Not Fixed", r)
+                          }
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: "8px",
+                            border: "1.5px solid #d0d5dd",
+                            background: "#fff",
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "12px",
+                            fontWeight: 500,
+                            color: "#475467",
+                            cursor: "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {wo.status === "completed" && (
-              <div style={{ marginTop: 8 }}>
-                <div
-                  style={{
-                    padding: "10px",
-                    background: [
-                      "Languished",
-                      "Abandoned",
-                      "Taken Home",
-                    ].includes(wo.outcome)
-                      ? "#f2f4f7"
-                      : "#e8f5e9",
-                    borderRadius: "8px",
-                    textAlign: "center",
-                    marginBottom: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: "'Outfit', sans-serif",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: ["Languished", "Abandoned", "Taken Home"].includes(
-                        wo.outcome,
-                      )
-                        ? "#667085"
-                        : "#2e7d32",
-                    }}
-                  >
-                    {wo.outcome}
-                  </span>
-                  {wo.fixer_name && (
-                    <span
+            {/* Cancel — available at any point before an outcome is recorded */}
+            {(wo.status === "pending" ||
+              wo.status === "pending_assignment") && (
+              <div
+                style={{
+                  marginTop: 12,
+                  borderTop: "1px solid #f2f4f7",
+                  paddingTop: 12,
+                }}
+              >
+                {cancelingId === wo.id ? (
+                  <>
+                    <p
                       style={{
                         fontFamily: "'Outfit', sans-serif",
                         fontSize: "12px",
-                        color: "#667085",
-                        marginLeft: 8,
+                        fontWeight: 600,
+                        color: "#344054",
+                        margin: "0 0 6px 0",
                       }}
                     >
-                      by {wo.fixer_name}
-                    </span>
-                  )}
-                </div>
+                      Cancel reason:
+                    </p>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 8,
+                      }}
+                    >
+                      {CANCEL_REASONS.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => cancelOrder(wo.id, r)}
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: "1.5px solid #d0d5dd",
+                            background: "#fff",
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            color: "#475467",
+                            cursor: "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setCancelingId(null)}
+                      style={{
+                        marginTop: 8,
+                        background: "none",
+                        border: "none",
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: "12px",
+                        color: "#98a2b3",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      Never mind
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setCancelingId(wo.id)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      fontFamily: "'Outfit', sans-serif",
+                      fontSize: "13px",
+                      color: "#b42318",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    ✕ Cancel item
+                  </button>
+                )}
+              </div>
+            )}
+
+            {(wo.status === "completed" || wo.status === "canceled") && (
+              <div style={{ marginTop: 8 }}>
+                {(() => {
+                  const isCanceled = wo.status === "canceled";
+                  const muted = isCanceled || wo.outcome === "Taken Home";
+                  return (
+                    <div
+                      style={{
+                        padding: "10px",
+                        background: muted ? "#f2f4f7" : "#e8f5e9",
+                        borderRadius: "8px",
+                        textAlign: "center",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: "'Outfit', sans-serif",
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: muted ? "#667085" : "#2e7d32",
+                        }}
+                      >
+                        {isCanceled
+                          ? `Canceled — ${wo.cancel_reason}`
+                          : wo.outcome}
+                      </span>
+                      {wo.fixer_name && (
+                        <span
+                          style={{
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "12px",
+                            color: "#667085",
+                            marginLeft: 8,
+                          }}
+                        >
+                          by {wo.fixer_name}
+                        </span>
+                      )}
+                      {!isCanceled && wo.not_fixed_reason && (
+                        <div
+                          style={{
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "12px",
+                            color: "#667085",
+                            marginTop: 4,
+                          }}
+                        >
+                          Reason: {wo.not_fixed_reason}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <Button
                   variant="ghost"
                   onClick={() => editOutcome(wo.id)}
                   style={{ fontSize: "13px", padding: "8px 12px" }}
                 >
-                  ✏️ Edit Outcome
+                  {wo.status === "canceled" ? "↩️ Undo Cancel" : "✏️ Edit Outcome"}
                 </Button>
               </div>
             )}
