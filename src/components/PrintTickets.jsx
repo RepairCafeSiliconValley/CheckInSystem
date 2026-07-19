@@ -1,9 +1,7 @@
 import { useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
-import TicketCodeBadge, {
-  TICKET_CODE_BADGE_MODE,
-} from "./TicketCodeBadge";
+import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -242,7 +240,7 @@ export default function PrintTickets({
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          @page { size: 80mm auto; margin: 2mm; }
+          @page { size: 70mm auto; margin: 1mm; }
           body { margin: 0; padding: 0; }
           .print-ticket {
             width: 100% !important;
