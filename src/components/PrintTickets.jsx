@@ -204,7 +204,7 @@ export default function PrintTickets({
               }}
             >
               <TicketCodeBadge
-                code={wo.code}
+                code={wo.code?.split("-")[0]}
                 isVolunteer={isVolunteer}
                 mode={TICKET_CODE_BADGE_MODE.COMPACT}
               />
