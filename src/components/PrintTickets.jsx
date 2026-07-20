@@ -240,7 +240,7 @@ export default function PrintTickets({
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          @page { size: 72mm auto; margin: 0; }
+          @page { size: 80mm auto; margin: 4mm; }
           body { margin: 0; padding: 0; }
           .print-ticket {
             width: 100% !important;
