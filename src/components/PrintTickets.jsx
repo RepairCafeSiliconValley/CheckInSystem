@@ -174,13 +174,13 @@ export default function PrintTickets({
           >
             <div
               style={{
-                width: 92,
+                width: 84,
               }}
             >
               <div
                 style={{
-                  width: 88,
-                  height: 88,
+                  width: 80,
+                  height: 80,
                   border: "1px dashed #000",
                   boxSizing: "border-box",
                 }}
@@ -198,7 +198,7 @@ export default function PrintTickets({
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                minWidth: 92,
+                minWidth: 72,
               }}
             >
               <TicketCodeBadge
@@ -213,7 +213,7 @@ export default function PrintTickets({
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                width: 92,
+                width: 88,
               }}
             >
               <QRCodeSVG
@@ -240,7 +240,7 @@ export default function PrintTickets({
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          @page { size: 70mm auto; margin: 1mm; }
+          @page { size: 72mm auto; margin: 0; }
           body { margin: 0; padding: 0; }
           .print-ticket {
             width: 100% !important;
