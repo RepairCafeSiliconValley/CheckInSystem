@@ -21,7 +21,7 @@ export const CANCEL_REASONS = [
   "Registration Closed",
   "Mistake",
   "Never Checked In",
-  "No Show",
+  "Client left",
   "Languished",
 ];
 
@@ -33,6 +33,8 @@ export const NOT_FIXED_REASONS = [
   "Repair information not available",
   "Lack of equipment",
   "Item too worn out",
+  "Beyond scope of event",
+  "Not enough time",
 ];
 
 // ─── Waiver ───
