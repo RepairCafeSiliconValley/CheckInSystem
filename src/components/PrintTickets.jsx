@@ -1,9 +1,7 @@
 import { useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
-import TicketCodeBadge, {
-  TICKET_CODE_BADGE_MODE,
-} from "./TicketCodeBadge";
+import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
