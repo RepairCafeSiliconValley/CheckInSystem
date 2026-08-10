@@ -181,6 +181,36 @@ export async function updateWorkOrder(id, updates) {
 
 // ─── Stats ───
 
+// Raw rows for the metrics tab, aggregated client-side by src/lib/metrics.js.
+// eventIds: an array of event ids to scope to, or null for every event.
+// Deliberately selects no PII (no names, email or phone) — nothing on the
+// metrics screens needs it, and this keeps a whole-database read cheap.
+export async function fetchMetricsRows(eventIds = null) {
+  if (Array.isArray(eventIds) && eventIds.length === 0) {
+    return { attendees: [], orders: [] };
+  }
+
+  let attendeesQ = supabase
+    .from("attendees")
+    .select("id, event_id, is_volunteer, newsletter_opt_in, zip_code, created_at");
+  let ordersQ = supabase
+    .from("work_orders")
+    .select(
+      "id, event_id, attendee_id, status, outcome, cancel_reason, not_fixed_reason, category, fixer_name, created_at, printed_at, completed_at"
+    );
+
+  if (eventIds) {
+    attendeesQ = attendeesQ.in("event_id", eventIds);
+    ordersQ = ordersQ.in("event_id", eventIds);
+  }
+
+  const [attendeesRes, ordersRes] = await Promise.all([attendeesQ, ordersQ]);
+  if (attendeesRes.error) throw attendeesRes.error;
+  if (ordersRes.error) throw ordersRes.error;
+
+  return { attendees: attendeesRes.data || [], orders: ordersRes.data || [] };
+}
+
 export async function fetchEventStats(eventId) {
   const [attendeesRes, ordersRes] = await Promise.all([
     supabase

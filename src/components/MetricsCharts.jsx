@@ -1,0 +1,128 @@
+// Cross-event time-series for the Metrics tab. Loaded lazily so recharts lands
+// in its own Vite chunk — the public /checkin and /fix pages never pay for it.
+//
+// Two charts, deliberately never combined: item/client counts and fix rate are
+// different scales, and a dual-axis plot would invent a correlation that isn't
+// in the data. Counts are a per-event magnitude comparison (bars); fix rate is
+// a trend (line).
+//
+// Series colors are validated for CVD separation and contrast on a white card.
+// #3a6fce is a lighter, more chromatic sibling of the app's #1e3a6e navy — the
+// navy itself is too dark and too gray to read as a chart fill.
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+const BLUE = "#3a6fce";
+const CORAL = "#e07850";
+const GREEN = "#2e7d32";
+
+const AXIS = { fontFamily: "'Outfit', sans-serif", fontSize: 11, fill: "#667085" };
+const GRID = "#eef0f4";
+
+function ChartFrame({ title, subtitle, children }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: "13px",
+          fontWeight: 700,
+          color: "#344054",
+        }}
+      >
+        {title}
+      </div>
+      {subtitle && (
+        <div
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "11px",
+            color: "#98a2b3",
+            marginBottom: 6,
+          }}
+        >
+          {subtitle}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+const tooltipStyle = {
+  contentStyle: {
+    fontFamily: "'Outfit', sans-serif",
+    fontSize: 12,
+    borderRadius: 8,
+    border: "1px solid #e8ebf0",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  },
+  labelStyle: { color: "#1d2939", fontWeight: 700 },
+};
+
+/**
+ * @param data [{ name, date, clients, items, fixRate }] oldest first
+ */
+export default function MetricsCharts({ data }) {
+  if (!data || data.length < 2) return null;
+
+  const rateData = data.filter((d) => d.fixRate !== null);
+
+  return (
+    <div>
+      <ChartFrame title="Clients and items per event" subtitle="Oldest to newest">
+        {/* Height includes the x-axis band so labels are never clipped. */}
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+            <CartesianGrid stroke={GRID} vertical={false} />
+            <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} interval="preserveStartEnd" />
+            <YAxis tick={AXIS} tickLine={false} axisLine={false} width={48} />
+            <Tooltip cursor={{ fill: "#f8f9fb" }} {...tooltipStyle} />
+            <Legend wrapperStyle={{ fontFamily: "'Outfit', sans-serif", fontSize: 11 }} />
+            <Bar dataKey="clients" name="Clients" fill={BLUE} maxBarSize={20} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="items" name="Items" fill={CORAL} maxBarSize={20} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartFrame>
+
+      {rateData.length >= 2 && (
+        <ChartFrame title="Fix rate over time" subtitle="Share of completed items marked Fixed">
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={rateData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <CartesianGrid stroke={GRID} vertical={false} />
+              <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} interval="preserveStartEnd" />
+              <YAxis
+                tick={AXIS}
+                tickLine={false}
+                axisLine={false}
+                width={48}
+                domain={[0, 100]}
+                tickFormatter={(v) => `${v}%`}
+              />
+              <Tooltip formatter={(v) => `${Math.round(v)}%`} {...tooltipStyle} />
+              <Line
+                type="monotone"
+                dataKey="fixRate"
+                name="Fix rate"
+                stroke={GREEN}
+                strokeWidth={2}
+                dot={{ r: 4, fill: GREEN, stroke: "#fff", strokeWidth: 2 }}
+                activeDot={{ r: 6, fill: GREEN, stroke: "#fff", strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartFrame>
+      )}
+    </div>
+  );
+}

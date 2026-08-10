@@ -4,9 +4,56 @@ import Card from "../components/Card";
 import Input from "../components/Input";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
-import { fetchEvents, createEvent, fetchEventStats, toggleEventOpen, updateEventMaxItems, exportAttendeesCSV } from "../lib/store";
+import { fetchEvents, createEvent, fetchMetricsRows, toggleEventOpen, updateEventMaxItems, exportAttendeesCSV } from "../lib/store";
+import { computeByEvent, formatPct } from "../lib/metrics";
 
-export default function Admin() {
+// A vertical breakdown per event: totals, then the pipeline, then outcome and
+// cancellation sub-counts indented under their parent. Vertical on purpose —
+// the old horizontal row wrapped badly and could only fit five numbers.
+function EventStats({ m }) {
+  const canceled = m.pipeline.find((p) => p.key === "canceled")?.count || 0;
+  const row = (label, value, opts = {}) => (
+    <div
+      key={label}
+      style={{
+        display: "flex",
+        gap: 8,
+        paddingLeft: opts.indent ? 14 : 0,
+        color: opts.color || "#475467",
+        opacity: value ? 1 : 0.4,
+      }}
+    >
+      <span style={{ minWidth: 28, textAlign: "right", fontWeight: 700 }}>{value}</span>
+      <span>{label}</span>
+      {opts.right && <span style={{ marginLeft: "auto", color: "#98a2b3" }}>{opts.right}</span>}
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
+      <div style={{ display: "flex", gap: 16 }}>
+        <span>{m.clients.total} clients{m.clients.active !== m.clients.total ? ` (${m.clients.active})` : ""}</span>
+        <span>{m.items.total} items{m.items.active !== m.items.total ? ` (${m.items.active})` : ""}</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 6, marginTop: 2, borderTop: "1px solid #e4e7ec" }}>
+        {m.pipeline
+          .filter((p) => p.key !== "completed" && p.key !== "canceled")
+          .map((p) => row(p.label, p.count, { color: p.color }))}
+
+        {row("Completed", m.outcomes.completed, { color: "#2e7d32", right: m.outcomes.completed ? `${formatPct(m.outcomes.fixRate)} fixed` : null })}
+        {m.outcomes.rows.map((r) => row(r.label, r.count, { indent: true, color: r.color }))}
+
+        {row("Cancelled", canceled, { color: "#667085" })}
+        {canceled > 0 &&
+          m.cancelReasons
+            .filter((r) => r.count > 0)
+            .map((r) => row(r.label, r.count, { indent: true, color: "#667085" }))}
+      </div>
+    </div>
+  );
+}
+
+export default function Admin({ onViewMetrics }) {
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventLocation, setEventLocation] = useState("");
@@ -17,13 +64,14 @@ export default function Admin() {
   const [editingMaxItems, setEditingMaxItems] = useState(null);
 
   const loadEvents = async () => {
-    const evs = await fetchEvents();
+    // One read of every event's rows, grouped in JS. This used to be a
+    // sequential fetch per event — O(events) round trips on every render.
+    const [evs, rows] = await Promise.all([fetchEvents(), fetchMetricsRows(null)]);
     setEvents(evs);
-    // Load stats for each event
     const statsMap = {};
-    for (const ev of evs) {
-      statsMap[ev.id] = await fetchEventStats(ev.id);
-    }
+    computeByEvent(rows, evs).forEach(({ event, metrics }) => {
+      statsMap[event.id] = metrics;
+    });
     setStats(statsMap);
   };
 
@@ -60,7 +108,7 @@ export default function Admin() {
       </Card>
       <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 700, color: "#1d2939", margin: "0 0 12px 0" }}>Events</h3>
       {events.map((ev) => {
-        const s = stats[ev.id] || { attendeeCount: 0, orderCount: 0, fixedCount: 0, diagnosedCount: 0, notFixedCount: 0, takenHomeCount: 0, canceledCount: 0 };
+        const s = stats[ev.id];
         const checkinUrl = `${baseUrl}/checkin?event=${ev.id}`;
         return (
           <Card key={ev.id} style={{ marginBottom: 10 }}>
@@ -96,19 +144,19 @@ export default function Admin() {
               </div>
             </div>
             {ev.location && <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", marginBottom: 8 }}>{ev.location}</div>}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
-              <div style={{ display: "flex", gap: 16 }}>
-                <span>{s.attendeeCount} visitors</span>
-                <span>{s.orderCount} items</span>
-              </div>
-              <div style={{ display: "flex", gap: 16, paddingTop: 4, borderTop: "1px solid #e4e7ec" }}>
-                <span style={{ color: "#2e7d32", opacity: s.fixedCount ? 1 : 0.4 }}>{s.fixedCount} fixed</span>
-                <span style={{ color: "#b54708", opacity: s.diagnosedCount ? 1 : 0.4 }}>{s.diagnosedCount} diagnosed</span>
-                <span style={{ color: "#b42318", opacity: s.notFixedCount ? 1 : 0.4 }}>{s.notFixedCount} not fixed</span>
-                <span style={{ color: "#98a2b3", opacity: s.takenHomeCount ? 1 : 0.4 }}>{s.takenHomeCount} taken home</span>
-                <span style={{ color: "#98a2b3", opacity: s.canceledCount ? 1 : 0.4 }}>{s.canceledCount} canceled</span>
-              </div>
-            </div>
+            {s ? (
+              <EventStats m={s} />
+            ) : (
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#98a2b3" }}>Loading stats...</div>
+            )}
+            {onViewMetrics && (
+              <button
+                onClick={() => onViewMetrics(ev.id)}
+                style={{ background: "none", border: "none", padding: "8px 0 0 0", fontFamily: "'Outfit', sans-serif", fontSize: "12px", fontWeight: 600, color: "#1e3a6e", cursor: "pointer" }}
+              >
+                View full metrics →
+              </button>
+            )}
             <div style={{ marginTop: 10, padding: "8px 12px", background: "#f0f4f8", borderRadius: "8px", fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "#475467", wordBreak: "break-all" }}>
               {checkinUrl}
             </div>

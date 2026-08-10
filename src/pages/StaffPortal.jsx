@@ -6,6 +6,7 @@ import PrintTickets from "../components/PrintTickets";
 import CoordinatorQueue from "./CoordinatorQueue";
 import CoordinatorVisitorDetail from "./CoordinatorVisitorDetail";
 import Admin from "./Admin";
+import Metrics from "./Metrics";
 import {
   getSession,
   signOut,
@@ -187,7 +188,26 @@ export default function StaffPortal() {
             onPrint={handlePrint}
           />
         )}
-        {staffTab === "admin" && <Admin />}
+        {staffTab === "metrics" && (
+          // Metrics owns its own scope (it can span a whole year, which the
+          // other tabs can't represent) and only seeds from selectedEventId.
+          <Metrics
+            initialEventId={selectedEventId}
+            onOpenQueueForEvent={(id) => {
+              setSelectedEventId(id);
+              setSelectedVisitorId(null);
+              setStaffTab("queue");
+            }}
+          />
+        )}
+        {staffTab === "admin" && (
+          <Admin
+            onViewMetrics={(id) => {
+              setSelectedEventId(id);
+              setStaffTab("metrics");
+            }}
+          />
+        )}
       </div>
 
       <div
@@ -214,6 +234,7 @@ export default function StaffPortal() {
         >
           {[
             { key: "queue", label: "Queue", icon: "📋" },
+            { key: "metrics", label: "Metrics", icon: "📊" },
             { key: "admin", label: "Admin", icon: "⚙️" },
           ].map((t) => (
             <button
