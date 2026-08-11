@@ -341,8 +341,12 @@ export function formatDuration(ms) {
 export function summaryText(m, scopeLabel) {
   const lines = [scopeLabel, ""];
 
-  lines.push(`${m.clients.total} clients (${m.clients.active} excluding fully cancelled)`);
-  lines.push(`${m.items.total} items (${m.items.active} excluding cancelled)`);
+  const lostClients = m.clients.total - m.clients.active;
+  const canceledItems = m.items.total - m.items.active;
+  lines.push(
+    `${m.clients.total} clients${lostClients ? ` (${lostClients} had every item cancelled)` : ""}`
+  );
+  lines.push(`${m.items.total} items${canceledItems ? ` (${canceledItems} cancelled)` : ""}`);
   lines.push("");
 
   m.pipeline.forEach((p) => lines.push(`${p.count} ${p.label}`));

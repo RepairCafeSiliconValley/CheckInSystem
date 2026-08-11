@@ -380,12 +380,22 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
               <BigStat
                 value={m.clients.total}
                 label={m.clients.total === 1 ? "client" : "clients"}
-                sub={`${m.clients.active} excluding fully cancelled`}
+                sub={
+                  // Only worth saying when there's a gap — otherwise it just
+                  // restates the number above it and reads like it means more.
+                  m.clients.active === m.clients.total
+                    ? null
+                    : `${m.clients.total - m.clients.active} had every item cancelled`
+                }
               />
               <BigStat
                 value={m.items.total}
                 label={m.items.total === 1 ? "item" : "items"}
-                sub={`${m.items.active} excluding cancelled`}
+                sub={
+                  m.items.active === m.items.total
+                    ? null
+                    : `${m.items.total - m.items.active} cancelled`
+                }
               />
             </div>
             <div

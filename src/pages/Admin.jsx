@@ -5,53 +5,7 @@ import Input from "../components/Input";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
 import { fetchEvents, createEvent, fetchMetricsRows, toggleEventOpen, updateEventMaxItems, exportAttendeesCSV } from "../lib/store";
-import { computeByEvent, formatPct } from "../lib/metrics";
-
-// A vertical breakdown per event: totals, then the pipeline, then outcome and
-// cancellation sub-counts indented under their parent. Vertical on purpose —
-// the old horizontal row wrapped badly and could only fit five numbers.
-function EventStats({ m }) {
-  const canceled = m.pipeline.find((p) => p.key === "canceled")?.count || 0;
-  const row = (label, value, opts = {}) => (
-    <div
-      key={label}
-      style={{
-        display: "flex",
-        gap: 8,
-        paddingLeft: opts.indent ? 14 : 0,
-        color: opts.color || "#475467",
-        opacity: value ? 1 : 0.4,
-      }}
-    >
-      <span style={{ minWidth: 28, textAlign: "right", fontWeight: 700 }}>{value}</span>
-      <span>{label}</span>
-      {opts.right && <span style={{ marginLeft: "auto", color: "#98a2b3" }}>{opts.right}</span>}
-    </div>
-  );
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
-      <div style={{ display: "flex", gap: 16 }}>
-        <span>{m.clients.total} clients{m.clients.active !== m.clients.total ? ` (${m.clients.active})` : ""}</span>
-        <span>{m.items.total} items{m.items.active !== m.items.total ? ` (${m.items.active})` : ""}</span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 6, marginTop: 2, borderTop: "1px solid #e4e7ec" }}>
-        {m.pipeline
-          .filter((p) => p.key !== "completed" && p.key !== "canceled")
-          .map((p) => row(p.label, p.count, { color: p.color }))}
-
-        {row("Completed", m.outcomes.completed, { color: "#2e7d32", right: m.outcomes.completed ? `${formatPct(m.outcomes.fixRate)} fixed` : null })}
-        {m.outcomes.rows.map((r) => row(r.label, r.count, { indent: true, color: r.color }))}
-
-        {row("Cancelled", canceled, { color: "#667085" })}
-        {canceled > 0 &&
-          m.cancelReasons
-            .filter((r) => r.count > 0)
-            .map((r) => row(r.label, r.count, { indent: true, color: "#667085" }))}
-      </div>
-    </div>
-  );
-}
+import { computeByEvent } from "../lib/metrics";
 
 export default function Admin({ onViewMetrics }) {
   const [eventName, setEventName] = useState("");
@@ -144,19 +98,25 @@ export default function Admin({ onViewMetrics }) {
               </div>
             </div>
             {ev.location && <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", marginBottom: 8 }}>{ev.location}</div>}
-            {s ? (
-              <EventStats m={s} />
-            ) : (
-              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#98a2b3" }}>Loading stats...</div>
-            )}
-            {onViewMetrics && (
-              <button
-                onClick={() => onViewMetrics(ev.id)}
-                style={{ background: "none", border: "none", padding: "8px 0 0 0", fontFamily: "'Outfit', sans-serif", fontSize: "12px", fontWeight: 600, color: "#1e3a6e", cursor: "pointer" }}
-              >
-                View full metrics →
-              </button>
-            )}
+            {/* Headline counts only — the breakdowns live on the Metrics tab. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16, fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "#475467" }}>
+              {s ? (
+                <>
+                  <span>{s.clients.total} clients</span>
+                  <span>{s.items.total} items</span>
+                </>
+              ) : (
+                <span style={{ color: "#98a2b3" }}>Loading stats...</span>
+              )}
+              {onViewMetrics && (
+                <button
+                  onClick={() => onViewMetrics(ev.id)}
+                  style={{ marginLeft: "auto", background: "none", border: "none", padding: 0, fontFamily: "'Outfit', sans-serif", fontSize: "12px", fontWeight: 600, color: "#1e3a6e", cursor: "pointer" }}
+                >
+                  View metrics →
+                </button>
+              )}
+            </div>
             <div style={{ marginTop: 10, padding: "8px 12px", background: "#f0f4f8", borderRadius: "8px", fontFamily: "'Space Mono', monospace", fontSize: "11px", color: "#475467", wordBreak: "break-all" }}>
               {checkinUrl}
             </div>
