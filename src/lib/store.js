@@ -31,30 +31,41 @@ export async function fetchOpenEvents() {
   return data;
 }
 
-export async function createEvent(name, date, location, maxItems = 2) {
+export async function createEvent({
+  name,
+  date,
+  location,
+  maxItems = 2,
+  collectEmail = true,
+  collectPhone = true,
+  collectWeight = false,
+}) {
   const { data, error } = await supabase
     .from("events")
-    .insert({ name, date, location, max_items: maxItems })
+    .insert({
+      name,
+      date,
+      location,
+      max_items: maxItems,
+      collect_email: collectEmail,
+      collect_phone: collectPhone,
+      collect_weight: collectWeight,
+    })
     .select()
     .single();
   if (error) throw error;
   return data;
 }
 
-export async function toggleEventOpen(id, isOpen) {
-  const { error } = await supabase
-    .from("events")
-    .update({ is_open: isOpen })
-    .eq("id", id);
+// Generic event writer — takes a column patch so new per-event settings don't
+// each need their own function.
+export async function updateEvent(id, patch) {
+  const { error } = await supabase.from("events").update(patch).eq("id", id);
   if (error) throw error;
 }
 
-export async function updateEventMaxItems(id, maxItems) {
-  const { error } = await supabase
-    .from("events")
-    .update({ max_items: maxItems })
-    .eq("id", id);
-  if (error) throw error;
+export async function toggleEventOpen(id, isOpen) {
+  await updateEvent(id, { is_open: isOpen });
 }
 
 // ─── Check-in (atomic via RPC) ───
@@ -137,7 +148,11 @@ export async function fetchVisitorDetail(attendeeId) {
   if (attRes.error) throw attRes.error;
   if (ordersRes.error) throw ordersRes.error;
 
-  return { attendee: attRes.data, orders: ordersRes.data };
+  // The event carries the collect_* settings that decide which fields the
+  // visitor detail screen renders. Sequential — event_id comes off the attendee.
+  const event = await fetchEventById(attRes.data.event_id);
+
+  return { attendee: attRes.data, orders: ordersRes.data, event };
 }
 
 // ─── Work order by ID (public fixer page) ───
@@ -196,7 +211,7 @@ export async function fetchMetricsRows(eventIds = null) {
   let ordersQ = supabase
     .from("work_orders")
     .select(
-      "id, event_id, attendee_id, status, outcome, cancel_reason, not_fixed_reason, category, fixer_name, created_at, printed_at, completed_at"
+      "id, event_id, attendee_id, status, outcome, cancel_reason, not_fixed_reason, category, fixer_name, weight_kg, created_at, printed_at, completed_at"
     );
 
   if (eventIds) {
@@ -211,26 +226,9 @@ export async function fetchMetricsRows(eventIds = null) {
   return { attendees: attendeesRes.data || [], orders: ordersRes.data || [] };
 }
 
-export async function fetchEventStats(eventId) {
-  const [attendeesRes, ordersRes] = await Promise.all([
-    supabase
-      .from("attendees")
-      .select("id", { count: "exact" })
-      .eq("event_id", eventId),
-    supabase.from("work_orders").select("*").eq("event_id", eventId),
-  ]);
-
-  const attendeeCount = attendeesRes.count || 0;
-  const orders = ordersRes.data || [];
-  const fixed = orders.filter((w) => w.outcome === "Fixed").length;
-  const diagnosed = orders.filter((w) => w.outcome === "Diagnosed").length;
-  const notFixed = orders.filter((w) => w.outcome === "Not Fixed").length;
-  const takenHome = orders.filter((w) => w.outcome === "Taken Home").length;
-  // Canceled items carry status='canceled' (outcome is null); the reason lives in cancel_reason.
-  const canceled = orders.filter((w) => w.status === "canceled").length;
-
-  return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed, takenHomeCount: takenHome, canceledCount: canceled };
-}
+// fetchEventStats was removed here: it pulled every row for one event and
+// filtered in JS, and Admin called it once per event. Everything now goes
+// through fetchMetricsRows + computeByEvent in a single round trip.
 
 // ─── Export ───
 

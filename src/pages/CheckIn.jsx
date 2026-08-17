@@ -149,12 +149,17 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [zipTouched, setZipTouched] = useState(false);
 
-  const emailValid = !email.trim() || EMAIL_REGEX.test(email.trim());
+  // Which contact fields this event collects. Default to shown so an event row
+  // predating the migration behaves exactly as before.
+  const collectEmail = event.collect_email !== false;
+  const collectPhone = event.collect_phone !== false;
+
+  const emailValid = !collectEmail || !email.trim() || EMAIL_REGEX.test(email.trim());
   const showEmailError = emailTouched && !emailValid;
-  const hasUsableEmail = !!email.trim() && EMAIL_REGEX.test(email.trim());
+  const hasUsableEmail = collectEmail && !!email.trim() && EMAIL_REGEX.test(email.trim());
 
   const phoneDigits = phone.replace(/\D/g, "");
-  const phoneValid = !phone.trim() || PHONE_REGEX.test(phoneDigits);
+  const phoneValid = !collectPhone || !phone.trim() || PHONE_REGEX.test(phoneDigits);
   const showPhoneError = phoneTouched && !phoneValid;
 
   const zipValid = !zipCode.trim() || ZIP_REGEX.test(zipCode.trim());
@@ -192,8 +197,8 @@ function CheckInForm({ event, onProceed, initialValues }) {
     onProceed({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email,
-      phone: phoneDigits,
+      email: collectEmail ? email : "",
+      phone: collectPhone ? phoneDigits : "",
       zipCode,
       items,
       newsletterOptIn: hasUsableEmail && newsletterOptIn,
@@ -262,73 +267,81 @@ function CheckInForm({ event, onProceed, initialValues }) {
         placeholder="Last name"
         required
       />
-      <Input
-        label="Email Address"
-        value={email}
-        onChange={setEmail}
-        onBlur={() => setEmailTouched(true)}
-        placeholder="you@example.com (optional)"
-        type="email"
-      />
-      {showEmailError && (
-        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
-          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
-            Please enter a valid email address, or leave this field blank.
-          </span>
-        </div>
+      {collectEmail && (
+        <>
+          <Input
+            label="Email Address"
+            value={email}
+            onChange={setEmail}
+            onBlur={() => setEmailTouched(true)}
+            placeholder="you@example.com (optional)"
+            type="email"
+          />
+          {showEmailError && (
+            <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
+              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+                Please enter a valid email address, or leave this field blank.
+              </span>
+            </div>
+          )}
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              marginTop: -8,
+              marginBottom: 16,
+              cursor: hasUsableEmail ? "pointer" : "not-allowed",
+              opacity: hasUsableEmail ? 1 : 0.5,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={newsletterOptIn}
+              disabled={!hasUsableEmail}
+              onChange={(e) => setNewsletterOptIn(e.target.checked)}
+              style={{
+                marginTop: 2,
+                width: 18,
+                height: 18,
+                accentColor: "#1e3a6e",
+                cursor: hasUsableEmail ? "pointer" : "not-allowed",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "14px",
+                color: "#1d2939",
+                lineHeight: 1.4,
+              }}
+            >
+              Subscribe to Repair Café Silicon Valley's newsletter.
+            </span>
+          </label>
+        </>
       )}
-      <label
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: 10,
-          marginTop: -8,
-          marginBottom: 16,
-          cursor: hasUsableEmail ? "pointer" : "not-allowed",
-          opacity: hasUsableEmail ? 1 : 0.5,
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={newsletterOptIn}
-          disabled={!hasUsableEmail}
-          onChange={(e) => setNewsletterOptIn(e.target.checked)}
-          style={{
-            marginTop: 2,
-            width: 18,
-            height: 18,
-            accentColor: "#1e3a6e",
-            cursor: hasUsableEmail ? "pointer" : "not-allowed",
-            flexShrink: 0,
-          }}
-        />
-        <span
-          style={{
-            fontFamily: "'Outfit', sans-serif",
-            fontSize: "14px",
-            color: "#1d2939",
-            lineHeight: 1.4,
-          }}
-        >
-          Subscribe to Repair Café Silicon Valley's newsletter.
-        </span>
-      </label>
-      <Input
-        label="Cell Phone"
-        value={phone}
-        onChange={handlePhoneChange}
-        onBlur={() => setPhoneTouched(true)}
-        placeholder="408-555-0101 (optional)"
-        type="tel"
-        inputMode="numeric"
-        maxLength={12}
-      />
-      {showPhoneError && (
-        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
-          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
-            Please enter a valid 10-digit phone number, or leave this field blank.
-          </span>
-        </div>
+      {collectPhone && (
+        <>
+          <Input
+            label="Cell Phone"
+            value={phone}
+            onChange={handlePhoneChange}
+            onBlur={() => setPhoneTouched(true)}
+            placeholder="408-555-0101 (optional)"
+            type="tel"
+            inputMode="numeric"
+            maxLength={12}
+          />
+          {showPhoneError && (
+            <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
+              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+                Please enter a valid 10-digit phone number, or leave this field blank.
+              </span>
+            </div>
+          )}
+        </>
       )}
       <Input
         label="Zip Code"

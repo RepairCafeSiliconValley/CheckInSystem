@@ -77,6 +77,9 @@ export default function MetricsCharts({ data }) {
   if (!data || data.length < 2) return null;
 
   const rateData = data.filter((d) => d.fixRate !== null);
+  // Only events that actually recorded weight; kg is a third unit, so it gets
+  // its own plot rather than being stacked onto the counts chart.
+  const weightData = data.filter((d) => d.kg > 0);
 
   return (
     <div>
@@ -123,6 +126,38 @@ export default function MetricsCharts({ data }) {
           </ResponsiveContainer>
         </ChartFrame>
       )}
+
+      {weightData.length >= 2 && (
+        <ChartFrame title="Weight collected per event" subtitle="Kilograms of items brought in">
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={weightData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+              <CartesianGrid stroke={GRID} vertical={false} />
+              <XAxis
+                dataKey="name"
+                tick={AXIS}
+                tickLine={false}
+                axisLine={{ stroke: GRID }}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={AXIS}
+                tickLine={false}
+                axisLine={false}
+                width={48}
+                tickFormatter={(v) => `${v}kg`}
+              />
+              <Tooltip
+                cursor={{ fill: "#f8f9fb" }}
+                formatter={(v) => `${Number(v).toFixed(1)} kg`}
+                {...tooltipStyle}
+              />
+              {/* Single series — the title names it, so no legend box. */}
+              <Bar dataKey="kg" name="Weight" fill={BLUE} maxBarSize={20} radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartFrame>
+      )}
     </div>
   );
 }
+

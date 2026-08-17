@@ -69,13 +69,31 @@ function durationMs(from, to) {
   return Number.isFinite(ms) && ms > 0 ? ms : null;
 }
 
+// work_orders.weight_kg is a Postgres `numeric`, which can reach JS as a
+// STRING depending on the serialization path. Coerce every read — a bare `+`
+// on unconverted values would concatenate instead of summing.
+// NULL/"" means "not weighed", which is NOT the same as 0, so those return
+// null and are excluded from sums, averages and coverage alike.
+function weightOf(order) {
+  if (order.weight_kg === null || order.weight_kg === undefined || order.weight_kg === "") {
+    return null;
+  }
+  const kg = Number(order.weight_kg);
+  return Number.isFinite(kg) && kg >= 0 ? kg : null;
+}
+
+const isWeighed = (o) => weightOf(o) !== null;
+const sumKg = (list) => list.reduce((total, o) => total + (weightOf(o) || 0), 0);
+
 // ─── main ───
 
 /**
- * @param {{attendees: object[], orders: object[]}} rows
+ * @param {{attendees: object[], orders: object[], events?: object[]}} rows
+ *   `events` is optional and used only to scope weight coverage — callers that
+ *   omit it (e.g. the Queue tab) get `weight.eligibleItems === null`.
  * @returns aggregated metrics for whatever scope `rows` represents
  */
-export function computeMetrics({ attendees = [], orders = [] } = {}) {
+export function computeMetrics({ attendees = [], orders = [], events = null } = {}) {
   // ── clients ──
   const ordersByAttendee = new Map();
   orders.forEach((o) => {
@@ -278,6 +296,76 @@ export function computeMetrics({ attendees = [], orders = [] } = {}) {
     .sort((a, b) => a[0] - b[0])
     .map(([hour, count]) => ({ hour, count }));
 
+  // ── weight ──
+  // Opt-in per event (events.collect_weight, default false) and entered by
+  // coordinators, so most scopes have none at all. `present` gates the whole
+  // feature so nothing weight-shaped appears for events that don't collect it.
+  const weighedOrders = orders.filter(isWeighed);
+  const totalKg = sumKg(weighedOrders);
+  const divertedKg = sumKg(
+    weighedOrders.filter((o) => isCompleted(o) && o.outcome === "Fixed")
+  );
+
+  // Coverage denominator counts only items at events that opted in — including
+  // events that never collect weight would make coverage look far worse than
+  // it is. Null when the caller didn't supply events.
+  const collectingIds = events
+    ? new Set(events.filter((e) => e.collect_weight === true).map((e) => e.id))
+    : null;
+  const eligibleItems = collectingIds
+    ? orders.filter((o) => collectingIds.has(o.event_id)).length
+    : null;
+
+  // Rows cover every weighed item, so they sum back to totalKg: the four
+  // outcomes, plus buckets for weighed items that are cancelled or still open.
+  const weightByOutcome = [
+    ...OUTCOMES.map((name) => ({
+      label: name,
+      kg: sumKg(weighedOrders.filter((o) => isCompleted(o) && o.outcome === name)),
+      color: OUTCOME_COLORS[name],
+    })),
+    {
+      label: UNSPECIFIED,
+      kg: sumKg(weighedOrders.filter((o) => isCompleted(o) && !o.outcome)),
+      color: "#98a2b3",
+    },
+    {
+      label: "Still open",
+      kg: sumKg(weighedOrders.filter(isOpen)),
+      color: "#1e3a6e",
+    },
+    {
+      label: "Cancelled",
+      kg: sumKg(weighedOrders.filter(isCanceled)),
+      color: "#667085",
+    },
+  ].filter((r) => r.kg > 0);
+
+  const weightByCategory = [...ordersByCategory.entries()]
+    .map(([label, list]) => {
+      const weighed = list.filter(isWeighed);
+      return { label, kg: sumKg(weighed), weighedItems: weighed.length };
+    })
+    .filter((c) => c.weighedItems > 0)
+    .sort((a, b) => b.kg - a.kg);
+
+  const weight = {
+    present: weighedOrders.length > 0,
+    weighedItems: weighedOrders.length,
+    totalKg,
+    divertedKg,
+    avgKg: weighedOrders.length ? totalKg / weighedOrders.length : null,
+    eligibleItems,
+    coverage: pct(weighedOrders.length, eligibleItems ?? orders.length),
+    // True when the scope mixes collecting and non-collecting events, so the
+    // UI can explain why coverage skips some items.
+    hasNonCollectingEvents: collectingIds
+      ? events.some((e) => e.collect_weight !== true)
+      : false,
+    byOutcome: weightByOutcome,
+    byCategory: weightByCategory,
+  };
+
   return {
     clients,
     items,
@@ -291,6 +379,7 @@ export function computeMetrics({ attendees = [], orders = [] } = {}) {
     fixers,
     timing,
     completionsByHour,
+    weight,
   };
 }
 
@@ -316,6 +405,8 @@ export function computeByEvent(rows, events) {
     metrics: computeMetrics({
       attendees: attByEvent.get(event.id) || [],
       orders: ordByEvent.get(event.id) || [],
+      // Single-event scope, so coverage is measured against this event alone.
+      events: [event],
     }),
   }));
 }
@@ -324,6 +415,12 @@ export function computeByEvent(rows, events) {
 
 export function formatPct(value, digits = 0) {
   return value === null || value === undefined ? "—" : `${value.toFixed(digits)}%`;
+}
+
+export function formatKg(kg, withUnit = true) {
+  if (kg === null || kg === undefined || !Number.isFinite(kg)) return "—";
+  // One decimal: the column stores 2dp but 10g precision is noise in a total.
+  return `${kg.toFixed(1)}${withUnit ? " kg" : ""}`;
 }
 
 export function formatDuration(ms) {
@@ -358,6 +455,16 @@ export function summaryText(m, scopeLabel) {
   );
   lines.push(`  Fix rate: ${formatPct(m.outcomes.fixRate)}`);
   lines.push("");
+
+  if (m.weight.present) {
+    lines.push("Weight");
+    lines.push(`  ${formatKg(m.weight.divertedKg)} kept out of landfill (items fixed)`);
+    lines.push(`  ${formatKg(m.weight.totalKg)} handled in total`);
+    lines.push(
+      `  ${m.weight.weighedItems} of ${m.weight.eligibleItems ?? m.items.total} items weighed`
+    );
+    lines.push("");
+  }
 
   const cats = m.categories.filter((c) => c.count > 0);
   if (cats.length) {
@@ -415,6 +522,17 @@ export function metricsCsv(m, scopeLabel) {
   m.cancelReasons.forEach((r) => add("Cancellation reasons", r.label, r.count, null));
   m.categories.forEach((c) => add("Categories", c.label, c.count, c.fixRate));
   m.fixers.forEach((f) => add("Fixers", f.name, f.count, null));
+
+  if (m.weight.present) {
+    // Count column carries kg here, rounded to the displayed precision.
+    const kg = (v) => Number(v.toFixed(1));
+    add("Weight (kg)", "Kept out of landfill (fixed)", kg(m.weight.divertedKg), null);
+    add("Weight (kg)", "Total handled", kg(m.weight.totalKg), null);
+    add("Weight (kg)", "Average per weighed item", kg(m.weight.avgKg || 0), null);
+    add("Weight (kg)", "Items weighed", m.weight.weighedItems, m.weight.coverage);
+    m.weight.byOutcome.forEach((r) => add("Weight by outcome (kg)", r.label, kg(r.kg), null));
+    m.weight.byCategory.forEach((c) => add("Weight by category (kg)", c.label, kg(c.kg), null));
+  }
 
   return rows.map((r) => r.map(esc).join(",")).join("\n");
 }

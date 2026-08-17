@@ -6,6 +6,7 @@ import {
   computeByEvent,
   computeMetrics,
   formatDuration,
+  formatKg,
   formatPct,
   metricsCsv,
   pct,
@@ -147,6 +148,8 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
     return {
       attendees: rows.attendees.filter((a) => ids.has(a.event_id)),
       orders: rows.orders.filter((o) => ids.has(o.event_id)),
+      // Needed so weight coverage counts only events that collect weight.
+      events: scopeEvents,
     };
   }, [rows, scopeEvents]);
 
@@ -189,6 +192,7 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
         clients: metrics.clients.total,
         items: metrics.items.total,
         fixRate: metrics.outcomes.fixRate,
+        kg: metrics.weight.totalKg,
       })),
     [byEvent, period]
   );
@@ -421,6 +425,7 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
               <span style={{ opacity: m.clients.zipCount ? 1 : 0.4 }}>
                 {m.clients.zipCount} zip codes
               </span>
+              {m.weight.present && <span>{formatKg(m.weight.totalKg)} collected</span>}
             </div>
           </Card>
 
@@ -518,6 +523,112 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
             ))}
           </Section>
 
+          {/* ── Weight (only for events that collect it) ── */}
+          {m.weight.present && (
+            <Section
+              title="Weight"
+              subtitle={`${m.weight.weighedItems} of ${
+                m.weight.eligibleItems ?? m.items.total
+              } items weighed${
+                m.weight.hasNonCollectingEvents
+                  ? " · excludes events that don't record weight"
+                  : ""
+              }`}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 8,
+                  marginBottom: 14,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "'Space Mono', monospace",
+                    fontSize: "26px",
+                    fontWeight: 700,
+                    color: "#2e7d32",
+                  }}
+                >
+                  {formatKg(m.weight.divertedKg)}
+                </span>
+                <span
+                  style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#344054" }}
+                >
+                  kept out of landfill
+                </span>
+                <span
+                  style={{
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: "11px",
+                    color: "#98a2b3",
+                    marginLeft: "auto",
+                  }}
+                >
+                  {formatKg(m.weight.totalKg)} handled
+                </span>
+              </div>
+
+              {/* Bars are kg, so counts are rounded for display but the widths
+                  use the real totals. */}
+              {m.weight.byOutcome.map((r) => (
+                <StatBar
+                  key={r.label}
+                  label={r.label}
+                  count={Number(r.kg.toFixed(1))}
+                  total={Number(m.weight.totalKg.toFixed(1))}
+                  color={r.color}
+                  right={formatPct(pct(r.kg, m.weight.totalKg))}
+                />
+              ))}
+
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 10,
+                  borderTop: "1px solid #e4e7ec",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 14,
+                  fontFamily: "'Space Mono', monospace",
+                  fontSize: "12px",
+                  color: "#475467",
+                }}
+              >
+                <span>{formatKg(m.weight.avgKg)} avg per item</span>
+                <span>{formatPct(m.weight.coverage)} of items weighed</span>
+              </div>
+
+              {m.weight.byCategory.length > 1 && (
+                <div style={{ marginTop: 14 }}>
+                  <div
+                    style={{
+                      fontFamily: "'Outfit', sans-serif",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: "#344054",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Heaviest categories
+                  </div>
+                  {m.weight.byCategory.map((c) => (
+                    <StatBar
+                      key={c.label}
+                      label={c.label}
+                      count={Number(c.kg.toFixed(1))}
+                      total={Number(m.weight.byCategory[0].kg.toFixed(1))}
+                      color="#1e3a6e"
+                      muted
+                      right={`${c.weighedItems}×`}
+                    />
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
+
           {/* ── Not-fixed reasons ── */}
           {m.notFixedReasons.some((r) => r.count > 0) && (
             <Section title="Why items weren't fixed" subtitle="Within the Not Fixed outcome">
@@ -610,6 +721,12 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                         {c.topNotFixedReason
                           ? ` · top not-fixed reason: ${c.topNotFixedReason.label}`
                           : ""}
+                        {(() => {
+                          const w = m.weight.byCategory.find((x) => x.label === c.label);
+                          return w
+                            ? ` · ${formatKg(w.kg)} across ${w.weighedItems} weighed`
+                            : "";
+                        })()}
                       </div>
                     </>
                   )}
