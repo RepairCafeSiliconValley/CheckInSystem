@@ -6,6 +6,7 @@ import Button from "../components/Button";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import Checkbox from "../components/Checkbox";
+import QrIcon from "../components/QrIcon";
 import {
   fetchEvents,
   createEvent,
@@ -33,6 +34,9 @@ export default function Admin() {
   const [settingsEvent, setSettingsEvent] = useState(null);
   const [draft, setDraft] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  // The event whose check-in QR / URL popup is open.
+  const [qrEvent, setQrEvent] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const loadEvents = async () => {
     const evs = await fetchEvents();
@@ -109,6 +113,23 @@ export default function Admin() {
   };
 
   const baseUrl = window.location.origin;
+  const checkinUrlFor = (id) => `${baseUrl}/checkin?event=${id}`;
+
+  const closeQr = () => {
+    setQrEvent(null);
+    setCopied(false);
+  };
+
+  const copyCheckinUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(checkinUrlFor(qrEvent.id));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Clipboard needs a secure context; the URL below stays selectable.
+      console.error("Failed to copy check-in URL:", err);
+    }
+  };
 
   return (
     <div>
@@ -208,7 +229,6 @@ export default function Admin() {
           takenHomeCount: 0,
           canceledCount: 0,
         };
-        const checkinUrl = `${baseUrl}/checkin?event=${ev.id}`;
         return (
           <Card key={ev.id} style={{ marginBottom: 10 }}>
             <div
@@ -235,7 +255,12 @@ export default function Admin() {
                   color={ev.is_open ? "#2e7d32" : "#b42318"}
                 />
                 <Badge text={ev.date} />
-                <Badge text={`${ev.max_items || 2} items max`} />
+                <Badge
+                  text={<QrIcon />}
+                  onClick={() => setQrEvent(ev)}
+                  title="Show check-in QR code"
+                  ariaLabel="Show check-in QR code"
+                />
               </div>
             </div>
             {ev.location && (
@@ -250,19 +275,6 @@ export default function Admin() {
                 {ev.location}
               </div>
             )}
-            {/* What this event collects — mirrors the settings modal. */}
-            <div
-              style={{
-                display: "flex",
-                gap: 6,
-                flexWrap: "wrap",
-                marginBottom: 8,
-              }}
-            >
-              {ev.collect_email !== false && <Badge text="Email" />}
-              {ev.collect_phone !== false && <Badge text="Phone" />}
-              {ev.collect_weight === true && <Badge text="Weight (kg)" />}
-            </div>
             <div
               style={{
                 display: "flex",
@@ -323,23 +335,6 @@ export default function Admin() {
                   {s.canceledCount} canceled
                 </span>
               </div>
-            </div>
-            <div
-              style={{
-                marginTop: 10,
-                padding: "8px 12px",
-                background: "#f0f4f8",
-                borderRadius: "8px",
-                fontFamily: "'Space Mono', monospace",
-                fontSize: "11px",
-                color: "#475467",
-                wordBreak: "break-all",
-              }}
-            >
-              {checkinUrl}
-            </div>
-            <div style={{ marginTop: 12, textAlign: "center" }}>
-              <QRCodeSVG value={checkinUrl} size={160} level="M" />
             </div>
             <div
               style={{
@@ -430,6 +425,35 @@ export default function Admin() {
             </Button>
             <Button variant="ghost" onClick={closeSettings}>
               Cancel
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {qrEvent && (
+        <Modal title={`Check-In QR code — ${qrEvent.name}`} onClose={closeQr}>
+          <div style={{ textAlign: "center", marginBottom: 14 }}>
+            <QRCodeSVG value={checkinUrlFor(qrEvent.id)} size={200} level="M" />
+          </div>
+          <div
+            style={{
+              padding: "8px 12px",
+              background: "#f0f4f8",
+              borderRadius: "8px",
+              fontFamily: "'Space Mono', monospace",
+              fontSize: "11px",
+              color: "#475467",
+              wordBreak: "break-all",
+            }}
+          >
+            {checkinUrlFor(qrEvent.id)}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+            <Button onClick={copyCheckinUrl}>
+              {copied ? "Copied!" : "Copy link"}
+            </Button>
+            <Button variant="ghost" onClick={closeQr}>
+              Close
             </Button>
           </div>
         </Modal>
