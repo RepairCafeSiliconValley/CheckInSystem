@@ -31,30 +31,41 @@ export async function fetchOpenEvents() {
   return data;
 }
 
-export async function createEvent(name, date, location, maxItems = 2) {
+export async function createEvent({
+  name,
+  date,
+  location,
+  maxItems = 2,
+  collectEmail = true,
+  collectPhone = true,
+  collectWeight = false,
+}) {
   const { data, error } = await supabase
     .from("events")
-    .insert({ name, date, location, max_items: maxItems })
+    .insert({
+      name,
+      date,
+      location,
+      max_items: maxItems,
+      collect_email: collectEmail,
+      collect_phone: collectPhone,
+      collect_weight: collectWeight,
+    })
     .select()
     .single();
   if (error) throw error;
   return data;
 }
 
-export async function toggleEventOpen(id, isOpen) {
-  const { error } = await supabase
-    .from("events")
-    .update({ is_open: isOpen })
-    .eq("id", id);
+// Generic event writer — takes a column patch so new per-event settings don't
+// each need their own function.
+export async function updateEvent(id, patch) {
+  const { error } = await supabase.from("events").update(patch).eq("id", id);
   if (error) throw error;
 }
 
-export async function updateEventMaxItems(id, maxItems) {
-  const { error } = await supabase
-    .from("events")
-    .update({ max_items: maxItems })
-    .eq("id", id);
-  if (error) throw error;
+export async function toggleEventOpen(id, isOpen) {
+  await updateEvent(id, { is_open: isOpen });
 }
 
 // ─── Check-in (atomic via RPC) ───
@@ -137,7 +148,11 @@ export async function fetchVisitorDetail(attendeeId) {
   if (attRes.error) throw attRes.error;
   if (ordersRes.error) throw ordersRes.error;
 
-  return { attendee: attRes.data, orders: ordersRes.data };
+  // The event carries the collect_* settings that decide which fields the
+  // visitor detail screen renders. Sequential — event_id comes off the attendee.
+  const event = await fetchEventById(attRes.data.event_id);
+
+  return { attendee: attRes.data, orders: ordersRes.data, event };
 }
 
 // ─── Work order by ID (public fixer page) ───
