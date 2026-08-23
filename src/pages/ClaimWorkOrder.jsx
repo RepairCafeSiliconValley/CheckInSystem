@@ -46,19 +46,21 @@ function Centered({ children }) {
 }
 
 // Copy for the post-claim success screen, keyed off the Edge Function's reason.
+// Bodies are JSX rather than strings so the client's name can be bolded.
 function outcomeCopy(result, clientName) {
+  const who = <strong>{clientName}</strong>;
   if (result.texted) {
-    return { emoji: "📲", title: "Client Notified", body: `We've texted ${clientName} to come to the repair area.` };
+    return { emoji: "📲", title: "Client Notified", body: <>We've texted {who} to come to the repair area.</> };
   }
   switch (result.reason) {
     case "already_sent":
-      return { emoji: "✅", title: "Already Notified", body: `${clientName} was already texted. They're on their way.` };
+      return { emoji: "✅", title: "Already Notified", body: <>{who} was already texted. They're on their way.</> };
     case "no_phone":
-      return { emoji: "🔔", title: "No Phone on File", body: `${clientName} didn't leave a number — please go call them over.` };
+      return { emoji: "🔔", title: "No phone number on file", body: <>{who} didn't leave a number — please look for them in the waiting area.</> };
     case "sms_not_configured":
-      return { emoji: "🔔", title: "Item Claimed", body: `Texting isn't set up yet — please go call ${clientName} over.` };
+      return { emoji: "🔔", title: "Item Claimed", body: <>Texting isn't set up yet — please look for {who} in the waiting area.</> };
     default:
-      return { emoji: "🔔", title: "Item Claimed", body: `We couldn't send the text — please go call ${clientName} over.` };
+      return { emoji: "🔔", title: "Item Claimed", body: <>We couldn't send the text — please look for {who} in the waiting area.</> };
   }
 }
 
@@ -131,13 +133,11 @@ export default function ClaimWorkOrder() {
           <div style={{ fontSize: "32px", marginBottom: 12 }}>{copy.emoji}</div>
           <h2 style={heading}>{copy.title}</h2>
           <p style={{ ...bodyText, marginBottom: 16 }}>{copy.body}</p>
-          <div style={{ padding: "8px 10px", background: "#f4f3ff", borderRadius: 8, marginBottom: 16 }}>
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "#6941c6" }}>
-              {workOrder.item_name} — now With Fixer
-            </span>
-          </div>
+          <p style={{ ...bodyText, marginBottom: 16 }}>
+            Thank you for working on the <strong>{workOrder.item_name}</strong>. Good luck with the fix!
+          </p>
           <Link to={`/fix/${workOrder.id}`} style={{ textDecoration: "none" }}>
-            <Button variant="secondary">Submit outcome when done →</Button>
+            <Button variant="secondary">Done? Submit outcome.</Button>
           </Link>
         </Card>
       </Centered>
@@ -199,7 +199,7 @@ export default function ClaimWorkOrder() {
             {workOrder.fixer_name
               ? `${workOrder.fixer_name} is already on this item.`
               : "This item is already being worked on."}{" "}
-            The client has been called over.
+            The client has been notified.
           </p>
           <Link to={`/fix/${workOrder.id}`} style={{ textDecoration: "none" }}>
             <Button variant="primary">Submit outcome →</Button>
@@ -269,7 +269,7 @@ export default function ClaimWorkOrder() {
 
           <div style={{ marginTop: 16 }}>
             <Button variant="primary" onClick={handleClaim} disabled={submitting || !fixerName.trim()}>
-              {submitting ? "Starting…" : "Start work & call client over"}
+              {submitting ? "Starting…" : "Claim this item & text client"}
             </Button>
             {!submitting && !fixerName.trim() && (
               <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#98a2b3", textAlign: "center", margin: "8px 0 0 0" }}>

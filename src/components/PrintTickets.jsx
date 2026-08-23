@@ -196,7 +196,7 @@ export default function PrintTickets({
                   textAlign: "center",
                 }}
               >
-                Scan to start / call client
+                Scan to claim & text client
               </div>
             </div>
 

@@ -111,7 +111,14 @@ Deno.serve(async (req) => {
   const from = Deno.env.get("TWILIO_FROM_NUMBER");
   if (!sid || !token || !from) return done(false, "sms_not_configured");
 
-  const messageBody =
+  // DEV escape hatch: Twilio trial accounts reject custom bodies (error 572006)
+  // and accept only predefined template keys, e.g. "sms_appointment_reminders".
+  // Setting TWILIO_DEMO_BODY sends that key instead of the real summons, so the
+  // whole flow can be smoke-tested before the account is upgraded. The text the
+  // client receives is then Twilio's canned demo copy, not ours — so leave this
+  // secret UNSET in production.
+  const demoBody = Deno.env.get("TWILIO_DEMO_BODY");
+  const messageBody = demoBody ||
     `Hi ${firstName}, a fixer at the Repair Cafe is ready to look at your ` +
     `${wo.item_name}. Please come to the repair area. Thanks!`;
 
