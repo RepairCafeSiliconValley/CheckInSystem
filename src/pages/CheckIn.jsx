@@ -331,7 +331,8 @@ function CheckInForm({ event, onProceed, initialValues }) {
         </div>
       )}
       <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#667085", margin: "-8px 0 16px 0", lineHeight: 1.4 }}>
-        We'll text you when a fixer is ready for your item, so you don't have to wait by the board.
+        By providing your number, you consent to receive a text message when a fixer is ready for
+        your item. Message and data rates may apply.
       </p>
       <Input
         label="Zip Code"
