@@ -460,8 +460,12 @@ export default function CoordinatorVisitorDetail({
               </>
             )}
 
-            {/* Read-only summary for completed / canceled */}
-            {(wo.status === "completed" || wo.status === "canceled") && (
+            {/* Read-only summary for assigned / completed / canceled.
+                'assigned' is read-only on purpose: a fixer physically has the
+                item, so the coordinator shouldn't edit its details mid-repair. */}
+            {(wo.status === "assigned" ||
+              wo.status === "completed" ||
+              wo.status === "canceled") && (
               <div style={{ marginBottom: 12 }}>
                 <div
                   style={{
@@ -489,8 +493,10 @@ export default function CoordinatorVisitorDetail({
               </div>
             )}
 
-            {/* Outcome recording for pending_assignment */}
-            {wo.status === "pending_assignment" && (
+            {/* Outcome recording — also for 'assigned', so a coordinator can close
+                out an item whose fixer lost the ticket or never submitted. */}
+            {(wo.status === "pending_assignment" ||
+              wo.status === "assigned") && (
               <div style={{ marginTop: 8 }}>
                 <Input
                   label="Fixer Name (optional)"
@@ -606,7 +612,8 @@ export default function CoordinatorVisitorDetail({
 
             {/* Cancel — available at any point before an outcome is recorded */}
             {(wo.status === "pending" ||
-              wo.status === "pending_assignment") && (
+              wo.status === "pending_assignment" ||
+              wo.status === "assigned") && (
               <div
                 style={{
                   marginTop: 12,

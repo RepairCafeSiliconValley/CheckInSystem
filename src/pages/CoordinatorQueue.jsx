@@ -74,6 +74,7 @@ export default function CoordinatorQueue({
     pending_assignment: allOrders.filter(
       (o) => o.status === "pending_assignment",
     ).length,
+    assigned: allOrders.filter((o) => o.status === "assigned").length,
     completed: allOrders.filter((o) => o.status === "completed").length,
     canceled: allOrders.filter((o) => o.status === "canceled").length,
   };
@@ -82,6 +83,7 @@ export default function CoordinatorQueue({
     { key: "all", label: "All" },
     { key: "pending", label: "Pending" },
     { key: "pending_assignment", label: "Waiting" },
+    { key: "assigned", label: "With Fixer" },
     { key: "completed", label: "Completed" },
     { key: "canceled", label: "Canceled" },
   ];
