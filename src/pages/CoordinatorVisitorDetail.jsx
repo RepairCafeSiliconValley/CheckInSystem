@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import Card from "../components/Card";
 import Input from "../components/Input";
+import Checkbox from "../components/Checkbox";
 import Select from "../components/Select";
 import TextArea from "../components/TextArea";
 import Button from "../components/Button";
@@ -349,31 +350,23 @@ export default function CoordinatorVisitorDetail({
             gap: 10,
           }}
         >
-          <label
+          <Checkbox
+            checked={attendee.is_volunteer || false}
+            onChange={async (checked) => {
+              await updateAttendee(attendeeId, { is_volunteer: checked });
+              await loadData();
+            }}
+            align="center"
+            gap={8}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
               fontFamily: "'Outfit', sans-serif",
               fontSize: "14px",
               fontWeight: 500,
               color: "#344054",
-              cursor: "pointer",
             }}
           >
-            <input
-              type="checkbox"
-              checked={attendee.is_volunteer || false}
-              onChange={async (e) => {
-                await updateAttendee(attendeeId, {
-                  is_volunteer: e.target.checked,
-                });
-                await loadData();
-              }}
-              style={{ width: 18, height: 18, cursor: "pointer" }}
-            />
             Volunteer
-          </label>
+          </Checkbox>
           {attendee.is_volunteer && (
             <span
               style={{

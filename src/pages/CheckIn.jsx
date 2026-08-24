@@ -4,6 +4,7 @@ import Logo from "../components/Logo";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import Input from "../components/Input";
+import Checkbox from "../components/Checkbox";
 import ItemForm from "../components/ItemForm";
 import WaiverStep from "../components/WaiverStep";
 import { fetchEventById, checkinVisitor } from "../lib/store";
@@ -277,31 +278,12 @@ function CheckInForm({ event, onProceed, initialValues }) {
           </span>
         </div>
       )}
-      <label
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: 10,
-          marginTop: -8,
-          marginBottom: 16,
-          cursor: hasUsableEmail ? "pointer" : "not-allowed",
-          opacity: hasUsableEmail ? 1 : 0.5,
-        }}
+      <Checkbox
+        checked={newsletterOptIn}
+        disabled={!hasUsableEmail}
+        onChange={setNewsletterOptIn}
+        style={{ marginTop: -8, marginBottom: 16 }}
       >
-        <input
-          type="checkbox"
-          checked={newsletterOptIn}
-          disabled={!hasUsableEmail}
-          onChange={(e) => setNewsletterOptIn(e.target.checked)}
-          style={{
-            marginTop: 2,
-            width: 18,
-            height: 18,
-            accentColor: "#1e3a6e",
-            cursor: hasUsableEmail ? "pointer" : "not-allowed",
-            flexShrink: 0,
-          }}
-        />
         <span
           style={{
             fontFamily: "'Outfit', sans-serif",
@@ -312,7 +294,7 @@ function CheckInForm({ event, onProceed, initialValues }) {
         >
           Subscribe to Repair Café Silicon Valley's newsletter.
         </span>
-      </label>
+      </Checkbox>
       <Input
         label="Cell Phone"
         value={phone}

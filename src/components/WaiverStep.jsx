@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Logo from "./Logo";
 import Button from "./Button";
+import Checkbox from "./Checkbox";
 import { WAIVER_SECTIONS } from "../lib/constants";
 
 export default function WaiverStep({ onAccept, onBack, submitting, error }) {
@@ -78,28 +79,11 @@ export default function WaiverStep({ onAccept, onBack, submitting, error }) {
         ))}
       </div>
 
-      <label
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: 10,
-          marginBottom: 16,
-          cursor: "pointer",
-        }}
+      <Checkbox
+        checked={agreed}
+        onChange={setAgreed}
+        style={{ marginBottom: 16 }}
       >
-        <input
-          type="checkbox"
-          checked={agreed}
-          onChange={(e) => setAgreed(e.target.checked)}
-          style={{
-            marginTop: 2,
-            width: 18,
-            height: 18,
-            accentColor: "#1e3a6e",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        />
         <span
           style={{
             fontFamily: "'Outfit', sans-serif",
@@ -111,7 +95,7 @@ export default function WaiverStep({ onAccept, onBack, submitting, error }) {
         >
           I have read and agree to the above waiver
         </span>
-      </label>
+      </Checkbox>
 
       {error && (
         <div
