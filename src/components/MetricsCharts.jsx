@@ -1,10 +1,14 @@
 // Cross-event time-series for the Metrics tab. Loaded lazily so recharts lands
 // in its own Vite chunk — the public /checkin and /fix pages never pay for it.
 //
-// Two charts, deliberately never combined: item/client counts and fix rate are
-// different scales, and a dual-axis plot would invent a correlation that isn't
-// in the data. Counts are a per-event magnitude comparison (bars); fix rate is
-// a trend (line).
+// Three separate plots, deliberately never combined: counts, fix rate and
+// kilograms are three different scales, and a dual-axis chart would invent a
+// correlation that isn't in the data. Counts and weight are per-event magnitude
+// comparisons (bars); fix rate is a trend (line).
+//
+// Note the y-axis margins are 0, not negative. A negative left margin shifts
+// the plot outside the SVG and silently clips wide tick labels — "100kg"
+// renders as "0kg". Each axis is instead sized for its widest realistic label.
 //
 // Series colors are validated for CVD separation and contrast on a white card.
 // #3a6fce is a lighter, more chromatic sibling of the app's #1e3a6e navy — the
@@ -86,10 +90,10 @@ export default function MetricsCharts({ data }) {
       <ChartFrame title="Clients and items per event" subtitle="Oldest to newest">
         {/* Height includes the x-axis band so labels are never clipped. */}
         <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+          <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} interval="preserveStartEnd" />
-            <YAxis tick={AXIS} tickLine={false} axisLine={false} width={48} />
+            <YAxis tick={AXIS} tickLine={false} axisLine={false} width={40} />
             <Tooltip cursor={{ fill: "#f8f9fb" }} {...tooltipStyle} />
             <Legend wrapperStyle={{ fontFamily: "'Outfit', sans-serif", fontSize: 11 }} />
             <Bar dataKey="clients" name="Clients" fill={BLUE} maxBarSize={20} radius={[3, 3, 0, 0]} />
@@ -101,14 +105,14 @@ export default function MetricsCharts({ data }) {
       {rateData.length >= 2 && (
         <ChartFrame title="Fix rate over time" subtitle="Share of completed items marked Fixed">
           <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={rateData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+            <LineChart data={rateData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={GRID} vertical={false} />
               <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} interval="preserveStartEnd" />
               <YAxis
                 tick={AXIS}
                 tickLine={false}
                 axisLine={false}
-                width={48}
+                width={44}
                 domain={[0, 100]}
                 tickFormatter={(v) => `${v}%`}
               />
@@ -130,7 +134,7 @@ export default function MetricsCharts({ data }) {
       {weightData.length >= 2 && (
         <ChartFrame title="Weight collected per event" subtitle="Kilograms of items brought in">
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={weightData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+            <BarChart data={weightData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={GRID} vertical={false} />
               <XAxis
                 dataKey="name"
@@ -143,7 +147,7 @@ export default function MetricsCharts({ data }) {
                 tick={AXIS}
                 tickLine={false}
                 axisLine={false}
-                width={48}
+                width={56}
                 tickFormatter={(v) => `${v}kg`}
               />
               <Tooltip

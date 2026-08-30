@@ -417,6 +417,26 @@ export function formatPct(value, digits = 0) {
   return value === null || value === undefined ? "—" : `${value.toFixed(digits)}%`;
 }
 
+// "1 client" / "2 clients". Every count in this app is a plain countable noun,
+// so a naive -s is enough.
+export function plural(n, word, pluralForm = `${word}s`) {
+  return `${n} ${n === 1 ? word : pluralForm}`;
+}
+
+export const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+// "Mar 15, 2026". events.date is a plain date column, so slice it rather than
+// parsing — `new Date("2026-03-15")` is UTC midnight and renders as the 14th in
+// any negative-offset timezone.
+export function formatEventDate(dateStr) {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-");
+  return `${MONTHS[Number(m) - 1] || m} ${Number(d)}, ${y}`;
+}
+
 export function formatKg(kg, withUnit = true) {
   if (kg === null || kg === undefined || !Number.isFinite(kg)) return "—";
   // One decimal: the column stores 2dp but 10g precision is noise in a total.
@@ -435,21 +455,36 @@ export function formatDuration(ms) {
  * Plain-text summary for pasting into an email or newsletter.
  * Reads top-down the same way the screen does.
  */
-export function summaryText(m, scopeLabel) {
-  const lines = [scopeLabel, ""];
+export function summaryText(m, scopeEvents = []) {
+  // Name the events rather than printing a date range: a range over an
+  // arbitrary selection reads as "everything between these dates", which is
+  // wrong the moment the selection skips a month.
+  const lines = [];
+  if (scopeEvents.length === 1) {
+    const ev = scopeEvents[0];
+    lines.push(
+      `${ev.name} — ${formatEventDate(ev.date)}${ev.location ? ` (${ev.location})` : ""}`
+    );
+  } else if (scopeEvents.length) {
+    lines.push(plural(scopeEvents.length, "event"));
+    scopeEvents.forEach((ev) =>
+      lines.push(`  ${ev.name} — ${formatEventDate(ev.date)}`)
+    );
+  }
+  lines.push("");
 
   const lostClients = m.clients.total - m.clients.active;
   const canceledItems = m.items.total - m.items.active;
   lines.push(
-    `${m.clients.total} clients${lostClients ? ` (${lostClients} had every item cancelled)` : ""}`
+    `${plural(m.clients.total, "client")}${lostClients ? ` (${lostClients} had every item cancelled)` : ""}`
   );
-  lines.push(`${m.items.total} items${canceledItems ? ` (${canceledItems} cancelled)` : ""}`);
+  lines.push(`${plural(m.items.total, "item")}${canceledItems ? ` (${canceledItems} cancelled)` : ""}`);
   lines.push("");
 
   m.pipeline.forEach((p) => lines.push(`${p.count} ${p.label}`));
   lines.push("");
 
-  lines.push(`Outcomes (of ${m.outcomes.completed} completed items)`);
+  lines.push(`Outcomes (of ${plural(m.outcomes.completed, "completed item")})`);
   m.outcomes.rows.forEach((r) =>
     lines.push(`  ${r.count} ${r.label} — ${formatPct(r.pct)}`)
   );
@@ -461,7 +496,7 @@ export function summaryText(m, scopeLabel) {
     lines.push(`  ${formatKg(m.weight.divertedKg)} kept out of landfill (items fixed)`);
     lines.push(`  ${formatKg(m.weight.totalKg)} handled in total`);
     lines.push(
-      `  ${m.weight.weighedItems} of ${m.weight.eligibleItems ?? m.items.total} items weighed`
+      `  ${m.weight.weighedItems} of ${plural(m.weight.eligibleItems ?? m.items.total, "item")} weighed`
     );
     lines.push("");
   }
@@ -488,51 +523,12 @@ export function summaryText(m, scopeLabel) {
   }
 
   if (m.fixers.length) {
-    lines.push(`${m.fixers.length} fixers recorded outcomes`);
+    lines.push(
+      `${plural(m.fixers.length, "fixer")} recorded ${
+        m.fixers.length === 1 ? "an outcome" : "outcomes"
+      }`
+    );
   }
 
   return lines.join("\n").trim();
-}
-
-/**
- * Every figure on the page as a flat section/label/count/percent CSV.
- * Pure — returns the text; the caller downloads it.
- */
-export function metricsCsv(m, scopeLabel) {
-  const esc = (v) => {
-    const s = v == null ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const rows = [["Scope", "Section", "Label", "Count", "Percent"]];
-  const add = (section, label, count, percent) =>
-    rows.push([scopeLabel, section, label, count, percent === null || percent === undefined ? "" : percent.toFixed(1)]);
-
-  add("Totals", "Clients", m.clients.total, null);
-  add("Totals", "Clients excluding fully cancelled", m.clients.active, null);
-  add("Totals", "Clients waiting", m.clients.waiting, null);
-  add("Totals", "Volunteers", m.clients.volunteers, null);
-  add("Totals", "Newsletter opt-ins", m.clients.newsletter, m.clients.newsletterRate);
-  add("Totals", "Items", m.items.total, null);
-  add("Totals", "Items excluding cancelled", m.items.active, null);
-
-  m.pipeline.forEach((p) => add("Pipeline", p.label, p.count, pct(p.count, m.items.total)));
-  m.outcomes.rows.forEach((r) => add("Outcomes", r.label, r.count, r.pct));
-  add("Outcomes", "Fix rate", m.outcomes.fixed, m.outcomes.fixRate);
-  m.notFixedReasons.forEach((r) => add("Not fixed reasons", r.label, r.count, null));
-  m.cancelReasons.forEach((r) => add("Cancellation reasons", r.label, r.count, null));
-  m.categories.forEach((c) => add("Categories", c.label, c.count, c.fixRate));
-  m.fixers.forEach((f) => add("Fixers", f.name, f.count, null));
-
-  if (m.weight.present) {
-    // Count column carries kg here, rounded to the displayed precision.
-    const kg = (v) => Number(v.toFixed(1));
-    add("Weight (kg)", "Kept out of landfill (fixed)", kg(m.weight.divertedKg), null);
-    add("Weight (kg)", "Total handled", kg(m.weight.totalKg), null);
-    add("Weight (kg)", "Average per weighed item", kg(m.weight.avgKg || 0), null);
-    add("Weight (kg)", "Items weighed", m.weight.weighedItems, m.weight.coverage);
-    m.weight.byOutcome.forEach((r) => add("Weight by outcome (kg)", r.label, kg(r.kg), null));
-    m.weight.byCategory.forEach((c) => add("Weight by category (kg)", c.label, kg(c.kg), null));
-  }
-
-  return rows.map((r) => r.map(esc).join(",")).join("\n");
 }

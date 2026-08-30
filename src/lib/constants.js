@@ -16,14 +16,16 @@ export const CATEGORIES = [
 // display-only and needs no migration.
 //   pending            — checked in, ticket not printed yet
 //   pending_assignment — ticket printed, waiting for a fixer
+//   assigned           — a fixer scanned the claim QR and started work
 //   completed          — an outcome was recorded
 //   canceled           — left before it was worked (reason in cancel_reason)
-// 'assigned' ("With Fixer") exists in the badge map as a fallback but nothing
-// in the app writes it: there is no step between printing and recording an
-// outcome. Excluded here so it never shows as a permanent zero in metrics.
+// 'assigned' is written by the claim-and-notify Edge Function (see the
+// twilio-integration branch), not by this app directly. It reads as a harmless
+// zero anywhere that flow isn't in use.
 export const STATUSES = [
   { key: "pending", label: "Submitted", color: "#b54708", bg: "#fef6ee" },
   { key: "pending_assignment", label: "Checked-In", color: "#1e3a6e", bg: "#eef2f8" },
+  { key: "assigned", label: "With Fixer", color: "#6941c6", bg: "#f4f3ff" },
   { key: "completed", label: "Completed", color: "#2e7d32", bg: "#e8f5e9" },
   { key: "canceled", label: "Cancelled", color: "#667085", bg: "#f2f4f7" },
 ];

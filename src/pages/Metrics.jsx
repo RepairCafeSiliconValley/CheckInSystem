@@ -1,23 +1,34 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Card from "../components/Card";
 import StatBar from "../components/StatBar";
-import { fetchEvents, fetchMetricsRows, subscribeToEvent } from "../lib/store";
+import EventPicker from "../components/EventPicker";
+import {
+  exportWorkOrdersCSV,
+  fetchEvents,
+  fetchMetricsRows,
+  subscribeToEvent,
+} from "../lib/store";
 import {
   computeByEvent,
   computeMetrics,
   formatDuration,
   formatKg,
   formatPct,
-  metricsCsv,
+  MONTHS,
+  plural,
   pct,
   summaryText,
 } from "../lib/metrics";
 
 // recharts only loads once you're actually looking at a multi-event scope.
 const MetricsCharts = lazy(() => import("../components/MetricsCharts"));
-
-const ALL = "all";
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const yearOf = (ev) => (ev.date || "").slice(0, 4);
 
@@ -75,11 +86,23 @@ function BigStat({ value, label, sub }) {
       >
         {value}
       </div>
-      <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#344054" }}>
+      <div
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: "13px",
+          color: "#344054",
+        }}
+      >
         {label}
       </div>
       {sub && (
-        <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: "#98a2b3" }}>
+        <div
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "11px",
+            color: "#98a2b3",
+          }}
+        >
           {sub}
         </div>
       )}
@@ -90,8 +113,8 @@ function BigStat({ value, label, sub }) {
 export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
   const [events, setEvents] = useState([]);
   const [rows, setRows] = useState({ attendees: [], orders: [] });
-  const [period, setPeriod] = useState(ALL);
-  const [eventId, setEventId] = useState(ALL);
+  // Any combination of events. Empty is reachable and shows an empty state.
+  const [selectedIds, setSelectedIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openCategory, setOpenCategory] = useState(null);
@@ -104,16 +127,17 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
     try {
       // One read of everything, filtered client-side. Scope changes are then
       // instant and cost no round trips.
-      const [evs, data] = await Promise.all([fetchEvents(), fetchMetricsRows(null)]);
+      const [evs, data] = await Promise.all([
+        fetchEvents(),
+        fetchMetricsRows(null),
+      ]);
       setEvents(evs);
       setRows(data);
       // Open on whatever event the rest of the portal is looking at — that's
       // the live-event case.
       const seed = seedEventId && evs.find((e) => e.id === seedEventId);
-      if (seed) {
-        setPeriod(yearOf(seed));
-        setEventId(seed.id);
-      }
+      if (seed) setSelectedIds([seed.id]);
+      else if (evs.length) setSelectedIds([evs[0].id]);
       setError(null);
     } catch (err) {
       console.error("Failed to load metrics:", err);
@@ -126,22 +150,24 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
     load(initialEventId);
   }, [load, initialEventId]);
 
-  const years = useMemo(
-    () => [...new Set(events.map(yearOf).filter(Boolean))].sort((a, b) => b.localeCompare(a)),
-    [events]
+  // Oldest first — the charts and the by-event list depend on this order.
+  // (EventPicker displays newest-first; that's a separate concern.)
+  const sortedEvents = useMemo(
+    () =>
+      [...events].sort((a, b) => (a.date || "").localeCompare(b.date || "")),
+    [events],
   );
 
-  // Events in the selected period, oldest first (chart + comparison order).
-  const periodEvents = useMemo(() => {
-    const list = period === ALL ? events : events.filter((e) => yearOf(e) === period);
-    return [...list].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  }, [events, period]);
-
   const scopeEvents = useMemo(() => {
-    if (eventId === ALL) return periodEvents;
-    const ev = periodEvents.find((e) => e.id === eventId);
-    return ev ? [ev] : periodEvents;
-  }, [periodEvents, eventId]);
+    const ids = new Set(selectedIds);
+    return sortedEvents.filter((e) => ids.has(e.id));
+  }, [sortedEvents, selectedIds]);
+
+  // Chart x-labels only need the year when the selection crosses years.
+  const spansYears = useMemo(
+    () => new Set(scopeEvents.map(yearOf)).size > 1,
+    [scopeEvents],
+  );
 
   const scopedRows = useMemo(() => {
     const ids = new Set(scopeEvents.map((e) => e.id));
@@ -163,8 +189,14 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
     try {
       const data = await fetchMetricsRows([id]);
       setRows((prev) => ({
-        attendees: [...prev.attendees.filter((a) => a.event_id !== id), ...data.attendees],
-        orders: [...prev.orders.filter((o) => o.event_id !== id), ...data.orders],
+        attendees: [
+          ...prev.attendees.filter((a) => a.event_id !== id),
+          ...data.attendees,
+        ],
+        orders: [
+          ...prev.orders.filter((o) => o.event_id !== id),
+          ...data.orders,
+        ],
       }));
     } catch (err) {
       console.error("Failed to refresh event metrics:", err);
@@ -182,49 +214,62 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
 
   const byEvent = useMemo(
     () => (singleEvent ? [] : computeByEvent(scopedRows, scopeEvents)),
-    [scopedRows, scopeEvents, singleEvent]
+    [scopedRows, scopeEvents, singleEvent],
   );
 
   const chartData = useMemo(
     () =>
       byEvent.map(({ event, metrics }) => ({
-        name: shortDate(event.date, period === ALL),
+        name: shortDate(event.date, spansYears),
         clients: metrics.clients.total,
         items: metrics.items.total,
         fixRate: metrics.outcomes.fixRate,
         kg: metrics.weight.totalKg,
       })),
-    [byEvent, period]
+    [byEvent, spansYears],
   );
 
+  // "2026" when the selection is exactly one complete year, else null. Mirrors
+  // the same rule in EventPicker so the header and the button agree.
+  const wholeYear = useMemo(() => {
+    if (scopeEvents.length < 2 || spansYears) return null;
+    const y = yearOf(scopeEvents[0]);
+    return events.filter((e) => yearOf(e) === y).length === scopeEvents.length
+      ? y
+      : null;
+  }, [scopeEvents, spansYears, events]);
+
   const scopeLabel = useMemo(() => {
+    if (!scopeEvents.length) return "No events selected";
     if (singleEvent) {
       return `${singleEvent.name} — ${singleEvent.date}${
         singleEvent.location ? ` (${singleEvent.location})` : ""
       }`;
     }
-    const periodName = period === ALL ? "All time" : period;
-    return `${periodName} — ${scopeEvents.length} event${scopeEvents.length === 1 ? "" : "s"}`;
-  }, [singleEvent, period, scopeEvents]);
+    const n = plural(scopeEvents.length, "event");
+    if (scopeEvents.length === events.length) return `All time — ${n}`;
+    if (wholeYear) return `${wholeYear} — ${n}`;
+    const first = shortDate(scopeEvents[0].date, true);
+    const last = shortDate(scopeEvents[scopeEvents.length - 1].date, true);
+    return `${n} — ${first} to ${last}`;
+  }, [singleEvent, scopeEvents, events, wholeYear]);
 
   const scopeSubtitle = useMemo(() => {
     if (singleEvent) return singleEvent.location || singleEvent.date;
-    if (!scopeEvents.length) return "No events in this period";
+    if (!scopeEvents.length) return "Pick one or more events above";
     const first = scopeEvents[0];
     const last = scopeEvents[scopeEvents.length - 1];
-    const range =
-      first === last
-        ? shortDate(first.date, true)
-        : `${shortDate(first.date, period === ALL)} – ${shortDate(last.date, period === ALL)}`;
-    return `${scopeEvents.length} events · ${range}`;
-  }, [singleEvent, scopeEvents, period]);
+    const range = `${shortDate(first.date, spansYears)} – ${shortDate(last.date, spansYears)}`;
+    return `${plural(scopeEvents.length, "event")} · ${range}`;
+  }, [singleEvent, scopeEvents, spansYears]);
 
   const today = new Date().toISOString().split("T")[0];
-  const isLive = singleEvent && (singleEvent.is_open || singleEvent.date === today);
+  const isLive =
+    singleEvent && (singleEvent.is_open || singleEvent.date === today);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(summaryText(m, scopeLabel));
+      await navigator.clipboard.writeText(summaryText(m, scopeEvents));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -233,14 +278,15 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
     }
   };
 
-  const handleExport = () => {
-    const blob = new Blob([metricsCsv(m, scopeLabel)], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${scopeLabel.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "")}-metrics.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Raw work-item rows, not the aggregates on screen — the numbers here are for
+  // reading, the CSV is for analysing elsewhere.
+  const handleExport = async () => {
+    try {
+      await exportWorkOrdersCSV(scopeEvents, scopeLabel);
+    } catch (err) {
+      console.error("Export failed:", err);
+      setError("Couldn't export the item data.");
+    }
   };
 
   if (loading) {
@@ -258,76 +304,17 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
     );
   }
 
-  const chipStyle = (active) => ({
-    padding: "6px 12px",
-    borderRadius: "8px",
-    border: "none",
-    fontFamily: "'Outfit', sans-serif",
-    fontSize: "12px",
-    fontWeight: 600,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    transition: "all 0.15s",
-    background: active ? "#1e3a6e" : "#f0f2f5",
-    color: active ? "#fff" : "#667085",
-  });
-
   return (
     <div>
-      {/* ── Scope: one filter row above everything it scopes ── */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 10, overflowX: "auto" }}>
-        {[{ key: ALL, label: "All time" }, ...years.map((y) => ({ key: y, label: y }))].map((p) => (
-          <button
-            key={p.key}
-            onClick={() => {
-              setPeriod(p.key);
-              setEventId(ALL);
-              setOpenCategory(null);
-            }}
-            style={chipStyle(period === p.key)}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <select
-          value={eventId}
-          onChange={(e) => {
-            setEventId(e.target.value);
-            setOpenCategory(null);
-          }}
-          style={{
-            width: "100%",
-            padding: "10px 32px 10px 12px",
-            borderRadius: "10px",
-            border: "1.5px solid #d0d5dd",
-            fontFamily: "'Outfit', sans-serif",
-            fontSize: "14px",
-            fontWeight: 600,
-            color: "#1e3a6e",
-            background: "#fff",
-            outline: "none",
-            appearance: "none",
-            boxSizing: "border-box",
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "right 12px center",
-            cursor: "pointer",
-          }}
-        >
-          <option value={ALL}>
-            All {periodEvents.length} event{periodEvents.length === 1 ? "" : "s"}
-            {period === ALL ? "" : ` in ${period}`}
-          </option>
-          {[...periodEvents].reverse().map((ev) => (
-            <option key={ev.id} value={ev.id}>
-              {ev.name} — {ev.date}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* ── Scope: one control above everything it scopes ── */}
+      <EventPicker
+        events={events}
+        selectedIds={selectedIds}
+        onChange={(ids) => {
+          setSelectedIds(ids);
+          setOpenCategory(null);
+        }}
+      />
 
       <h2
         style={{
@@ -348,7 +335,12 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
           margin: "0 0 16px 0",
         }}
       >
-        {singleEvent ? singleEvent.name : period === ALL ? "All time" : period} · {scopeSubtitle}
+        {singleEvent
+          ? singleEvent.name
+          : scopeEvents.length === events.length
+            ? "All time"
+            : wholeYear || plural(scopeEvents.length, "event")}{" "}
+        · {scopeSubtitle}
         {isLive && (
           <span style={{ color: "#2e7d32", fontWeight: 700 }}> · Live</span>
         )}
@@ -372,9 +364,35 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
 
       {!scopeEvents.length ? (
         <div style={{ textAlign: "center", padding: "32px 16px" }}>
-          <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "14px", color: "#98a2b3" }}>
-            No events in this period.
+          <p
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "14px",
+              color: "#98a2b3",
+            }}
+          >
+            {events.length
+              ? "No events selected — pick some from the menu above."
+              : "No events yet."}
           </p>
+          {events.length > 0 && (
+            <button
+              onClick={() => setSelectedIds(events.map((e) => e.id))}
+              style={{
+                marginTop: 10,
+                background: "none",
+                border: "none",
+                padding: 0,
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#1e3a6e",
+                cursor: "pointer",
+              }}
+            >
+              Select all {plural(events.length, "event")}
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -415,17 +433,23 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                 color: "#475467",
               }}
             >
-              <span>{m.items.avgPerClient ? m.items.avgPerClient.toFixed(1) : "—"} items/client</span>
+              <span>
+                {m.items.avgPerClient ? m.items.avgPerClient.toFixed(1) : "—"}{" "}
+                items/client
+              </span>
               <span style={{ opacity: m.clients.volunteers ? 1 : 0.4 }}>
                 {m.clients.volunteers} volunteers
               </span>
               <span style={{ opacity: m.clients.newsletter ? 1 : 0.4 }}>
-                {m.clients.newsletter} newsletter ({formatPct(m.clients.newsletterRate)})
+                {m.clients.newsletter} newsletter (
+                {formatPct(m.clients.newsletterRate)})
               </span>
               <span style={{ opacity: m.clients.zipCount ? 1 : 0.4 }}>
                 {m.clients.zipCount} zip codes
               </span>
-              {m.weight.present && <span>{formatKg(m.weight.totalKg)} collected</span>}
+              {m.weight.present && (
+                <span>{formatKg(m.weight.totalKg)} collected</span>
+              )}
             </div>
           </Card>
 
@@ -437,8 +461,10 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                 <BigStat
                   value={m.pipeline.reduce(
                     (n, p) =>
-                      p.key === "pending" || p.key === "pending_assignment" ? n + p.count : n,
-                    0
+                      p.key === "pending" || p.key === "pending_assignment"
+                        ? n + p.count
+                        : n,
+                    0,
                   )}
                   label="items open"
                 />
@@ -452,14 +478,18 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                   borderTop: "1px solid #e4e7ec",
                 }}
               >
-                median check-in → done: {formatDuration(m.timing.medianCheckinToDone)}
+                median check-in → done:{" "}
+                {formatDuration(m.timing.medianCheckinToDone)}
                 {m.timing.sampleSize ? ` (n=${m.timing.sampleSize})` : ""}
               </div>
             </Section>
           )}
 
           {/* ── Pipeline ── */}
-          <Section title="Item pipeline" subtitle={`${m.items.total} items`}>
+          <Section
+            title="Item pipeline"
+            subtitle={plural(m.items.total, "item")}
+          >
             {m.pipeline.map((p) => (
               <StatBar
                 key={p.key}
@@ -497,7 +527,13 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
               >
                 {formatPct(m.outcomes.fixRate)}
               </span>
-              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#344054" }}>
+              <span
+                style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "13px",
+                  color: "#344054",
+                }}
+              >
                 fix rate
               </span>
               <span
@@ -527,9 +563,10 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
           {m.weight.present && (
             <Section
               title="Weight"
-              subtitle={`${m.weight.weighedItems} of ${
-                m.weight.eligibleItems ?? m.items.total
-              } items weighed${
+              subtitle={`${m.weight.weighedItems} of ${plural(
+                m.weight.eligibleItems ?? m.items.total,
+                "item",
+              )} weighed${
                 m.weight.hasNonCollectingEvents
                   ? " · excludes events that don't record weight"
                   : ""
@@ -554,7 +591,11 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                   {formatKg(m.weight.divertedKg)}
                 </span>
                 <span
-                  style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#344054" }}
+                  style={{
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: "13px",
+                    color: "#344054",
+                  }}
                 >
                   kept out of landfill
                 </span>
@@ -631,7 +672,10 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
 
           {/* ── Not-fixed reasons ── */}
           {m.notFixedReasons.some((r) => r.count > 0) && (
-            <Section title="Why items weren't fixed" subtitle="Within the Not Fixed outcome">
+            <Section
+              title="Why items weren't fixed"
+              subtitle="Within the Not Fixed outcome"
+            >
               {m.notFixedReasons.map((r) => (
                 <StatBar
                   key={r.label}
@@ -667,8 +711,8 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
             title="By category"
             subtitle={
               m.uncategorized
-                ? `${m.categorized} of ${m.items.total} items categorised`
-                : `${m.items.total} items`
+                ? `${m.categorized} of ${plural(m.items.total, "item")} categorised`
+                : plural(m.items.total, "item")
             }
           >
             {m.categories.map((c) => (
@@ -680,7 +724,14 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                 color={c.known ? "#1e3a6e" : "#98a2b3"}
                 muted={!c.known}
                 right={c.completed ? formatPct(c.fixRate) : "—"}
-                onClick={c.count ? () => setOpenCategory(openCategory === c.label ? null : c.label) : undefined}
+                onClick={
+                  c.count
+                    ? () =>
+                        setOpenCategory(
+                          openCategory === c.label ? null : c.label,
+                        )
+                    : undefined
+                }
                 expanded={openCategory === c.label}
               >
                 <div style={{ paddingLeft: 4 }}>
@@ -722,7 +773,9 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                           ? ` · top not-fixed reason: ${c.topNotFixedReason.label}`
                           : ""}
                         {(() => {
-                          const w = m.weight.byCategory.find((x) => x.label === c.label);
+                          const w = m.weight.byCategory.find(
+                            (x) => x.label === c.label,
+                          );
                           return w
                             ? ` · ${formatKg(w.kg)} across ${w.weighedItems} weighed`
                             : "";
@@ -774,7 +827,10 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
 
           {/* ── Cross-event comparison ── */}
           {byEvent.length >= 2 && (
-            <Section title="By event" subtitle="Tap an event to see it on its own">
+            <Section
+              title="By event"
+              subtitle="Tap an event to see it on its own"
+            >
               <Suspense fallback={null}>
                 <MetricsCharts data={chartData} />
               </Suspense>
@@ -782,18 +838,22 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                 {[...byEvent].reverse().map(({ event, metrics }) => (
                   <div
                     key={event.id}
-                    onClick={() => setEventId(event.id)}
+                    onClick={() => setSelectedIds([event.id])}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        setEventId(event.id);
+                        setSelectedIds([event.id]);
                       }
                     }}
                     style={{
                       display: "flex",
                       alignItems: "center",
+                      // Spelled-out stats are wide; on a narrow phone they drop
+                      // to a second line rather than crushing the event name.
+                      flexWrap: "wrap",
+                      rowGap: 2,
                       gap: 8,
                       padding: "8px 10px",
                       background: "#f8f9fb",
@@ -802,7 +862,7 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                       <div
                         style={{
                           fontFamily: "'Outfit', sans-serif",
@@ -832,22 +892,29 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
                         fontSize: "12px",
                         color: "#475467",
                         fontVariantNumeric: "tabular-nums",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      {metrics.clients.total}c · {metrics.items.total}i
+                      {metrics.clients.total}{" "}
+                      {metrics.clients.total === 1 ? "client" : "clients"} ·{" "}
+                      {metrics.items.total}{" "}
+                      {metrics.items.total === 1 ? "item" : "items"} ·{" "}
                     </span>
                     <span
                       style={{
                         fontFamily: "'Space Mono', monospace",
                         fontSize: "12px",
                         fontWeight: 700,
+                        // "% fixed" is of COMPLETED items, not of all items.
                         color: "#2e7d32",
-                        minWidth: 42,
                         textAlign: "right",
+                        whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                       }}
                     >
-                      {formatPct(metrics.outcomes.fixRate)}
+                      {metrics.outcomes.completed
+                        ? `${formatPct(metrics.outcomes.fixRate)} fixed`
+                        : "—"}
                     </span>
                   </div>
                 ))}

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { STATUSES } from "./constants";
 
 // ─── Events ───
 
@@ -231,6 +232,73 @@ export async function fetchMetricsRows(eventIds = null) {
 // through fetchMetricsRows + computeByEvent in a single round trip.
 
 // ─── Export ───
+
+// Raw work-item export for the Metrics tab — one row per work order, no
+// aggregates. The only client reference is attendee_id: no name, email, phone
+// or zip, and not the visitor's free-text description either.
+//
+// Fetched fresh rather than reusing the rows already loaded for the metrics:
+// fetchMetricsRows deliberately omits code/item_name/priority and runs on every
+// page view, so widening it to serve an occasional export would tax every load.
+//
+// NOTE: do not add `assigned_at` here. It exists on DEV only (via the unmerged
+// twilio-integration migration) and naming a column that's absent on prod fails
+// the whole query.
+export async function exportWorkOrdersCSV(events, scopeLabel) {
+  if (!events?.length) return;
+  const byId = new Map(events.map((e) => [e.id, e]));
+
+  const { data, error } = await supabase
+    .from("work_orders")
+    .select(
+      "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, not_fixed_reason, fixer_name, weight_kg, created_at, printed_at, completed_at"
+    )
+    .in("event_id", [...byId.keys()])
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const esc = (v) => {
+    if (v == null) return "";
+    const s = String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  };
+  const labelOf = (key) => STATUSES.find((s) => s.key === key)?.label || key;
+
+  const header = [
+    "Event Name", "Event Date", "Event ID", "Work Order ID", "Code", "Attendee ID",
+    "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
+    "Cancel Reason", "Not Fixed Reason", "Fixer", "Weight (kg)",
+    "Created At", "Printed At", "Completed At",
+  ].join(",");
+
+  // Event date first so the file groups naturally when opened in a spreadsheet.
+  const sorted = [...(data || [])].sort((a, b) => {
+    const d = (byId.get(a.event_id)?.date || "").localeCompare(byId.get(b.event_id)?.date || "");
+    return d !== 0 ? d : (a.created_at || "").localeCompare(b.created_at || "");
+  });
+
+  const rows = sorted.map((w) => {
+    const ev = byId.get(w.event_id) || {};
+    return [
+      esc(ev.name), esc(ev.date), esc(w.event_id), esc(w.id), esc(w.code), esc(w.attendee_id),
+      esc(w.item_name), esc(w.category), esc(w.priority),
+      esc(w.status), esc(labelOf(w.status)), esc(w.outcome),
+      esc(w.cancel_reason), esc(w.not_fixed_reason), esc(w.fixer_name), esc(w.weight_kg),
+      esc(w.created_at), esc(w.printed_at), esc(w.completed_at),
+    ].join(",");
+  });
+
+  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const safeName = (scopeLabel || "events").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+  a.download = `${safeName}-items-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export async function exportAttendeesCSV(eventId, eventName) {
   const { data, error } = await supabase

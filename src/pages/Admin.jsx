@@ -15,7 +15,7 @@ import {
   updateEvent,
   exportAttendeesCSV,
 } from "../lib/store";
-import { computeByEvent, formatKg } from "../lib/metrics";
+import { computeByEvent, formatKg, plural } from "../lib/metrics";
 
 // Clamp to the CHECK constraint on events.max_items (1–10).
 const clampMaxItems = (v) => Math.min(10, Math.max(1, Number(v) || 2));
@@ -282,8 +282,8 @@ export default function Admin({ onViewMetrics }) {
             >
               {s ? (
                 <>
-                  <span>{s.clients.total} clients</span>
-                  <span>{s.items.total} items</span>
+                  <span>{plural(s.clients.total, "client")}</span>
+                  <span>{plural(s.items.total, "item")}</span>
                   {s.weight.present && <span>{formatKg(s.weight.totalKg)}</span>}
                 </>
               ) : (
