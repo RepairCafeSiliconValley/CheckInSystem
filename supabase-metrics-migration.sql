@@ -45,14 +45,27 @@ UPDATE work_orders
   SET cancel_reason = 'Client left'
   WHERE cancel_reason = 'No Show';
 
--- ─── 2. Indexes for per-event aggregation ───
--- Every metrics/queue read filters by event_id; status is the next most common
--- predicate. IF NOT EXISTS makes this re-runnable.
--- (Plain CREATE INDEX, not CONCURRENTLY — the SQL Editor wraps statements in a
--- transaction, and these tables are small enough that the brief write lock is
--- not worth working around.)
+-- ─── 2. Indexes on event_id ───
+-- Every per-event read filters on event_id: fetchVisitorGroups,
+-- fetchMetricsRows, exportWorkOrdersCSV, exportAttendeesCSV and the live-event
+-- refresh. Neither table has an index for it today — work_orders_code_event_unique
+-- is on (code, event_id), and a btree can't serve a filter on its second column
+-- alone — so all of those sequential-scan the table.
+--
+-- This is insurance, not a fix for anything currently slow: at a few dozen rows
+-- Postgres will still (correctly) choose a seq scan. It matters as events
+-- accumulate, because the queue's realtime handler refetches the whole event on
+-- EVERY row change, for every connected staff device.
+--
+-- Deliberately NO index on work_orders(status): nothing filters by status in
+-- SQL — the queue chips and every metric filter it in JS after the rows arrive.
+-- An unused index costs write throughput on every insert and update and buys
+-- nothing back.
+--
+-- Plain CREATE INDEX, not CONCURRENTLY — the SQL Editor wraps statements in a
+-- transaction, and these tables are small enough that the brief write lock
+-- isn't worth working around. IF NOT EXISTS makes this re-runnable.
 CREATE INDEX IF NOT EXISTS work_orders_event_id_idx ON work_orders (event_id);
-CREATE INDEX IF NOT EXISTS work_orders_status_idx   ON work_orders (status);
 CREATE INDEX IF NOT EXISTS attendees_event_id_idx   ON attendees (event_id);
 
 -- ─── 3. Verification (read-only) ───
