@@ -144,7 +144,7 @@ export default function StaffPortal() {
       >
         <div
           style={{
-            maxWidth: 540,
+            maxWidth: 640,
             margin: "0 auto",
             display: "flex",
             justifyContent: "space-between",
@@ -169,7 +169,7 @@ export default function StaffPortal() {
       </div>
 
       <div
-        style={{ maxWidth: 540, margin: "0 auto", padding: "16px 16px 100px" }}
+        style={{ maxWidth: 640, margin: "0 auto", padding: "16px 16px 100px" }}
       >
         {staffTab === "queue" && !selectedVisitorId && (
           <CoordinatorQueue
@@ -227,7 +227,7 @@ export default function StaffPortal() {
         <div
           style={{
             display: "flex",
-            maxWidth: 540,
+            maxWidth: 640,
             width: "100%",
             justifyContent: "space-around",
           }}

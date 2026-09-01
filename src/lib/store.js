@@ -248,14 +248,24 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
   if (!events?.length) return;
   const byId = new Map(events.map((e) => [e.id, e]));
 
-  const { data, error } = await supabase
-    .from("work_orders")
-    .select(
-      "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, not_fixed_reason, fixer_name, weight_kg, created_at, printed_at, completed_at"
-    )
-    .in("event_id", [...byId.keys()])
-    .order("created_at", { ascending: true });
-  if (error) throw error;
+  // Two queries joined in JS rather than a PostgREST embed — same shape as
+  // fetchVisitorGroups, and no embedded selects exist anywhere in this codebase.
+  const [ordersRes, attendeesRes] = await Promise.all([
+    supabase
+      .from("work_orders")
+      .select(
+        "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, not_fixed_reason, fixer_name, weight_kg, created_at, printed_at, completed_at"
+      )
+      .in("event_id", [...byId.keys()])
+      .order("created_at", { ascending: true }),
+    // Only the two client attributes asked for — still no name, email or phone.
+    supabase.from("attendees").select("id, zip_code, is_volunteer").in("event_id", [...byId.keys()]),
+  ]);
+  if (ordersRes.error) throw ordersRes.error;
+  if (attendeesRes.error) throw attendeesRes.error;
+
+  const data = ordersRes.data;
+  const attendeeById = new Map((attendeesRes.data || []).map((a) => [a.id, a]));
 
   const esc = (v) => {
     if (v == null) return "";
@@ -267,7 +277,8 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
   const labelOf = (key) => STATUSES.find((s) => s.key === key)?.label || key;
 
   const header = [
-    "Event Name", "Event Date", "Event ID", "Work Order ID", "Code", "Attendee ID",
+    "Event Name", "Event Date", "Event ID", "Work Order ID", "Code",
+    "Attendee ID", "Zip Code", "Volunteer",
     "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
     "Cancel Reason", "Not Fixed Reason", "Fixer", "Weight (kg)",
     "Created At", "Printed At", "Completed At",
@@ -281,8 +292,13 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
 
   const rows = sorted.map((w) => {
     const ev = byId.get(w.event_id) || {};
+    // A work order whose attendee row is missing degrades to blanks rather
+    // than throwing — the item row is still worth exporting.
+    const att = attendeeById.get(w.attendee_id);
     return [
-      esc(ev.name), esc(ev.date), esc(w.event_id), esc(w.id), esc(w.code), esc(w.attendee_id),
+      esc(ev.name), esc(ev.date), esc(w.event_id), esc(w.id), esc(w.code),
+      esc(w.attendee_id), esc(att?.zip_code),
+      att ? (att.is_volunteer ? "Yes" : "No") : "",
       esc(w.item_name), esc(w.category), esc(w.priority),
       esc(w.status), esc(labelOf(w.status)), esc(w.outcome),
       esc(w.cancel_reason), esc(w.not_fixed_reason), esc(w.fixer_name), esc(w.weight_kg),

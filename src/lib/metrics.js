@@ -61,6 +61,9 @@ function breakdown(values, canonical) {
 const isCanceled = (o) => o.status === "canceled";
 const isCompleted = (o) => o.status === "completed";
 const isOpen = (o) => !isCompleted(o) && !isCanceled(o);
+// Nobody has picked this up yet — narrower than isOpen, which also counts
+// items already with a fixer.
+const isUntouched = (o) => o.status === "pending" || o.status === "pending_assignment";
 const categoryOf = (o) => (o.category || "").trim() || UNCATEGORIZED;
 
 function durationMs(from, to) {
@@ -105,7 +108,16 @@ export function computeMetrics({ attendees = [], orders = [], events = null } = 
   const clientsActive = clientOrderLists.filter((list) =>
     list.some((o) => !isCanceled(o))
   ).length;
-  const clientsWaiting = clientOrderLists.filter((list) => list.some(isOpen)).length;
+  // "Waiting" means nobody has touched any of their stuff yet: EVERY item is
+  // still Submitted or Checked-In. One item with a fixer, completed or
+  // cancelled and they drop out.
+  // Written against the two status keys rather than !isOpen on purpose —
+  // isOpen includes 'assigned', which is exactly what this must exclude.
+  // The length guard matters: [].every() is true, so an attendee with no work
+  // orders would otherwise count as waiting.
+  const clientsWaiting = clientOrderLists.filter(
+    (list) => list.length > 0 && list.every(isUntouched)
+  ).length;
 
   const zips = attendees.map((a) => (a.zip_code || "").trim()).filter(Boolean);
   const zipCounts = new Map();
@@ -266,10 +278,45 @@ export function computeMetrics({ attendees = [], orders = [], events = null } = 
     const name = (o.fixer_name || "").trim();
     if (!name) return;
     const key = name.toLowerCase();
-    if (!fixerMap.has(key)) fixerMap.set(key, { name, count: 0 });
-    fixerMap.get(key).count += 1;
+    if (!fixerMap.has(key)) fixerMap.set(key, { name, orders: [] });
+    fixerMap.get(key).orders.push(o);
   });
-  const fixers = [...fixerMap.values()].sort((a, b) => b.count - a.count);
+
+  // Same shape as a category, so the UI can expand a fixer the same way.
+  // Every order here is completed by construction, so the outcome rows always
+  // sum back to `count` — with the Unspecified bucket catching completed rows
+  // that somehow carry no outcome.
+  const fixers = [...fixerMap.values()]
+    .map(({ name, orders: own }) => {
+      const fixedCount = own.filter((o) => o.outcome === "Fixed").length;
+      const reasonRows = breakdown(
+        own
+          .filter((o) => o.outcome === "Not Fixed")
+          .map((o) => (o.not_fixed_reason || "").trim() || UNSPECIFIED),
+        NOT_FIXED_REASONS
+      )
+        .filter((r) => r.count > 0)
+        .sort((a, b) => b.count - a.count);
+
+      return {
+        name,
+        count: own.length,
+        fixed: fixedCount,
+        fixRate: pct(fixedCount, own.length),
+        outcomes: breakdown(
+          own.map((o) => o.outcome || UNSPECIFIED),
+          OUTCOMES
+        )
+          .filter((r) => r.known || r.count > 0)
+          .map((r) => ({
+            label: r.label,
+            count: r.count,
+            color: OUTCOME_COLORS[r.label] || "#98a2b3",
+          })),
+        topNotFixedReason: reasonRows[0] || null,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
 
   // ── timing (completed only — completed_at is also stamped on cancel) ──
   const checkinToDone = completedOrders
