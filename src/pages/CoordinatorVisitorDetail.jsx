@@ -760,7 +760,7 @@ export default function CoordinatorVisitorDetail({
                         }}
                       >
                         {isCanceled
-                          ? `Canceled — ${wo.cancel_reason}`
+                          ? `Cancelled — ${wo.cancel_reason}`
                           : wo.outcome}
                       </span>
                       {wo.fixer_name && (

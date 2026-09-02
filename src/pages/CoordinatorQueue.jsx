@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Card from "../components/Card";
 import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
@@ -7,6 +7,8 @@ import {
   fetchEvents,
   subscribeToEvent,
 } from "../lib/store";
+import { computeMetrics } from "../lib/metrics";
+import { STATUSES } from "../lib/constants";
 
 export default function CoordinatorQueue({
   onSelectVisitor,
@@ -68,22 +70,29 @@ export default function CoordinatorQueue({
   });
 
   const allOrders = visitorGroups.flatMap((g) => g.orders);
-  const counts = {
-    all: visitorGroups.length,
-    pending: allOrders.filter((o) => o.status === "pending").length,
-    pending_assignment: allOrders.filter(
-      (o) => o.status === "pending_assignment",
-    ).length,
-    completed: allOrders.filter((o) => o.status === "completed").length,
-    canceled: allOrders.filter((o) => o.status === "canceled").length,
-  };
 
+  // Same computation the Metrics tab uses, so the two can't disagree.
+  const m = useMemo(
+    () =>
+      computeMetrics({
+        attendees: visitorGroups.map((g) => g.attendee).filter(Boolean),
+        orders: allOrders,
+      }),
+    // allOrders is derived from visitorGroups, so that's the real dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visitorGroups],
+  );
+
+  // Every chip counts ITEMS. Client-level figures live in the summary above —
+  // previously "All" counted visitors while the rest counted items, which made
+  // the numbers look like they didn't add up.
   const filterButtons = [
-    { key: "all", label: "All" },
-    { key: "pending", label: "Pending" },
-    { key: "pending_assignment", label: "Waiting" },
-    { key: "completed", label: "Completed" },
-    { key: "canceled", label: "Canceled" },
+    { key: "all", label: "All", count: m.items.total },
+    ...STATUSES.map((s) => ({
+      key: s.key,
+      label: s.label,
+      count: m.pipeline.find((p) => p.key === s.key)?.count ?? 0,
+    })),
   ];
 
   if (loading) {
@@ -152,11 +161,24 @@ export default function CoordinatorQueue({
           fontFamily: "'Outfit', sans-serif",
           fontSize: "13px",
           color: "#667085",
+          margin: "0 0 2px 0",
+        }}
+      >
+        {selectedEvent?.name || "—"}
+      </p>
+      <p
+        style={{
+          fontFamily: "'Space Mono', monospace",
+          fontSize: "12px",
+          color: "#475467",
           margin: "0 0 16px 0",
         }}
       >
-        {selectedEvent?.name || "—"} · {visitorGroups.length} visitors ·{" "}
-        {allOrders.length} items · {counts.pending} awaiting review
+        {m.clients.total} clients{" "}
+        <span style={{ color: m.clients.waiting ? "#b54708" : "#98a2b3" }}>
+          ({m.clients.waiting} waiting)
+        </span>{" "}
+        · {m.items.total} items
       </p>
 
       <div style={{ marginBottom: 12 }}>
@@ -202,7 +224,7 @@ export default function CoordinatorQueue({
               color: filter === f.key ? "#fff" : "#667085",
             }}
           >
-            {f.label} ({counts[f.key]})
+            {f.label} ({f.count})
           </button>
         ))}
       </div>

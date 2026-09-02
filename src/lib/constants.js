@@ -11,8 +11,35 @@ export const CATEGORIES = [
   "Other",
 ];
 
+// Work-order statuses, in pipeline order. `key` is the value stored in the DB;
+// `label` is the only thing ever shown to a human. Renaming a label here is
+// display-only and needs no migration.
+//   pending            — checked in, ticket not printed yet
+//   pending_assignment — ticket printed, waiting for a fixer
+//   assigned           — a fixer scanned the claim QR and started work
+//   completed          — an outcome was recorded
+//   canceled           — left before it was worked (reason in cancel_reason)
+// 'assigned' is written by the claim-and-notify Edge Function (see the
+// twilio-integration branch), not by this app directly. It reads as a harmless
+// zero anywhere that flow isn't in use.
+export const STATUSES = [
+  { key: "pending", label: "Submitted", color: "#b54708", bg: "#fef6ee" },
+  { key: "pending_assignment", label: "Checked-In", color: "#1e3a6e", bg: "#eef2f8" },
+  { key: "assigned", label: "With Fixer", color: "#6941c6", bg: "#f4f3ff" },
+  { key: "completed", label: "Completed", color: "#2e7d32", bg: "#e8f5e9" },
+  { key: "canceled", label: "Cancelled", color: "#667085", bg: "#f2f4f7" },
+];
+
 // Recording an outcome always moves a work order to status='completed'.
 export const OUTCOMES = ["Fixed", "Diagnosed", "Not Fixed", "Taken Home"];
+
+// Display colors for each outcome, shared by badges, stat bars and charts.
+export const OUTCOME_COLORS = {
+  Fixed: "#2e7d32",
+  Diagnosed: "#b54708",
+  "Not Fixed": "#b42318",
+  "Taken Home": "#98a2b3",
+};
 
 // Canceling (status='canceled', outcome stays NULL) records one of these reasons.
 // Staff-only; a coordinator can cancel at any point before an outcome is recorded.

@@ -10,16 +10,17 @@ import QrIcon from "../components/QrIcon";
 import {
   fetchEvents,
   createEvent,
-  fetchEventStats,
+  fetchMetricsRows,
   toggleEventOpen,
   updateEvent,
   exportAttendeesCSV,
 } from "../lib/store";
+import { computeByEvent, formatKg, plural } from "../lib/metrics";
 
 // Clamp to the CHECK constraint on events.max_items (1–10).
 const clampMaxItems = (v) => Math.min(10, Math.max(1, Number(v) || 2));
 
-export default function Admin() {
+export default function Admin({ onViewMetrics }) {
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventLocation, setEventLocation] = useState("");
@@ -39,13 +40,14 @@ export default function Admin() {
   const [copied, setCopied] = useState(false);
 
   const loadEvents = async () => {
-    const evs = await fetchEvents();
+    // One read of every event's rows, grouped in JS. This used to be a
+    // sequential fetch per event — O(events) round trips on every render.
+    const [evs, rows] = await Promise.all([fetchEvents(), fetchMetricsRows(null)]);
     setEvents(evs);
-    // Load stats for each event
     const statsMap = {};
-    for (const ev of evs) {
-      statsMap[ev.id] = await fetchEventStats(ev.id);
-    }
+    computeByEvent(rows, evs).forEach(({ event, metrics }) => {
+      statsMap[event.id] = metrics;
+    });
     setStats(statsMap);
   };
 
@@ -220,15 +222,7 @@ export default function Admin() {
         Events
       </h3>
       {events.map((ev) => {
-        const s = stats[ev.id] || {
-          attendeeCount: 0,
-          orderCount: 0,
-          fixedCount: 0,
-          diagnosedCount: 0,
-          notFixedCount: 0,
-          takenHomeCount: 0,
-          canceledCount: 0,
-        };
+        const s = stats[ev.id];
         return (
           <Card key={ev.id} style={{ marginBottom: 10 }}>
             <div
@@ -275,66 +269,44 @@ export default function Admin() {
                 {ev.location}
               </div>
             )}
+            {/* Headline counts only — the breakdowns live on the Metrics tab. */}
             <div
               style={{
                 display: "flex",
-                flexDirection: "column",
-                gap: 6,
+                alignItems: "center",
+                gap: 16,
                 fontFamily: "'Space Mono', monospace",
                 fontSize: "12px",
                 color: "#475467",
               }}
             >
-              <div style={{ display: "flex", gap: 16 }}>
-                <span>{s.attendeeCount} visitors</span>
-                <span>{s.orderCount} items</span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 16,
-                  paddingTop: 4,
-                  borderTop: "1px solid #e4e7ec",
-                }}
-              >
-                <span
-                  style={{ color: "#2e7d32", opacity: s.fixedCount ? 1 : 0.4 }}
-                >
-                  {s.fixedCount} fixed
-                </span>
-                <span
+              {s ? (
+                <>
+                  <span>{plural(s.clients.total, "client")}</span>
+                  <span>{plural(s.items.total, "item")}</span>
+                  {s.weight.present && <span>{formatKg(s.weight.totalKg)}</span>}
+                </>
+              ) : (
+                <span style={{ color: "#98a2b3" }}>Loading stats...</span>
+              )}
+              {onViewMetrics && (
+                <button
+                  onClick={() => onViewMetrics(ev.id)}
                   style={{
-                    color: "#b54708",
-                    opacity: s.diagnosedCount ? 1 : 0.4,
+                    marginLeft: "auto",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#1e3a6e",
+                    cursor: "pointer",
                   }}
                 >
-                  {s.diagnosedCount} diagnosed
-                </span>
-                <span
-                  style={{
-                    color: "#b42318",
-                    opacity: s.notFixedCount ? 1 : 0.4,
-                  }}
-                >
-                  {s.notFixedCount} not fixed
-                </span>
-                <span
-                  style={{
-                    color: "#98a2b3",
-                    opacity: s.takenHomeCount ? 1 : 0.4,
-                  }}
-                >
-                  {s.takenHomeCount} taken home
-                </span>
-                <span
-                  style={{
-                    color: "#98a2b3",
-                    opacity: s.canceledCount ? 1 : 0.4,
-                  }}
-                >
-                  {s.canceledCount} canceled
-                </span>
-              </div>
+                  View metrics →
+                </button>
+              )}
             </div>
             <div
               style={{

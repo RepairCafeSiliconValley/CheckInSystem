@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { STATUSES } from "./constants";
 
 // ─── Events ───
 
@@ -196,28 +197,124 @@ export async function updateWorkOrder(id, updates) {
 
 // ─── Stats ───
 
-export async function fetchEventStats(eventId) {
-  const [attendeesRes, ordersRes] = await Promise.all([
-    supabase
-      .from("attendees")
-      .select("id", { count: "exact" })
-      .eq("event_id", eventId),
-    supabase.from("work_orders").select("*").eq("event_id", eventId),
-  ]);
+// Raw rows for the metrics tab, aggregated client-side by src/lib/metrics.js.
+// eventIds: an array of event ids to scope to, or null for every event.
+// Deliberately selects no PII (no names, email or phone) — nothing on the
+// metrics screens needs it, and this keeps a whole-database read cheap.
+export async function fetchMetricsRows(eventIds = null) {
+  if (Array.isArray(eventIds) && eventIds.length === 0) {
+    return { attendees: [], orders: [] };
+  }
 
-  const attendeeCount = attendeesRes.count || 0;
-  const orders = ordersRes.data || [];
-  const fixed = orders.filter((w) => w.outcome === "Fixed").length;
-  const diagnosed = orders.filter((w) => w.outcome === "Diagnosed").length;
-  const notFixed = orders.filter((w) => w.outcome === "Not Fixed").length;
-  const takenHome = orders.filter((w) => w.outcome === "Taken Home").length;
-  // Canceled items carry status='canceled' (outcome is null); the reason lives in cancel_reason.
-  const canceled = orders.filter((w) => w.status === "canceled").length;
+  let attendeesQ = supabase
+    .from("attendees")
+    .select("id, event_id, is_volunteer, newsletter_opt_in, zip_code, created_at");
+  let ordersQ = supabase
+    .from("work_orders")
+    .select(
+      "id, event_id, attendee_id, status, outcome, cancel_reason, not_fixed_reason, category, fixer_name, weight_kg, created_at, printed_at, completed_at"
+    );
 
-  return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed, takenHomeCount: takenHome, canceledCount: canceled };
+  if (eventIds) {
+    attendeesQ = attendeesQ.in("event_id", eventIds);
+    ordersQ = ordersQ.in("event_id", eventIds);
+  }
+
+  const [attendeesRes, ordersRes] = await Promise.all([attendeesQ, ordersQ]);
+  if (attendeesRes.error) throw attendeesRes.error;
+  if (ordersRes.error) throw ordersRes.error;
+
+  return { attendees: attendeesRes.data || [], orders: ordersRes.data || [] };
 }
 
+// fetchEventStats was removed here: it pulled every row for one event and
+// filtered in JS, and Admin called it once per event. Everything now goes
+// through fetchMetricsRows + computeByEvent in a single round trip.
+
 // ─── Export ───
+
+// Raw work-item export for the Metrics tab — one row per work order, no
+// aggregates. The only client reference is attendee_id: no name, email, phone
+// or zip, and not the visitor's free-text description either.
+//
+// Fetched fresh rather than reusing the rows already loaded for the metrics:
+// fetchMetricsRows deliberately omits code/item_name/priority and runs on every
+// page view, so widening it to serve an occasional export would tax every load.
+//
+// NOTE: do not add `assigned_at` here. It exists on DEV only (via the unmerged
+// twilio-integration migration) and naming a column that's absent on prod fails
+// the whole query.
+export async function exportWorkOrdersCSV(events, scopeLabel) {
+  if (!events?.length) return;
+  const byId = new Map(events.map((e) => [e.id, e]));
+
+  // Two queries joined in JS rather than a PostgREST embed — same shape as
+  // fetchVisitorGroups, and no embedded selects exist anywhere in this codebase.
+  const [ordersRes, attendeesRes] = await Promise.all([
+    supabase
+      .from("work_orders")
+      .select(
+        "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, not_fixed_reason, fixer_name, weight_kg, created_at, printed_at, completed_at"
+      )
+      .in("event_id", [...byId.keys()])
+      .order("created_at", { ascending: true }),
+    // Only the two client attributes asked for — still no name, email or phone.
+    supabase.from("attendees").select("id, zip_code, is_volunteer").in("event_id", [...byId.keys()]),
+  ]);
+  if (ordersRes.error) throw ordersRes.error;
+  if (attendeesRes.error) throw attendeesRes.error;
+
+  const data = ordersRes.data;
+  const attendeeById = new Map((attendeesRes.data || []).map((a) => [a.id, a]));
+
+  const esc = (v) => {
+    if (v == null) return "";
+    const s = String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  };
+  const labelOf = (key) => STATUSES.find((s) => s.key === key)?.label || key;
+
+  const header = [
+    "Event Name", "Event Date", "Event ID", "Work Order ID", "Code",
+    "Attendee ID", "Zip Code", "Volunteer",
+    "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
+    "Cancel Reason", "Not Fixed Reason", "Fixer", "Weight (kg)",
+    "Created At", "Printed At", "Completed At",
+  ].join(",");
+
+  // Event date first so the file groups naturally when opened in a spreadsheet.
+  const sorted = [...(data || [])].sort((a, b) => {
+    const d = (byId.get(a.event_id)?.date || "").localeCompare(byId.get(b.event_id)?.date || "");
+    return d !== 0 ? d : (a.created_at || "").localeCompare(b.created_at || "");
+  });
+
+  const rows = sorted.map((w) => {
+    const ev = byId.get(w.event_id) || {};
+    // A work order whose attendee row is missing degrades to blanks rather
+    // than throwing — the item row is still worth exporting.
+    const att = attendeeById.get(w.attendee_id);
+    return [
+      esc(ev.name), esc(ev.date), esc(w.event_id), esc(w.id), esc(w.code),
+      esc(w.attendee_id), esc(att?.zip_code),
+      att ? (att.is_volunteer ? "Yes" : "No") : "",
+      esc(w.item_name), esc(w.category), esc(w.priority),
+      esc(w.status), esc(labelOf(w.status)), esc(w.outcome),
+      esc(w.cancel_reason), esc(w.not_fixed_reason), esc(w.fixer_name), esc(w.weight_kg),
+      esc(w.created_at), esc(w.printed_at), esc(w.completed_at),
+    ].join(",");
+  });
+
+  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const safeName = (scopeLabel || "events").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+  a.download = `${safeName}-items-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export async function exportAttendeesCSV(eventId, eventName) {
   const { data, error } = await supabase
