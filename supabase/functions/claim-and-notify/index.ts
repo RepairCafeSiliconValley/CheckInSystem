@@ -4,7 +4,7 @@
 // This function:
 //   1. Marks the work order 'assigned' (With Fixer) and records the fixer name.
 //   2. Best-effort texts the client via Twilio to come to the repair area,
-//      only if a phone is on file and no 'summon' SMS was already sent.
+//      only if a phone is on file, they gave consent, and no 'summon' SMS was already sent.
 //
 // The phone number never leaves the server: it's read here with the service-role
 // key and used only to call Twilio. The response never includes it.
@@ -40,7 +40,8 @@ function toE164(raw: string | null | undefined): string | null {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS")
+    return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   let workOrderId: string | undefined;
@@ -64,7 +65,7 @@ Deno.serve(async (req) => {
   const { data: wo, error: woErr } = await supabase
     .from("work_orders")
     .select(
-      "id, status, event_id, attendee_id, item_name, attendees ( first_name, phone )",
+      "id, status, event_id, attendee_id, item_name, attendees ( first_name, phone, text_message_opt_in )",
     )
     .eq("id", workOrderId)
     .maybeSingle();
@@ -89,12 +90,15 @@ Deno.serve(async (req) => {
   const attendee = Array.isArray(wo.attendees) ? wo.attendees[0] : wo.attendees;
   const firstName: string = attendee?.first_name ?? "there";
   const to = toE164(attendee?.phone);
+  const textMessageOptIn = Boolean(attendee?.text_message_opt_in);
+  console.log(textMessageOptIn);
 
   const done = (texted: boolean, reason: string) =>
     json({ ok: true, status: "assigned", texted, reason });
 
   // ─── 2. Text the client (best-effort, gated) ───
   if (!to) return done(false, "no_phone");
+  if (!textMessageOptIn) return done(false, "no_consent");
 
   // Once-only: a prior non-failed 'summon' row blocks a second send.
   const { data: prior } = await supabase
@@ -118,9 +122,10 @@ Deno.serve(async (req) => {
   // client receives is then Twilio's canned demo copy, not ours — so leave this
   // secret UNSET in production.
   const demoBody = Deno.env.get("TWILIO_DEMO_BODY");
-  const messageBody = demoBody ||
+  const messageBody =
+    demoBody ||
     `Hi ${firstName}, a fixer at the Repair Cafe is ready to look at your ` +
-    `${wo.item_name}. Please come to the repair area. Thanks!`;
+      `${wo.item_name}. Please come to the repair area. Thanks!`;
 
   const logBase = {
     work_order_id: workOrderId,
