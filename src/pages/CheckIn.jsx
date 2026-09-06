@@ -138,13 +138,18 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [firstName, setFirstName] = useState(initialValues?.firstName || "");
   const [lastName, setLastName] = useState(initialValues?.lastName || "");
   const [email, setEmail] = useState(initialValues?.email || "");
-  const [phone, setPhone] = useState(formatPhone((initialValues?.phone || "").replace(/\D/g, "")));
+  const [phone, setPhone] = useState(
+    formatPhone((initialValues?.phone || "").replace(/\D/g, "")),
+  );
   const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
   const [newsletterOptIn, setNewsletterOptIn] = useState(
-    initialValues?.newsletterOptIn ?? true
+    initialValues?.newsletterOptIn ?? true,
+  );
+  const [textMessageOptIn, setTextMessageOptIn] = useState(
+    initialValues?.textMessageOptIn ?? false,
   );
   const [items, setItems] = useState(
-    initialValues?.items || [{ name: "", description: "" }]
+    initialValues?.items || [{ name: "", description: "" }],
   );
   const [emailTouched, setEmailTouched] = useState(false);
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -198,6 +203,7 @@ function CheckInForm({ event, onProceed, initialValues }) {
       zipCode,
       items,
       newsletterOptIn: hasUsableEmail && newsletterOptIn,
+      textMessageOptIn: phoneValid && phoneDigits && textMessageOptIn,
     });
   };
 
@@ -272,8 +278,22 @@ function CheckInForm({ event, onProceed, initialValues }) {
         type="email"
       />
       {showEmailError && (
-        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
-          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+        <div
+          style={{
+            padding: "8px 12px",
+            background: "#fef3f2",
+            borderRadius: "8px",
+            marginTop: -8,
+            marginBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "13px",
+              color: "#b42318",
+            }}
+          >
             Please enter a valid email address, or leave this field blank.
           </span>
         </div>
@@ -306,16 +326,47 @@ function CheckInForm({ event, onProceed, initialValues }) {
         maxLength={12}
       />
       {showPhoneError && (
-        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
-          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
-            Please enter a valid 10-digit phone number, or leave this field blank.
+        <div
+          style={{
+            padding: "8px 12px",
+            background: "#fef3f2",
+            borderRadius: "8px",
+            marginTop: -8,
+            marginBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "13px",
+              color: "#b42318",
+            }}
+          >
+            Please enter a valid 10-digit phone number, or leave this field
+            blank.
           </span>
         </div>
       )}
-      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#667085", margin: "-8px 0 16px 0", lineHeight: 1.4 }}>
-        By providing your number, you consent to receive a text message when a fixer is ready for
-        your item. Message and data rates may apply.
-      </p>
+      <Checkbox
+        checked={textMessageOptIn}
+        disabled={!phoneValid || !phoneDigits}
+        onChange={setTextMessageOptIn}
+        style={{ marginTop: -8, marginBottom: 16 }}
+      >
+        <span
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "14px",
+            color: "#1d2939",
+            lineHeight: 1.4,
+          }}
+        >
+          By providing your mobile number and selecting this checkbox, you agree
+          to receive text messages. Message frequency varies. Message and data
+          rates may apply. Consent is not required to attend an event or receive
+          repair assistance. Reply STOP to unsubscribe or HELP for assistance.
+        </span>
+      </Checkbox>
       <Input
         label="Zip Code"
         value={zipCode}
@@ -327,8 +378,22 @@ function CheckInForm({ event, onProceed, initialValues }) {
         maxLength={5}
       />
       {showZipError && (
-        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
-          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+        <div
+          style={{
+            padding: "8px 12px",
+            background: "#fef3f2",
+            borderRadius: "8px",
+            marginTop: -8,
+            marginBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "13px",
+              color: "#b42318",
+            }}
+          >
             Please enter a valid 5-digit ZIP code.
           </span>
         </div>
@@ -353,7 +418,8 @@ function CheckInForm({ event, onProceed, initialValues }) {
           margin: "0 0 16px 0",
         }}
       >
-        You may bring up to {maxItems} {maxItems === 1 ? "item" : "items"}. Item #1 is your top priority.
+        You may bring up to {maxItems} {maxItems === 1 ? "item" : "items"}. Item
+        #1 is your top priority.
       </p>
       {items.map((item, idx) => (
         <ItemForm
@@ -458,7 +524,8 @@ export default function CheckIn() {
         WAIVER_VERSION,
         waiverText,
         waiverHash,
-        formData.newsletterOptIn
+        formData.newsletterOptIn,
+        formData.textMessageOptIn,
       );
       setConfirmData({
         firstName: formData.firstName,

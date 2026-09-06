@@ -59,7 +59,7 @@ export async function updateEventMaxItems(id, maxItems) {
 
 // ─── Check-in (atomic via RPC) ───
 
-export async function checkinVisitor(eventId, firstName, lastName, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash, newsletterOptIn) {
+export async function checkinVisitor(eventId, firstName, lastName, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash, newsletterOptIn, textMessageOptIn) {
   const rpcItems = items.map((item, idx) => ({
     item_name: item.name.trim(),
     description: item.description.trim(),
@@ -78,6 +78,7 @@ export async function checkinVisitor(eventId, firstName, lastName, email, phone,
     p_waiver_text: waiverText || null,
     p_waiver_hash: waiverHash || null,
     p_newsletter_opt_in: !!newsletterOptIn,
+    p_text_message_opt_in: !!textMessageOptIn,
   });
 
   if (error) throw error;
