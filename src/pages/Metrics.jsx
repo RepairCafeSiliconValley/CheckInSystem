@@ -118,8 +118,6 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openCategory, setOpenCategory] = useState(null);
-  const [openFixer, setOpenFixer] = useState(null);
-  const [showAllFixers, setShowAllFixers] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Seeding the scope happens here rather than in a follow-up effect: the
@@ -788,79 +786,6 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
               </StatBar>
             ))}
           </Section>
-
-          {/* ── Fixers ── */}
-          {m.fixers.length > 0 && (
-            <Section
-              title="Fixers"
-              subtitle={`${m.fixers.length} fixer${
-                m.fixers.length === 1 ? "" : "s"
-              } recorded a completed item`}
-            >
-              {(showAllFixers ? m.fixers : m.fixers.slice(0, 8)).map((f) => (
-                <StatBar
-                  key={f.name}
-                  label={f.name}
-                  count={f.count}
-                  total={m.fixers[0].count}
-                  color="#6941c6"
-                  right={f.count ? formatPct(f.fixRate) : "—"}
-                  onClick={() => setOpenFixer(openFixer === f.name ? null : f.name)}
-                  expanded={openFixer === f.name}
-                >
-                  <div style={{ paddingLeft: 4 }}>
-                    {/* Every order here is completed, so these rows always sum
-                        back to the fixer's own count. */}
-                    {f.outcomes.map((o) => (
-                      <StatBar
-                        key={o.label}
-                        label={o.label}
-                        count={o.count}
-                        total={f.count}
-                        color={o.color}
-                        indent
-                        muted
-                        right={formatPct(pct(o.count, f.count))}
-                      />
-                    ))}
-                    {f.topNotFixedReason && (
-                      <div
-                        style={{
-                          fontFamily: "'Outfit', sans-serif",
-                          fontSize: "11px",
-                          color: "#98a2b3",
-                          paddingLeft: 14,
-                        }}
-                      >
-                        top not-fixed reason: {f.topNotFixedReason.label}
-                      </div>
-                    )}
-                  </div>
-                </StatBar>
-              ))}
-              {m.fixers.length > 8 && (
-                <button
-                  onClick={() => {
-                    // Collapsing the list could hide the expanded row.
-                    setOpenFixer(null);
-                    setShowAllFixers(!showAllFixers);
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    fontFamily: "'Outfit', sans-serif",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#1e3a6e",
-                    cursor: "pointer",
-                  }}
-                >
-                  {showAllFixers ? "Show fewer" : `Show all ${m.fixers.length}`}
-                </button>
-              )}
-            </Section>
-          )}
 
           {/* ── Cross-event comparison ── */}
           {byEvent.length >= 2 && (
