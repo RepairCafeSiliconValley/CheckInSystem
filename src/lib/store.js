@@ -221,7 +221,7 @@ export async function fetchEventStats(eventId) {
 export async function exportAttendeesCSV(eventId, eventName) {
   const { data, error } = await supabase
     .from("attendees")
-    .select("first_name, last_name, email, phone, zip_code, is_volunteer, newsletter_opt_in, created_at")
+    .select("first_name, last_name, email, phone, zip_code, is_volunteer, newsletter_opt_in, text_message_opt_in, created_at")
     .eq("event_id", eventId)
     .order("created_at", { ascending: true });
   if (error) throw error;
@@ -234,7 +234,7 @@ export async function exportAttendeesCSV(eventId, eventName) {
       : s;
   };
 
-  const header = "First Name,Last Name,Email,Phone,Zip Code,Volunteer,Newsletter,Checked In";
+  const header = "First Name,Last Name,Email,Phone,Zip Code,Volunteer,Newsletter,Text Message Consent,Checked In";
   const rows = data.map((a) =>
     [
       esc(a.first_name),
@@ -244,6 +244,7 @@ export async function exportAttendeesCSV(eventId, eventName) {
       esc(a.zip_code),
       a.is_volunteer ? "Yes" : "No",
       a.newsletter_opt_in ? "Yes" : "No",
+      a.text_message_opt_in ? "Yes" : "No",
       new Date(a.created_at).toLocaleString(),
     ].join(",")
   );
