@@ -13,6 +13,7 @@ import {
   fetchEvents,
   fetchVisitorDetail,
 } from "../lib/store";
+import { submittedStamp } from "../lib/metrics";
 
 export default function StaffPortal() {
   const [authed, setAuthed] = useState(false);
@@ -63,7 +64,14 @@ export default function StaffPortal() {
       const abbreviated = attendee.last_name
         ? `${attendee.first_name} ${attendee.last_name.charAt(0).toUpperCase()}.`
         : attendee.first_name;
-      setPrintData({ orders: printableOrders, attendeeName: abbreviated, isVolunteer: attendee.is_volunteer });
+      setPrintData({
+        orders: printableOrders,
+        attendeeName: abbreviated,
+        isVolunteer: attendee.is_volunteer,
+        // Resolved from the whole visit, not per item, so every ticket carries
+        // the same time the queue card shows.
+        submittedAt: submittedStamp(attendee, orders),
+      });
       setPrintingVisitorId(attId);
     } catch (err) {
       console.error("Failed to load print data:", err);
@@ -116,6 +124,7 @@ export default function StaffPortal() {
             workOrders={printData.orders}
             attendeeName={printData.attendeeName}
             isVolunteer={printData.isVolunteer}
+            submittedAt={printData.submittedAt}
             onClose={() => {
               setPrintingVisitorId(null);
               setPrintData(null);

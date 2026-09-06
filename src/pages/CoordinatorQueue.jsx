@@ -7,8 +7,53 @@ import {
   fetchEvents,
   subscribeToEvent,
 } from "../lib/store";
-import { computeMetrics } from "../lib/metrics";
+import { computeMetrics, formatClockTime, submittedStamp } from "../lib/metrics";
 import { STATUSES } from "../lib/constants";
+
+// Submission time for the top-right corner of a queue card. Same stamp the
+// visitor's printed ticket carries — both go through submittedStamp().
+//
+// Labelled "Submitted" to match the status of the same name; "Checked-In" is
+// already taken by pending_assignment, which is a later moment.
+function SubmittedTime({ group }) {
+  const at = formatClockTime(submittedStamp(group.attendee, group.orders));
+  if (!at) return null;
+  return (
+    <div
+      style={{
+        flexShrink: 0,
+        alignSelf: "flex-start",
+        marginLeft: 8,
+        textAlign: "right",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: "9px",
+          fontWeight: 700,
+          letterSpacing: "0.5px",
+          textTransform: "uppercase",
+          color: "#98a2b3",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Submitted
+      </div>
+      <div
+        style={{
+          fontFamily: "'Space Mono', monospace",
+          fontSize: "12px",
+          color: "#667085",
+          whiteSpace: "nowrap",
+          marginTop: 1,
+        }}
+      >
+        {at}
+      </div>
+    </div>
+  );
+}
 
 export default function CoordinatorQueue({
   onSelectVisitor,
@@ -257,7 +302,7 @@ export default function CoordinatorQueue({
               marginBottom: 8,
             }}
           >
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span
                   style={{
@@ -291,6 +336,7 @@ export default function CoordinatorQueue({
                   fontSize: "12px",
                   color: "#98a2b3",
                   marginTop: 1,
+                  overflowWrap: "anywhere",
                 }}
               >
                 {[g.attendee?.email, g.attendee?.phone, g.attendee?.zip_code]
@@ -298,6 +344,7 @@ export default function CoordinatorQueue({
                   .join(" · ")}
               </div>
             </div>
+            <SubmittedTime group={g} />
           </div>
           {g.orders.map((o) => (
             <div

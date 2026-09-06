@@ -490,6 +490,30 @@ export function formatKg(kg, withUnit = true) {
   return `${kg.toFixed(1)}${withUnit ? " kg" : ""}`;
 }
 
+// When a visitor submitted their items — the attendee row is inserted by the
+// check-in RPC, so its timestamp is the moment they finished the form. An item
+// added later at the coordinator's desk would read too late, so the earliest
+// order is only a fallback for an attendee row somehow missing a stamp.
+//
+// NOT the same as the "Checked-In" status, which this app uses for
+// `pending_assignment` — approved and ticket printed, stamped in printed_at.
+// See STATUSES in constants.js.
+//
+// The queue card and the printed ticket both resolve the time through here, so
+// they can't show a visitor two different times.
+export function submittedStamp(attendee, orders = []) {
+  if (attendee?.created_at) return attendee.created_at;
+  return orders.map((o) => o.created_at).filter(Boolean).sort()[0] || null;
+}
+
+// "2:15 PM" from a timestamptz.
+export function formatClockTime(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 export function formatDuration(ms) {
   if (ms === null || ms === undefined) return "—";
   const mins = Math.round(ms / 60000);
