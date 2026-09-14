@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import CheckIn from "./pages/CheckIn";
+import Inventory from "./pages/Inventory";
 import StaffPortal from "./pages/StaffPortal";
 import FixerSubmit from "./pages/FixerSubmit";
 import Landing from "./pages/Landing";
@@ -9,6 +10,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/checkin" element={<CheckIn />} />
+      <Route path="/inventory" element={<Inventory />} />
       <Route path="/fix/:id" element={<FixerSubmit />} />
       <Route path="/admin" element={<StaffPortal />} />
       <Route path="*" element={<Navigate to="/" replace />} />

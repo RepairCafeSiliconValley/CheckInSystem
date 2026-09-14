@@ -430,6 +430,62 @@ export function subscribeToEvent(eventId, onUpdate) {
   return () => supabase.removeChannel(channel);
 }
 
+// ─── Supply inventory ───
+
+// Bins are labelled on the trailer in caps ("A1"), but staff type into a phone
+// with autocapitalize off as often as not. Normalising here rather than in the
+// screen keeps "a1" and "A1" from becoming two different bins in the index —
+// the unique index is on (lower(name), bin), so a stray case in bin would slip
+// a duplicate past it.
+function normalizeItem({ name, bin }) {
+  return { name: name.trim(), bin: bin.trim().toUpperCase() };
+}
+
+export async function fetchInventory() {
+  return fetchAllPages(() =>
+    supabase
+      .from("inventory_items")
+      .select("*")
+      .order("name", { ascending: true })
+  );
+}
+
+export async function createInventoryItem({ name, bin }) {
+  const { data, error } = await supabase
+    .from("inventory_items")
+    .insert(normalizeItem({ name, bin }))
+    .select()
+    .single();
+  // Callers check error.code === "23505" to tell "already listed in that bin"
+  // apart from a real failure, so this rethrows as-is rather than wrapping.
+  if (error) throw error;
+  return data;
+}
+
+// Generic writer, same shape as updateEvent — a patch, not one function per
+// column. Normalises only the keys actually present in the patch.
+export async function updateInventoryItem(id, patch) {
+  const next = { ...patch };
+  if (next.name !== undefined) next.name = next.name.trim();
+  if (next.bin !== undefined) next.bin = next.bin.trim().toUpperCase();
+  const { error } = await supabase
+    .from("inventory_items")
+    .update(next)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// The only delete in the app. Every other table denies deletes at the RLS level
+// because its rows are event records; the inventory is a working document, so
+// supabase-migration-v9.sql grants staff a real delete policy on this one.
+export async function deleteInventoryItem(id) {
+  const { error } = await supabase
+    .from("inventory_items")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
 // ─── Auth ───
 
 export async function signIn(password) {

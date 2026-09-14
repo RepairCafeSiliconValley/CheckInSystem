@@ -6,6 +6,7 @@ import PrintTickets from "../components/PrintTickets";
 import CoordinatorQueue from "./CoordinatorQueue";
 import CoordinatorVisitorDetail from "./CoordinatorVisitorDetail";
 import Admin from "./Admin";
+import InventoryAdmin from "./InventoryAdmin";
 import Metrics from "./Metrics";
 import {
   getSession,
@@ -209,6 +210,7 @@ export default function StaffPortal() {
             }}
           />
         )}
+        {staffTab === "inventory" && <InventoryAdmin />}
         {staffTab === "admin" && (
           <Admin
             onViewMetrics={(id) => {
@@ -244,6 +246,7 @@ export default function StaffPortal() {
           {[
             { key: "queue", label: "Queue", icon: "📋" },
             { key: "metrics", label: "Metrics", icon: "📊" },
+            { key: "inventory", label: "Supplies", icon: "🧰" },
             { key: "admin", label: "Admin", icon: "⚙️" },
           ].map((t) => (
             <button

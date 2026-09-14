@@ -93,6 +93,8 @@ src/
 │   ├── CoordinatorQueue.jsx           # Visitor queue by status
 │   ├── CoordinatorVisitorDetail.jsx   # Edit items & record outcomes
 │   ├── Admin.jsx                      # Event management, per-event item limit, stats, QR codes, attendee CSV export
+│   ├── InventoryAdmin.jsx             # Supply index editing (Supplies tab)
+│   ├── Inventory.jsx                  # Public supply index (A–Z, searchable, printable)
 │   └── FixerSubmit.jsx                # Fixer outcome submission
 ├── lib/
 │   ├── supabase.js    # Supabase client init
@@ -110,12 +112,13 @@ src/
 |-------|------|-------------|
 | `/checkin?event=<id>` | CheckIn | Visitor check-in form (opened via QR code) |
 | `/fix/:id` | FixerSubmit | Fixer records repair outcome for a work order (id = work-order UUID, encoded in the ticket QR) |
+| `/inventory` | Inventory | Supply index for the trailer — A–Z, searchable by item or bin, printable. Not linked from anywhere; share the URL. |
 
 ### Staff (password-protected)
 
 | Route | Page | Description |
 |-------|------|-------------|
-| `/staff` | StaffPortal | Coordinator dashboard with Queue and Admin tabs |
+| `/staff` | StaffPortal | Coordinator dashboard with Queue, Metrics, Supplies and Admin tabs |
 
 All other routes redirect to `/staff`.
 
@@ -148,12 +151,13 @@ All other routes redirect to `/staff`.
 
 ## Database (Supabase)
 
-Four main tables:
+Five main tables:
 
 - **`events`** — id, name, date, location, is_open, max_items, collect_email, collect_phone, collect_weight, created_at
 - **`attendees`** — id, event_id, first_name, last_name, email, phone, zip_code, is_volunteer, created_at
 - **`work_orders`** — id, code, attendee_id, event_id, item_name, category, description, weight_kg, priority, status, outcome, fixer_name, created_at, printed_at, completed_at
 - **`waiver_acceptances`** — id, attendee_id, waiver_version, waiver_text, content_hash, accepted_at
+- **`inventory_items`** — id, name, bin, created_at. The trailer's supply index, not tied to an event. Publicly readable (the `/inventory` page needs no login) and staff-writable, and the only table that permits deletes — see [`supabase-migration-v9.sql`](./supabase-migration-v9.sql).
 
 Two Postgres RPC functions wrap the multi-row writes in a single transaction:
 
@@ -168,6 +172,11 @@ To populate the DEV project with realistic mock data (events across past/today/u
 work orders covering every status and outcome, and waiver records), run [`supabase-seed.sql`](./supabase-seed.sql)
 in the Supabase SQL Editor (or via the MCP). It truncates the four tables first, so it's safe to re-run.
 **Do not run it against PROD.**
+
+The supply index has its own loader, [`supabase-inventory-seed.sql`](./supabase-inventory-seed.sql) —
+229 items across 34 bins, transcribed from the printed sheet. Unlike `supabase-seed.sql` it truncates
+nothing and is safe on PROD; it is plain inserts with `ON CONFLICT DO NOTHING`, so re-running it will
+restore any row that was deleted in the app but leaves renamed and re-binned rows alone.
 
 ### Auth
 There are no individual user accounts. The staff portal (`PasswordGate`) is gated by a single shared
