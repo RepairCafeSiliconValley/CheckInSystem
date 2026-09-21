@@ -88,7 +88,6 @@ Deno.serve(async (req) => {
   if (updErr) return json({ error: "Could not claim work order" }, 500);
 
   const attendee = Array.isArray(wo.attendees) ? wo.attendees[0] : wo.attendees;
-  const firstName: string = attendee?.first_name ?? "there";
   const to = toE164(attendee?.phone);
   const textMessageOptIn = Boolean(attendee?.text_message_opt_in);
   console.log(textMessageOptIn);
@@ -122,10 +121,13 @@ Deno.serve(async (req) => {
   // client receives is then Twilio's canned demo copy, not ours — so leave this
   // secret UNSET in production.
   const demoBody = Deno.env.get("TWILIO_DEMO_BODY");
+  // Straight apostrophe on purpose: a curly one (’) is outside GSM-7 and would
+  // force the whole message into UCS-2, halving the per-segment limit to 70
+  // characters and splitting this into two billed segments. "é" is in GSM-7.
   const messageBody =
     demoBody ||
-    `Hi ${firstName}, a fixer at the Repair Cafe is ready to look at your ` +
-      `${wo.item_name}. Please come to the repair area. Thanks!`;
+    `It's your turn! Come to the check-in desk to meet the Repair Café ` +
+      `volunteer who will help you fix your ${wo.item_name}.`;
 
   const logBase = {
     work_order_id: workOrderId,
