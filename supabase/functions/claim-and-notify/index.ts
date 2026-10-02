@@ -3,8 +3,12 @@
 // A fixer scans the ticket's "claim" QR and taps "Start work & call client over".
 // This function:
 //   1. Marks the work order 'assigned' (With Fixer) and records the fixer name.
-//   2. Best-effort texts the client via Twilio to come to the repair area,
-//      only if a phone is on file, they gave consent, and no 'summon' SMS was already sent.
+//   2. Best-effort texts the client via Twilio to come to the repair area, only
+//      if the event collects phone numbers, a phone is on file, they gave
+//      consent, and no 'summon' SMS was already sent.
+//
+// The wording comes from events.text_message_template (migration v9), not from
+// this file — see renderTemplate below and src/lib/textMessage.js.
 //
 // The phone number never leaves the server: it's read here with the service-role
 // key and used only to call Twilio. The response never includes it.
@@ -26,6 +30,26 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// Token substitution for the per-event message template.
+//
+// DUPLICATED FROM src/lib/textMessage.js — this file runs on Deno and can't
+// import from src/. Keep the two in step: the allowlist here is what actually
+// ships, and the admin UI's tooltip documents the same three tokens.
+//
+// Unrecognised [tokens] are deliberately left in the message so a coordinator's
+// typo shows up in the delivered text and the ledger, rather than vanishing.
+const TOKEN_PATTERN = /\[(item_name|client_first_name|fixer_name)\]/g;
+
+function renderTemplate(
+  template: string,
+  values: Record<string, string>,
+): string {
+  return template.replace(TOKEN_PATTERN, (match, key: string) => {
+    const v = values[key];
+    return v == null || v === "" ? match : String(v);
   });
 }
 
@@ -65,7 +89,9 @@ Deno.serve(async (req) => {
   const { data: wo, error: woErr } = await supabase
     .from("work_orders")
     .select(
-      "id, status, event_id, attendee_id, item_name, attendees ( first_name, phone, text_message_opt_in )",
+      "id, status, event_id, attendee_id, item_name, " +
+        "attendees ( first_name, phone, text_message_opt_in ), " +
+        "events ( text_message_template, collect_phone )",
     )
     .eq("id", workOrderId)
     .maybeSingle();
@@ -88,14 +114,24 @@ Deno.serve(async (req) => {
   if (updErr) return json({ error: "Could not claim work order" }, 500);
 
   const attendee = Array.isArray(wo.attendees) ? wo.attendees[0] : wo.attendees;
+  const event = Array.isArray(wo.events) ? wo.events[0] : wo.events;
   const to = toE164(attendee?.phone);
   const textMessageOptIn = Boolean(attendee?.text_message_opt_in);
-  console.log(textMessageOptIn);
 
   const done = (texted: boolean, reason: string) =>
     json({ ok: true, status: "assigned", texted, reason });
 
   // ─── 2. Text the client (best-effort, gated) ───
+  //
+  // Everything below returns rather than throws: the claim above has already
+  // succeeded, and a fixer who scanned the QR must be able to start work even
+  // when the message can't go out.
+
+  // collect_phone is the master switch for texting. Checked first so the
+  // reason names the real cause, and deliberately skipping the send even if a
+  // stale number survives from before the setting was turned off.
+  if (!event?.collect_phone) return done(false, "messaging_off");
+
   if (!to) return done(false, "no_phone");
   if (!textMessageOptIn) return done(false, "no_consent");
 
@@ -121,13 +157,19 @@ Deno.serve(async (req) => {
   // client receives is then Twilio's canned demo copy, not ours — so leave this
   // secret UNSET in production.
   const demoBody = Deno.env.get("TWILIO_DEMO_BODY");
-  // Straight apostrophe on purpose: a curly one (’) is outside GSM-7 and would
-  // force the whole message into UCS-2, halving the per-segment limit to 70
-  // characters and splitting this into two billed segments. "é" is in GSM-7.
-  const messageBody =
-    demoBody ||
-    `It's your turn! Come to the check-in desk to meet the Repair Café ` +
-      `volunteer who will help you fix your ${wo.item_name}.`;
+
+  // The event row is the only source of copy — there is no default here on
+  // purpose, so a misconfigured event fails loudly instead of quietly sending
+  // wording nobody chose. events.text_message_template is NOT NULL with a
+  // non-blank CHECK (migration v9), so this should be unreachable.
+  const template = (event?.text_message_template ?? "").trim();
+  if (!demoBody && !template) return done(false, "no_template");
+
+  const messageBody = demoBody || renderTemplate(template, {
+    item_name: wo.item_name,
+    client_first_name: attendee?.first_name ?? "",
+    fixer_name: fixerName,
+  });
 
   const logBase = {
     work_order_id: workOrderId,

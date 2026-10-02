@@ -54,7 +54,7 @@ export default function StaffPortal() {
 
   const handlePrint = async (attId) => {
     try {
-      const { attendee, orders } = await fetchVisitorDetail(attId);
+      const { attendee, orders, event } = await fetchVisitorDetail(attId);
       const printableOrders = orders.filter(
         (w) =>
           w.status === "pending_assignment" ||
@@ -63,7 +63,16 @@ export default function StaffPortal() {
       const abbreviated = attendee.last_name
         ? `${attendee.first_name} ${attendee.last_name.charAt(0).toUpperCase()}.`
         : attendee.first_name;
-      setPrintData({ orders: printableOrders, attendeeName: abbreviated, isVolunteer: attendee.is_volunteer });
+      // collect_phone decides whether the claim QR is printed: an event that
+      // doesn't collect numbers can't text, so the QR would promise a message
+      // it can't send. Comes from the visitor's own event, not the selected
+      // tab, so a reprint for another event still gets it right.
+      setPrintData({
+        orders: printableOrders,
+        attendeeName: abbreviated,
+        isVolunteer: attendee.is_volunteer,
+        collectPhone: event?.collect_phone !== false,
+      });
       setPrintingVisitorId(attId);
     } catch (err) {
       console.error("Failed to load print data:", err);
@@ -116,6 +125,7 @@ export default function StaffPortal() {
             workOrders={printData.orders}
             attendeeName={printData.attendeeName}
             isVolunteer={printData.isVolunteer}
+            collectPhone={printData.collectPhone}
             onClose={() => {
               setPrintingVisitorId(null);
               setPrintData(null);

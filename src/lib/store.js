@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { STATUSES } from "./constants";
+import { DEFAULT_TEXT_MESSAGE } from "./textMessage";
 
 // ─── Paging ───
 
@@ -73,6 +74,7 @@ export async function createEvent({
   collectEmail = true,
   collectPhone = true,
   collectWeight = false,
+  textMessageTemplate = DEFAULT_TEXT_MESSAGE,
 }) {
   const { data, error } = await supabase
     .from("events")
@@ -84,6 +86,7 @@ export async function createEvent({
       collect_email: collectEmail,
       collect_phone: collectPhone,
       collect_weight: collectWeight,
+      text_message_template: textMessageTemplate,
     })
     .select()
     .single();

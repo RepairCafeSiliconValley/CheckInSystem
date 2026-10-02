@@ -95,6 +95,29 @@ function outcomeCopy(result, clientName) {
           </>
         ),
       };
+    case "messaging_off":
+      return {
+        emoji: "🔔",
+        title: "Item Claimed",
+        body: (
+          <>
+            This event isn't collecting phone numbers, so no text was sent.
+            Please look for {who} in the waiting area.
+          </>
+        ),
+      };
+    case "no_template":
+      return {
+        emoji: "🔔",
+        title: "Item Claimed",
+        body: (
+          <>
+            No message template is set for this event, so no text was sent.
+            Please look for {who} in the waiting area and let a coordinator
+            know.
+          </>
+        ),
+      };
     case "sms_not_configured":
       return {
         emoji: "🔔",
