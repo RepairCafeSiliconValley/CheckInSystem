@@ -345,7 +345,7 @@ export default function FixerSubmit() {
                     textAlign: "center",
                   }}
                 >
-                  Item Canceled
+                  Item Cancelled
                 </h2>
                 <p
                   style={{

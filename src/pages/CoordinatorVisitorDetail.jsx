@@ -21,6 +21,7 @@ export default function CoordinatorVisitorDetail({
 }) {
   const [attendee, setAttendee] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
 
@@ -62,10 +63,11 @@ export default function CoordinatorVisitorDetail({
 
   const loadData = async () => {
     try {
-      const { attendee: att, orders: wo } =
+      const { attendee: att, orders: wo, event: ev } =
         await fetchVisitorDetail(attendeeId);
       setAttendee(att);
       setOrders(wo);
+      setEvent(ev);
       setAttFirstName(att.first_name);
       setAttLastName(att.last_name);
       setAttEmail(att.email || "");
@@ -78,6 +80,7 @@ export default function CoordinatorVisitorDetail({
           category: w.category,
           description: w.description,
           fixer_name: w.fixer_name || "",
+          weight_kg: w.weight_kg ?? "",
         };
       });
       setItemEdits(edits);
@@ -117,6 +120,12 @@ export default function CoordinatorVisitorDetail({
     );
   }
 
+  // What this event collects. Default to shown for contact fields so an event
+  // row predating the migration behaves as before; weight is opt-in.
+  const collectEmail = event?.collect_email !== false;
+  const collectPhone = event?.collect_phone !== false;
+  const collectWeight = event?.collect_weight === true;
+
   const updateItem = (woId, field, value) => {
     setItemEdits((prev) => ({
       ...prev,
@@ -140,6 +149,14 @@ export default function CoordinatorVisitorDetail({
     }
   };
 
+  // Blank weight means "not weighed" — store NULL rather than 0. Anything
+  // unparseable also becomes NULL so NaN can never reach the numeric column.
+  const parseWeight = (v) => {
+    if (v === "" || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
   // Save only a single work order (on blur or category change)
   const saveWorkOrder = async (woId) => {
     const e = itemEditsRef.current[woId];
@@ -150,6 +167,7 @@ export default function CoordinatorVisitorDetail({
         category: e.category,
         description: e.description.trim(),
         fixer_name: e.fixer_name.trim(),
+        weight_kg: parseWeight(e.weight_kg),
       });
       showSaved();
     } catch (err) {
@@ -175,6 +193,7 @@ export default function CoordinatorVisitorDetail({
             category: e.category,
             description: e.description.trim(),
             fixer_name: e.fixer_name.trim(),
+            weight_kg: parseWeight(e.weight_kg),
           });
         }
       }
@@ -318,22 +337,26 @@ export default function CoordinatorVisitorDetail({
           placeholder="Last name"
           required
         />
-        <Input
-          label="Email"
-          value={attEmail}
-          onChange={setAttEmail}
-          onBlur={saveAttendee}
-          placeholder="Email (optional)"
-          type="email"
-        />
-        <Input
-          label="Cell Phone"
-          value={attPhone}
-          onChange={setAttPhone}
-          onBlur={saveAttendee}
-          placeholder="Phone (optional)"
-          type="tel"
-        />
+        {collectEmail && (
+          <Input
+            label="Email"
+            value={attEmail}
+            onChange={setAttEmail}
+            onBlur={saveAttendee}
+            placeholder="Email (optional)"
+            type="email"
+          />
+        )}
+        {collectPhone && (
+          <Input
+            label="Cell Phone"
+            value={attPhone}
+            onChange={setAttPhone}
+            onBlur={saveAttendee}
+            placeholder="Phone (optional)"
+            type="tel"
+          />
+        )}
         <Input
           label="Zip Code"
           value={attZipCode}
@@ -448,6 +471,19 @@ export default function CoordinatorVisitorDetail({
                   placeholder="Category"
                   required
                 />
+                {collectWeight && (
+                  <Input
+                    label="Weight (kg)"
+                    value={e.weight_kg ?? ""}
+                    onChange={(v) => updateItem(wo.id, "weight_kg", v)}
+                    onBlur={() => saveWorkOrder(wo.id)}
+                    placeholder="e.g. 2.5 (optional)"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                  />
+                )}
                 <TextArea
                   label="Issue"
                   value={e.description || ""}
@@ -479,6 +515,9 @@ export default function CoordinatorVisitorDetail({
                   {wo.item_name}
                 </div>
                 {wo.category && <Badge text={wo.category} />}
+                {collectWeight && wo.weight_kg != null && (
+                  <Badge text={`${wo.weight_kg} kg`} />
+                )}
                 <p
                   style={{
                     fontFamily: "'Outfit', sans-serif",
@@ -721,7 +760,7 @@ export default function CoordinatorVisitorDetail({
                         }}
                       >
                         {isCanceled
-                          ? `Canceled — ${wo.cancel_reason}`
+                          ? `Cancelled — ${wo.cancel_reason}`
                           : wo.outcome}
                       </span>
                       {wo.fixer_name && (

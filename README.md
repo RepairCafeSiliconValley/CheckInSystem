@@ -123,7 +123,8 @@ All other routes redirect to `/staff`.
 
 ### Visitor Check-In
 1. Visitor scans QR code at the event, opens `/checkin?event=<id>`
-2. Enters name, email, phone, zip code
+2. Enters name and zip code, plus email and phone if the event collects them
+   (`collect_email` / `collect_phone`, both on by default — toggled per event in Admin)
 3. Adds up to the event's item limit (`max_items`, configurable 1–10, default 2) — name, category, description
 4. Reviews and accepts liability waiver
 5. Receives confirmation with item codes (e.g. `R-A3K`)
@@ -133,7 +134,8 @@ All other routes redirect to `/staff`.
 2. Selects active event
 3. Filters visitors by work-order status — tabs: **All / Pending / Waiting / Done**
    (underlying statuses: `pending` → `pending_assignment` → `completed`)
-4. Opens visitor detail to review/edit items
+4. Opens visitor detail to review/edit items — including each item's weight in kg
+   when the event has `collect_weight` on
 5. Approves and prints tickets (one per item)
 6. Records outcomes when fixers return tickets
 
@@ -148,9 +150,9 @@ All other routes redirect to `/staff`.
 
 Four main tables:
 
-- **`events`** — id, name, date, location, is_open, max_items, created_at
+- **`events`** — id, name, date, location, is_open, max_items, collect_email, collect_phone, collect_weight, created_at
 - **`attendees`** — id, event_id, first_name, last_name, email, phone, zip_code, is_volunteer, created_at
-- **`work_orders`** — id, code, attendee_id, event_id, item_name, category, description, priority, status, outcome, fixer_name, created_at, printed_at, completed_at
+- **`work_orders`** — id, code, attendee_id, event_id, item_name, category, description, weight_kg, priority, status, outcome, fixer_name, created_at, printed_at, completed_at
 - **`waiver_acceptances`** — id, attendee_id, waiver_version, waiver_text, content_hash, accepted_at
 
 Two Postgres RPC functions wrap the multi-row writes in a single transaction:

@@ -1,14 +1,48 @@
 import { supabase } from "./supabase";
+import { STATUSES } from "./constants";
+
+// ─── Paging ───
+
+const PAGE_SIZE = 1000;
+
+// Supabase caps every PostgREST select at db-max-rows (1000 on hosted) and
+// returns the truncated page with NO error and no warning. Filters shrink the
+// candidate set but do not lift the cap, so filtering by event_id is not a
+// defence: one year's items already exceeds it.
+//
+// RULE: every .select() that can return more than one row goes through this,
+// with no exceptions. "Only where it might exceed 1000" is how the metrics tab
+// silently under-reported every total on prod.
+//
+// makeQuery must return a FRESH builder on each call — a PostgrestFilterBuilder
+// is thenable and single-use, so reusing one would re-await a settled promise
+// and loop forever.
+async function fetchAllPages(makeQuery) {
+  const all = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    // The id sort is mandatory, not cosmetic: offset paging over an
+    // unspecified order lets Postgres return rows in a different order per
+    // page, silently skipping some and duplicating others. Every table here
+    // has a uuid primary key, so id gives a guaranteed total order. Chained
+    // .order() calls apply in sequence, so a caller's own sort stays primary
+    // and this only breaks ties.
+    const { data, error } = await makeQuery()
+      .order("id", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    all.push(...(data || []));
+    // A short page means the end. Reads under PAGE_SIZE cost exactly one
+    // request, same as before.
+    if (!data || data.length < PAGE_SIZE) return all;
+  }
+}
 
 // ─── Events ───
 
 export async function fetchEvents() {
-  const { data, error } = await supabase
-    .from("events")
-    .select("*")
-    .order("date", { ascending: false });
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase.from("events").select("*").order("date", { ascending: false })
+  );
 }
 
 export async function fetchEventById(id) {
@@ -22,39 +56,50 @@ export async function fetchEventById(id) {
 }
 
 export async function fetchOpenEvents() {
-  const { data, error } = await supabase
-    .from("events")
-    .select("*")
-    .eq("is_open", true)
-    .order("date", { ascending: false });
-  if (error) throw error;
-  return data;
+  return fetchAllPages(() =>
+    supabase
+      .from("events")
+      .select("*")
+      .eq("is_open", true)
+      .order("date", { ascending: false })
+  );
 }
 
-export async function createEvent(name, date, location, maxItems = 2) {
+export async function createEvent({
+  name,
+  date,
+  location,
+  maxItems = 2,
+  collectEmail = true,
+  collectPhone = true,
+  collectWeight = false,
+}) {
   const { data, error } = await supabase
     .from("events")
-    .insert({ name, date, location, max_items: maxItems })
+    .insert({
+      name,
+      date,
+      location,
+      max_items: maxItems,
+      collect_email: collectEmail,
+      collect_phone: collectPhone,
+      collect_weight: collectWeight,
+    })
     .select()
     .single();
   if (error) throw error;
   return data;
 }
 
-export async function toggleEventOpen(id, isOpen) {
-  const { error } = await supabase
-    .from("events")
-    .update({ is_open: isOpen })
-    .eq("id", id);
+// Generic event writer — takes a column patch so new per-event settings don't
+// each need their own function.
+export async function updateEvent(id, patch) {
+  const { error } = await supabase.from("events").update(patch).eq("id", id);
   if (error) throw error;
 }
 
-export async function updateEventMaxItems(id, maxItems) {
-  const { error } = await supabase
-    .from("events")
-    .update({ max_items: maxItems })
-    .eq("id", id);
-  if (error) throw error;
+export async function toggleEventOpen(id, isOpen) {
+  await updateEvent(id, { is_open: isOpen });
 }
 
 // ─── Check-in (atomic via RPC) ───
@@ -88,20 +133,18 @@ export async function checkinVisitor(eventId, firstName, lastName, email, phone,
 // ─── Visitor Groups (for coordinator queue) ───
 
 export async function fetchVisitorGroups(eventId) {
-  const [attendeesRes, ordersRes] = await Promise.all([
-    supabase.from("attendees").select("*").eq("event_id", eventId),
-    supabase
-      .from("work_orders")
-      .select("*")
-      .eq("event_id", eventId)
-      .order("priority", { ascending: true }),
+  const [attendees, orders] = await Promise.all([
+    fetchAllPages(() =>
+      supabase.from("attendees").select("*").eq("event_id", eventId)
+    ),
+    fetchAllPages(() =>
+      supabase
+        .from("work_orders")
+        .select("*")
+        .eq("event_id", eventId)
+        .order("priority", { ascending: true })
+    ),
   ]);
-
-  if (attendeesRes.error) throw attendeesRes.error;
-  if (ordersRes.error) throw ordersRes.error;
-
-  const attendees = attendeesRes.data;
-  const orders = ordersRes.data;
 
   // Group by attendee
   const grouped = {};
@@ -126,19 +169,24 @@ export async function fetchVisitorGroups(eventId) {
 // ─── Single visitor data ───
 
 export async function fetchVisitorDetail(attendeeId) {
-  const [attRes, ordersRes] = await Promise.all([
+  const [attRes, orders] = await Promise.all([
     supabase.from("attendees").select("*").eq("id", attendeeId).single(),
-    supabase
-      .from("work_orders")
-      .select("*")
-      .eq("attendee_id", attendeeId)
-      .order("priority", { ascending: true }),
+    fetchAllPages(() =>
+      supabase
+        .from("work_orders")
+        .select("*")
+        .eq("attendee_id", attendeeId)
+        .order("priority", { ascending: true })
+    ),
   ]);
 
   if (attRes.error) throw attRes.error;
-  if (ordersRes.error) throw ordersRes.error;
 
-  return { attendee: attRes.data, orders: ordersRes.data };
+  // The event carries the collect_* settings that decide which fields the
+  // visitor detail screen renders. Sequential — event_id comes off the attendee.
+  const event = await fetchEventById(attRes.data.event_id);
+
+  return { attendee: attRes.data, orders, event };
 }
 
 // ─── Work order by ID (public fixer page) ───
@@ -195,36 +243,143 @@ export async function updateWorkOrder(id, updates) {
 
 // ─── Stats ───
 
-export async function fetchEventStats(eventId) {
-  const [attendeesRes, ordersRes] = await Promise.all([
-    supabase
-      .from("attendees")
-      .select("id", { count: "exact" })
-      .eq("event_id", eventId),
-    supabase.from("work_orders").select("*").eq("event_id", eventId),
+// Raw rows for the metrics tab, aggregated client-side by src/lib/metrics.js.
+// eventIds: an array of event ids to scope to, or null for every event.
+// Deliberately selects no PII (no names, email or phone) — nothing on the
+// metrics screens needs it, and this keeps a whole-database read cheap.
+export async function fetchMetricsRows(eventIds = null) {
+  if (Array.isArray(eventIds) && eventIds.length === 0) {
+    return { attendees: [], orders: [] };
+  }
+
+  const scope = (q) => (eventIds ? q.in("event_id", eventIds) : q);
+
+  const [attendees, orders] = await Promise.all([
+    fetchAllPages(() =>
+      scope(
+        supabase
+          .from("attendees")
+          .select(
+            "id, event_id, is_volunteer, newsletter_opt_in, zip_code, created_at"
+          )
+      )
+    ),
+    fetchAllPages(() =>
+      scope(
+        supabase
+          .from("work_orders")
+          .select(
+            "id, event_id, attendee_id, status, outcome, cancel_reason, not_fixed_reason, category, fixer_name, weight_kg, created_at, printed_at, completed_at"
+          )
+      )
+    ),
   ]);
 
-  const attendeeCount = attendeesRes.count || 0;
-  const orders = ordersRes.data || [];
-  const fixed = orders.filter((w) => w.outcome === "Fixed").length;
-  const diagnosed = orders.filter((w) => w.outcome === "Diagnosed").length;
-  const notFixed = orders.filter((w) => w.outcome === "Not Fixed").length;
-  const takenHome = orders.filter((w) => w.outcome === "Taken Home").length;
-  // Canceled items carry status='canceled' (outcome is null); the reason lives in cancel_reason.
-  const canceled = orders.filter((w) => w.status === "canceled").length;
-
-  return { attendeeCount, orderCount: orders.length, fixedCount: fixed, diagnosedCount: diagnosed, notFixedCount: notFixed, takenHomeCount: takenHome, canceledCount: canceled };
+  return { attendees, orders };
 }
+
+// fetchEventStats was removed here: it pulled every row for one event and
+// filtered in JS, and Admin called it once per event. Everything now goes
+// through fetchMetricsRows + computeByEvent in a single round trip.
 
 // ─── Export ───
 
+// Raw work-item export for the Metrics tab — one row per work order, no
+// aggregates. The only client reference is attendee_id: no name, email, phone
+// or zip, and not the visitor's free-text description either.
+//
+// Fetched fresh rather than reusing the rows already loaded for the metrics:
+// fetchMetricsRows deliberately omits code/item_name/priority and runs on every
+// page view, so widening it to serve an occasional export would tax every load.
+//
+// NOTE: do not add `assigned_at` here. It exists on DEV only (via the unmerged
+// twilio-integration migration) and naming a column that's absent on prod fails
+// the whole query.
+export async function exportWorkOrdersCSV(events, scopeLabel) {
+  if (!events?.length) return;
+  const byId = new Map(events.map((e) => [e.id, e]));
+
+  // Two queries joined in JS rather than a PostgREST embed — same shape as
+  // fetchVisitorGroups, and no embedded selects exist anywhere in this codebase.
+  const eventIds = [...byId.keys()];
+  const [data, attendeeRows] = await Promise.all([
+    fetchAllPages(() =>
+      supabase
+        .from("work_orders")
+        .select(
+          "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, not_fixed_reason, fixer_name, weight_kg, created_at, printed_at, completed_at"
+        )
+        .in("event_id", eventIds)
+        .order("created_at", { ascending: true })
+    ),
+    // Only the two client attributes asked for — still no name, email or phone.
+    fetchAllPages(() =>
+      supabase
+        .from("attendees")
+        .select("id, zip_code, is_volunteer")
+        .in("event_id", eventIds)
+    ),
+  ]);
+
+  const attendeeById = new Map(attendeeRows.map((a) => [a.id, a]));
+
+  const esc = (v) => {
+    if (v == null) return "";
+    const s = String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  };
+  const labelOf = (key) => STATUSES.find((s) => s.key === key)?.label || key;
+
+  const header = [
+    "Event Name", "Event Date", "Event ID", "Work Order ID", "Code",
+    "Attendee ID", "Zip Code", "Volunteer",
+    "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
+    "Cancel Reason", "Not Fixed Reason", "Fixer", "Weight (kg)",
+    "Created At", "Printed At", "Completed At",
+  ].join(",");
+
+  // Event date first so the file groups naturally when opened in a spreadsheet.
+  const sorted = [...(data || [])].sort((a, b) => {
+    const d = (byId.get(a.event_id)?.date || "").localeCompare(byId.get(b.event_id)?.date || "");
+    return d !== 0 ? d : (a.created_at || "").localeCompare(b.created_at || "");
+  });
+
+  const rows = sorted.map((w) => {
+    const ev = byId.get(w.event_id) || {};
+    // A work order whose attendee row is missing degrades to blanks rather
+    // than throwing — the item row is still worth exporting.
+    const att = attendeeById.get(w.attendee_id);
+    return [
+      esc(ev.name), esc(ev.date), esc(w.event_id), esc(w.id), esc(w.code),
+      esc(w.attendee_id), esc(att?.zip_code),
+      att ? (att.is_volunteer ? "Yes" : "No") : "",
+      esc(w.item_name), esc(w.category), esc(w.priority),
+      esc(w.status), esc(labelOf(w.status)), esc(w.outcome),
+      esc(w.cancel_reason), esc(w.not_fixed_reason), esc(w.fixer_name), esc(w.weight_kg),
+      esc(w.created_at), esc(w.printed_at), esc(w.completed_at),
+    ].join(",");
+  });
+
+  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const safeName = (scopeLabel || "events").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+  a.download = `${safeName}-items-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function exportAttendeesCSV(eventId, eventName) {
-  const { data, error } = await supabase
-    .from("attendees")
-    .select("first_name, last_name, email, phone, zip_code, is_volunteer, newsletter_opt_in, text_message_opt_in, created_at")
-    .eq("event_id", eventId)
-    .order("created_at", { ascending: true });
-  if (error) throw error;
+  const data = await fetchAllPages(() =>
+    supabase
+      .from("attendees")
+      .select("first_name, last_name, email, phone, zip_code, is_volunteer, newsletter_opt_in, text_message_opt_in, created_at")
+      .eq("event_id", eventId)
+      .order("created_at", { ascending: true })
+  );
 
   const esc = (v) => {
     if (v == null) return "";

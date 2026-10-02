@@ -1,9 +1,7 @@
 import { useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
-import TicketCodeBadge, {
-  TICKET_CODE_BADGE_MODE,
-} from "./TicketCodeBadge";
+import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -20,6 +18,15 @@ const valueStyle = {
   fontFamily: font,
   color: "#000",
 };
+const qrCaptionStyle = {
+  fontSize: "12px",
+  fontWeight: 700,
+  fontFamily: font,
+  color: "#000",
+  marginTop: 4,
+  textAlign: "center",
+  lineHeight: 1.3,
+};
 function formatCheckInTime(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleTimeString([], {
@@ -32,6 +39,10 @@ export default function PrintTickets({
   workOrders,
   attendeeName,
   isVolunteer,
+  // Whether this event collects phone numbers. Doubles as the texting switch,
+  // so it also decides whether the claim QR is worth printing. Defaults to
+  // true so a caller that hasn't been updated keeps the previous behaviour.
+  collectPhone = true,
   onClose,
 }) {
   const baseUrl = window.location.origin;
@@ -166,78 +177,121 @@ export default function PrintTickets({
 
           <div style={divider} />
 
+          {/* Stamp placeholder, ticket code, and QR code in one vertically centered row.
+              Uses CSS Grid with fixed-width outer columns (not flexbox
+              space-between) so the placeholder and QR are pinned to fixed
+              positions relative to the row's own width. The code badge's
+              rendered width — which can vary with font metrics between
+              environments — lives entirely inside the middle column and
+              can never push the QR out of place. */}
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
+              display: "grid",
+              gridTemplateColumns: "76px 1fr 76px",
               alignItems: "center",
-              padding: "8px 0",
+              padding: "8px 0 8px 0",
+              paddingRight: 6,
             }}
           >
+            {/* Left slot: the claim QR when this event texts clients, otherwise
+                the dashed placeholder that has always reserved the space. An
+                event that doesn't collect phone numbers can't text, so the QR
+                would promise something it can't deliver. */}
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                width: 92,
               }}
             >
-              <QRCodeSVG
-                value={`${baseUrl}/claim/${wo.id}`}
-                size={88}
-                level="M"
+              {collectPhone ? (
+                <>
+                  <div style={{ width: 76, height: 76, overflow: "hidden" }}>
+                    <QRCodeSVG
+                      value={`${baseUrl}/claim/${wo.id}`}
+                      size={76}
+                      level="M"
+                      style={{
+                        width: "76px",
+                        height: "76px",
+                        display: "block",
+                      }}
+                    />
+                  </div>
+                  <div style={qrCaptionStyle}>
+                    CLAIM &amp;
+                    <br />
+                    TEXT CLIENT
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      width: 76,
+                      height: 76,
+                      border: "1px dashed #000",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                  {/* invisible spacer matching the QR caption so both squares stay aligned */}
+                  <div style={{ ...qrCaptionStyle, visibility: "hidden" }}>
+                    SUBMIT
+                    <br />
+                    RESOLUTION
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifySelf: "center",
+                maxWidth: "100%",
+                overflow: "hidden",
+              }}
+            >
+              <TicketCodeBadge
+                code={wo.code?.split("-")[0]}
+                isVolunteer={isVolunteer}
+                mode={TICKET_CODE_BADGE_MODE.COMPACT}
               />
-              <div
-                style={{
-                  fontSize: "9px",
-                  fontFamily: font,
-                  color: "#000",
-                  marginTop: 4,
-                  textAlign: "center",
-                }}
-              >
-                Scan to claim & text client
+              {/* invisible spacer matching the QR caption so the code stays level with the boxes */}
+              <div style={{ ...qrCaptionStyle, visibility: "hidden" }}>
+                SUBMIT
+                <br />
+                RESOLUTION
               </div>
             </div>
 
             <div
               style={{
                 display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                minWidth: 92,
-              }}
-            >
-              <TicketCodeBadge
-                code={wo.code}
-                isVolunteer={isVolunteer}
-                mode={TICKET_CODE_BADGE_MODE.COMPACT}
-              />
-            </div>
-
-            <div
-              style={{
-                display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                width: 92,
               }}
             >
-              <QRCodeSVG
-                value={`${baseUrl}/fix/${wo.id}`}
-                size={88}
-                level="M"
-              />
               <div
                 style={{
-                  fontSize: "9px",
-                  fontFamily: font,
-                  color: "#000",
-                  marginTop: 4,
-                  textAlign: "center",
+                  width: 76,
+                  height: 76,
+                  overflow: "hidden",
                 }}
               >
-                Scan to submit outcome
+                <QRCodeSVG
+                  value={`${baseUrl}/fix/${wo.id}`}
+                  size={76}
+                  level="M"
+                  style={{ width: "76px", height: "76px", display: "block" }}
+                />
+              </div>
+              <div style={qrCaptionStyle}>
+                SUBMIT
+                <br />
+                RESOLUTION
               </div>
             </div>
           </div>
@@ -247,7 +301,7 @@ export default function PrintTickets({
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          @page { size: 80mm auto; margin: 2mm; }
+          @page { size: 72mm auto; margin: 0; }
           body { margin: 0; padding: 0; }
           .print-ticket {
             width: 100% !important;
