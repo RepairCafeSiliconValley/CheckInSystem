@@ -6,13 +6,9 @@ import TextArea from "../components/TextArea";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
-import {
-  CATEGORIES,
-  OUTCOMES,
-  CANCEL_REASONS,
-  NOT_FIXED_REASONS,
-  OTHER_REASON,
-} from "../lib/constants";
+import RecordOutcome from "../components/RecordOutcome";
+import ReasonPicker from "../components/ReasonPicker";
+import { CATEGORIES, CANCEL_REASONS } from "../lib/constants";
 import {
   fetchVisitorDetail,
   updateAttendee,
@@ -40,30 +36,8 @@ export default function CoordinatorVisitorDetail({
   // Editable item fields — keyed by work order id
   const [itemEdits, setItemEdits] = useState({});
 
-  // Which work order (if any) is showing the cancel-reason / not-fixed-reason picker
+  // Which work order (if any) is showing the cancel-reason picker
   const [cancelingId, setCancelingId] = useState(null);
-  const [notFixingId, setNotFixingId] = useState(null);
-  // Optional note typed after picking "Other" in either picker. Only one picker
-  // can have "Other" chosen at a time, so a single note is enough.
-  const [otherPicked, setOtherPicked] = useState(null); // { woId, kind: "cancel" | "notFixed" }
-  const [otherNote, setOtherNote] = useState("");
-
-  const pickOther = (woId, kind) => {
-    setOtherPicked({ woId, kind });
-    setOtherNote("");
-  };
-  const isOtherPicked = (woId, kind) =>
-    otherPicked?.woId === woId && otherPicked?.kind === kind;
-
-  // Opening or closing either picker discards a half-entered "Other" note.
-  const toggleNotFixing = (woId) => {
-    setNotFixingId(notFixingId === woId ? null : woId);
-    setOtherPicked(null);
-  };
-  const switchCanceling = (woId) => {
-    setCancelingId(woId);
-    setOtherPicked(null);
-  };
 
   // Refs to always have latest values in async callbacks without stale closures
   const attFirstNameRef = useRef("");
@@ -274,8 +248,6 @@ export default function CoordinatorVisitorDetail({
     };
     if (e?.fixer_name?.trim()) updates.fixer_name = e.fixer_name.trim();
     await updateWorkOrder(woId, updates);
-    setNotFixingId(null);
-    setOtherPicked(null);
     await loadData();
   };
 
@@ -290,7 +262,6 @@ export default function CoordinatorVisitorDetail({
       completed_at: new Date().toISOString(),
     });
     setCancelingId(null);
-    setOtherPicked(null);
     await loadData();
   };
 
@@ -570,132 +541,14 @@ export default function CoordinatorVisitorDetail({
 
             {/* Outcome recording for pending_assignment */}
             {wo.status === "pending_assignment" && (
-              <div style={{ marginTop: 8 }}>
-                <Input
-                  label="Fixer Name (optional)"
-                  value={e.fixer_name || ""}
-                  onChange={(v) => updateItem(wo.id, "fixer_name", v)}
-                  onBlur={() => saveWorkOrder(wo.id)}
-                  placeholder="Who worked on this?"
-                />
-                <p
-                  style={{
-                    fontFamily: "'Outfit', sans-serif",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#344054",
-                    margin: "0 0 8px 0",
-                  }}
-                >
-                  Record Outcome:
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                  }}
-                >
-                  {OUTCOMES.map((o) => {
-                    const isNotFixedOpen =
-                      o === "Not Fixed" && notFixingId === wo.id;
-                    return (
-                      <button
-                        key={o}
-                        onClick={() =>
-                          o === "Not Fixed"
-                            ? toggleNotFixing(wo.id)
-                            : setOrderOutcome(wo.id, o)
-                        }
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: "8px",
-                          border: isNotFixedOpen
-                            ? "1.5px solid #1e3a6e"
-                            : "1.5px solid #d0d5dd",
-                          background: isNotFixedOpen ? "#eef2f9" : "#fff",
-                          fontFamily: "'Outfit', sans-serif",
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          color: "#475467",
-                          cursor: "pointer",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {o === "Fixed" && "✅ "}
-                        {o === "Diagnosed" && "🔍 "}
-                        {o === "Not Fixed" && "❌ "}
-                        {o === "Taken Home" && "🥡 "}
-                        {o}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Not-Fixed reason picker — appears when "Not Fixed" is chosen */}
-                {notFixingId === wo.id && (
-                  <div style={{ marginTop: 8 }}>
-                    <p
-                      style={{
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#344054",
-                        margin: "0 0 6px 0",
-                      }}
-                    >
-                      Why wasn't it fixed?
-                    </p>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 8,
-                      }}
-                    >
-                      {NOT_FIXED_REASONS.map((r) => {
-                        const isOther = r === OTHER_REASON;
-                        const isOpen = isOther && isOtherPicked(wo.id, "notFixed");
-                        return (
-                          <button
-                            key={r}
-                            onClick={() =>
-                              isOther
-                                ? pickOther(wo.id, "notFixed")
-                                : setOrderOutcome(wo.id, "Not Fixed", r)
-                            }
-                            style={{
-                              padding: "8px 12px",
-                              borderRadius: "8px",
-                              border: isOpen
-                                ? "1.5px solid #1e3a6e"
-                                : "1.5px solid #d0d5dd",
-                              background: isOpen ? "#eef2f9" : "#fff",
-                              fontFamily: "'Outfit', sans-serif",
-                              fontSize: "12px",
-                              fontWeight: 500,
-                              color: "#475467",
-                              cursor: "pointer",
-                              transition: "all 0.15s",
-                            }}
-                          >
-                            {r}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {isOtherPicked(wo.id, "notFixed") && (
-                      <OtherNoteForm
-                        note={otherNote}
-                        onChange={setOtherNote}
-                        onConfirm={() =>
-                          setOrderOutcome(wo.id, "Not Fixed", OTHER_REASON, otherNote)
-                        }
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
+              <RecordOutcome
+                fixerName={e.fixer_name || ""}
+                onFixerNameChange={(v) => updateItem(wo.id, "fixer_name", v)}
+                onFixerNameBlur={() => saveWorkOrder(wo.id)}
+                onRecord={(outcome, reason, note) =>
+                  setOrderOutcome(wo.id, outcome, reason, note)
+                }
+              />
             )}
 
             {/* Cancel — available at any point before an outcome is recorded */}
@@ -710,66 +563,13 @@ export default function CoordinatorVisitorDetail({
               >
                 {cancelingId === wo.id ? (
                   <>
-                    <p
-                      style={{
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#344054",
-                        margin: "0 0 6px 0",
-                      }}
-                    >
-                      Cancel reason:
-                    </p>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 8,
-                      }}
-                    >
-                      {CANCEL_REASONS.map((r) => {
-                        const isOther = r === OTHER_REASON;
-                        const isOpen = isOther && isOtherPicked(wo.id, "cancel");
-                        return (
-                          <button
-                            key={r}
-                            onClick={() =>
-                              isOther
-                                ? pickOther(wo.id, "cancel")
-                                : cancelOrder(wo.id, r)
-                            }
-                            style={{
-                              padding: "10px 12px",
-                              borderRadius: "8px",
-                              border: isOpen
-                                ? "1.5px solid #1e3a6e"
-                                : "1.5px solid #d0d5dd",
-                              background: isOpen ? "#eef2f9" : "#fff",
-                              fontFamily: "'Outfit', sans-serif",
-                              fontSize: "13px",
-                              fontWeight: 500,
-                              color: "#475467",
-                              cursor: "pointer",
-                              transition: "all 0.15s",
-                            }}
-                          >
-                            {r}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {isOtherPicked(wo.id, "cancel") && (
-                      <OtherNoteForm
-                        note={otherNote}
-                        onChange={setOtherNote}
-                        onConfirm={() =>
-                          cancelOrder(wo.id, OTHER_REASON, otherNote)
-                        }
-                      />
-                    )}
+                    <ReasonPicker
+                      label="Cancel reason:"
+                      reasons={CANCEL_REASONS}
+                      onPick={(reason, note) => cancelOrder(wo.id, reason, note)}
+                    />
                     <button
-                      onClick={() => switchCanceling(null)}
+                      onClick={() => setCancelingId(null)}
                       style={{
                         marginTop: 8,
                         background: "none",
@@ -786,7 +586,7 @@ export default function CoordinatorVisitorDetail({
                   </>
                 ) : (
                   <button
-                    onClick={() => switchCanceling(wo.id)}
+                    onClick={() => setCancelingId(wo.id)}
                     style={{
                       background: "none",
                       border: "none",
@@ -930,29 +730,6 @@ export default function CoordinatorVisitorDetail({
           </Button>
         )}
       </div>
-    </div>
-  );
-}
-
-// Shown under a reason picker once "Other" is chosen: an optional note plus an
-// explicit confirm, since "Other" can't commit on click like the other reasons.
-function OtherNoteForm({ note, onChange, onConfirm }) {
-  return (
-    <div style={{ marginTop: 8 }}>
-      <TextArea
-        label="Details (optional)"
-        value={note}
-        onChange={onChange}
-        placeholder="Briefly describe the reason"
-        rows={2}
-      />
-      <Button
-        variant="primary"
-        onClick={onConfirm}
-        style={{ fontSize: "13px", padding: "8px 12px" }}
-      >
-        Confirm "Other"
-      </Button>
     </div>
   );
 }
