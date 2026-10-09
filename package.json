@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "db:reset": "node scripts/db-reset.mjs",
+    "test:db": "supabase test db",
     "preview": "vite preview"
   },
   "dependencies": {
