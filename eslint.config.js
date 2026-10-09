@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // repair-cafe-checkin-v5.jsx is the original in-memory prototype; the app
+  // doesn't import it.
+  globalIgnores(['dist', 'repair-cafe-checkin-v5.jsx']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
