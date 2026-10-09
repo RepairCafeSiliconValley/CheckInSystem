@@ -5,8 +5,9 @@ import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Input from "../components/Input";
 import Button from "../components/Button";
+import TextArea from "../components/TextArea";
 import { fetchWorkOrderById, submitFixerOutcome } from "../lib/store";
-import { OUTCOMES, NOT_FIXED_REASONS } from "../lib/constants";
+import { OUTCOMES, NOT_FIXED_REASONS, OTHER_REASON } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
   Fixed: "✅",
@@ -72,6 +73,7 @@ export default function FixerSubmit() {
   const [submitted, setSubmitted] = useState(null);
   const [selectedOutcome, setSelectedOutcome] = useState(null);
   const [notFixedReason, setNotFixedReason] = useState(null);
+  const [notFixedNote, setNotFixedNote] = useState(""); // optional, only for "Other"
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -100,6 +102,9 @@ export default function FixerSubmit() {
         fixerName,
         selectedOutcome,
         selectedOutcome === "Not Fixed" ? notFixedReason : null,
+        selectedOutcome === "Not Fixed" && notFixedReason === OTHER_REASON
+          ? notFixedNote
+          : null,
       );
       setSubmitted(selectedOutcome);
     } catch {
@@ -605,6 +610,17 @@ export default function FixerSubmit() {
                           );
                         })}
                       </div>
+                      {notFixedReason === OTHER_REASON && (
+                        <div style={{ marginTop: 12 }}>
+                          <TextArea
+                            label="Details (optional)"
+                            value={notFixedNote}
+                            onChange={setNotFixedNote}
+                            placeholder="Briefly describe why it wasn't fixed"
+                            rows={2}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -50,6 +50,7 @@ export const CANCEL_REASONS = [
   "Never Checked In",
   "Client left",
   "Languished",
+  "Other",
 ];
 
 // When the outcome is "Not Fixed", one of these is stored in not_fixed_reason.
@@ -62,7 +63,12 @@ export const NOT_FIXED_REASONS = [
   "Item too worn out",
   "Beyond scope of event",
   "Not enough time",
+  "Other",
 ];
+
+// Picking this reason (in either list above) reveals an optional free-text note,
+// stored in cancel_note / not_fixed_note so the reason columns stay canonical.
+export const OTHER_REASON = "Other";
 
 // ─── Waiver ───
 // IMPORTANT: When changing WAIVER_SECTIONS text below, you MUST bump
