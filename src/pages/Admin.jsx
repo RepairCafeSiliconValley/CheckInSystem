@@ -39,20 +39,27 @@ export default function Admin({ onViewMetrics }) {
   const [qrEvent, setQrEvent] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const loadEvents = async () => {
+  const fetchEventsWithStats = async () => {
     // One read of every event's rows, grouped in JS. This used to be a
     // sequential fetch per event — O(events) round trips on every render.
     const [evs, rows] = await Promise.all([fetchEvents(), fetchMetricsRows(null)]);
-    setEvents(evs);
     const statsMap = {};
     computeByEvent(rows, evs).forEach(({ event, metrics }) => {
       statsMap[event.id] = metrics;
     });
+    return { evs, statsMap };
+  };
+
+  const applyEvents = ({ evs, statsMap }) => {
+    setEvents(evs);
     setStats(statsMap);
   };
 
+  const loadEvents = async () => applyEvents(await fetchEventsWithStats());
+
+  // State is set from the promise callback, not in the effect body.
   useEffect(() => {
-    loadEvents();
+    fetchEventsWithStats().then(applyEvents);
   }, []);
 
   const handleCreate = async () => {

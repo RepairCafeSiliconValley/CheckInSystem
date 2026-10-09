@@ -493,24 +493,22 @@ export default function CheckIn() {
         items: result.items,
       });
       setStep("confirm");
-    } catch (err) {
+    } catch {
       setError("Something went wrong. Please try again.");
     }
     setSubmitting(false);
   };
 
   useEffect(() => {
-    if (!eventId) {
-      setLoading(false);
-      return;
-    }
+    if (!eventId) return;
     fetchEventById(eventId).then((ev) => {
       setEvent(ev);
       setLoading(false);
     });
   }, [eventId]);
 
-  if (loading) {
+  // With no ?event= there's nothing to fetch, so never show the spinner.
+  if (eventId && loading) {
     return (
       <div
         style={{
