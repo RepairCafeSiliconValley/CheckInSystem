@@ -42,7 +42,7 @@ export const OUTCOME_COLORS = {
 };
 
 // Canceling (status='canceled', outcome stays NULL) records one of these reasons.
-// Staff-only; a coordinator can cancel at any point before an outcome is recorded.
+// Volunteer-only; a coordinator can cancel at any point before an outcome is recorded.
 export const CANCEL_REASONS = [
   "Disallowed Item",
   "Registration Closed",
@@ -69,6 +69,11 @@ export const NOT_FIXED_REASONS = [
 // Picking this reason (in either list above) reveals an optional free-text note,
 // stored in cancel_note / not_fixed_note so the reason columns stay canonical.
 export const OTHER_REASON = "Other";
+
+// ─── Access ───
+// The shared volunteer password signs in as this Supabase Auth user. Renaming
+// it means renaming that user in each environment's Auth at the same time.
+export const VOLUNTEER_ACCOUNT_EMAIL = "volunteer@repaircafe.app";
 
 // ─── Waiver ───
 // IMPORTANT: When changing WAIVER_SECTIONS text below, you MUST bump

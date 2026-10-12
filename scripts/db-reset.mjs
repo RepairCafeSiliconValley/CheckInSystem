@@ -10,9 +10,9 @@
 //    container.
 // 3. Drops v2's stale checkin_visitor overload (see CLAUDE.md).
 // 4. Runs supabase-seed.sql.
-// 5. Recreates the shared queue login (admin@repaircafe.app) through the Auth
-//    admin API, with the password from LOCAL_STAFF_PASSWORD (environment, or
-//    a `LOCAL_STAFF_PASSWORD=` line in .env.local, commented or not).
+// 5. Recreates the volunteer login (VOLUNTEER_ACCOUNT_EMAIL) through the Auth
+//    admin API, with the password from LOCAL_VOLUNTEER_PASSWORD (environment,
+//    or a `LOCAL_VOLUNTEER_PASSWORD=` line in .env.local, commented or not).
 //
 // Only ever touches the local stack: the reset is --local, and SQL goes to
 // the local container by name.
@@ -21,6 +21,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { VOLUNTEER_ACCOUNT_EMAIL } from "../src/lib/constants.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -43,7 +44,6 @@ const MIGRATIONS = [
 ];
 
 const SEED = "supabase-seed.sql";
-const STAFF_EMAIL = "admin@repaircafe.app";
 
 // v2 leaves this overload behind; it references the dropped `name` column.
 const DROP_STALE_OVERLOAD =
@@ -91,18 +91,18 @@ function psql(container, sql, label) {
   return errors.length;
 }
 
-function staffPassword() {
-  if (process.env.LOCAL_STAFF_PASSWORD) return process.env.LOCAL_STAFF_PASSWORD;
+function volunteerPassword() {
+  if (process.env.LOCAL_VOLUNTEER_PASSWORD) return process.env.LOCAL_VOLUNTEER_PASSWORD;
   const envFile = join(ROOT, ".env.local");
   if (!existsSync(envFile)) return null;
-  const match = readFileSync(envFile, "utf8").match(/^#?\s*LOCAL_STAFF_PASSWORD=(\S+)/m);
+  const match = readFileSync(envFile, "utf8").match(/^#?\s*LOCAL_VOLUNTEER_PASSWORD=(\S+)/m);
   return match ? match[1] : null;
 }
 
-async function createStaffUser() {
-  const password = staffPassword();
+async function createVolunteerUser() {
+  const password = volunteerPassword();
   if (!password) {
-    console.log(`  ⚠ Skipped ${STAFF_EMAIL}: set LOCAL_STAFF_PASSWORD to create it.`);
+    console.log(`  ⚠ Skipped ${VOLUNTEER_ACCOUNT_EMAIL}: set LOCAL_VOLUNTEER_PASSWORD to create it.`);
     return;
   }
   const status = supabase(["status", "-o", "env"]);
@@ -123,10 +123,10 @@ async function createStaffUser() {
       Authorization: `Bearer ${env.SERVICE_ROLE_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email: STAFF_EMAIL, password, email_confirm: true }),
+    body: JSON.stringify({ email: VOLUNTEER_ACCOUNT_EMAIL, password, email_confirm: true }),
   });
-  if (!res.ok) fail(`Creating ${STAFF_EMAIL} failed: ${res.status} ${await res.text()}`);
-  console.log(`  ✓ Created ${STAFF_EMAIL}`);
+  if (!res.ok) fail(`Creating ${VOLUNTEER_ACCOUNT_EMAIL} failed: ${res.status} ${await res.text()}`);
+  console.log(`  ✓ Created ${VOLUNTEER_ACCOUNT_EMAIL}`);
 }
 
 const container = `supabase_db_${projectId()}`;
@@ -147,7 +147,7 @@ console.log("Seeding…");
 problems += psql(container, readFileSync(join(ROOT, SEED), "utf8"), SEED);
 
 console.log("Auth…");
-await createStaffUser();
+await createVolunteerUser();
 
 console.log(problems ? `\nDone, with ${problems} unexpected error line(s) above.` : "\nDone.");
 process.exit(problems ? 1 : 0);

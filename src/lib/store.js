@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { STATUSES } from "./constants";
+import { STATUSES, VOLUNTEER_ACCOUNT_EMAIL } from "./constants";
 
 // ─── Paging ───
 
@@ -433,9 +433,10 @@ export function subscribeToEvent(eventId, onUpdate) {
 
 // ─── Auth ───
 
-export async function signIn(password) {
+// The shared volunteer password signs in as one fixed Supabase Auth user.
+export async function signInVolunteer(password) {
   const { error } = await supabase.auth.signInWithPassword({
-    email: "admin@repaircafe.app",
+    email: VOLUNTEER_ACCOUNT_EMAIL,
     password,
   });
   return !error;

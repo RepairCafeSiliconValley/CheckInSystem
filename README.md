@@ -84,12 +84,14 @@ pointed at DEV for the same reason.
 src/
 ├── components/       # Reusable UI components (Button, Card, Input, etc.)
 │   ├── ItemForm.jsx        # Repair item entry form
-│   ├── PasswordGate.jsx    # Staff portal auth
+│   ├── PasswordGate.jsx    # Shared volunteer password gate
+│   ├── PortalShell.jsx     # Header, portal links and tab bar for /queue and /admin
 │   ├── PrintTickets.jsx    # Print layout for repair tickets
 │   └── WaiverStep.jsx      # Waiver acceptance screen
 ├── pages/
 │   ├── CheckIn.jsx                    # Visitor check-in form
-│   ├── StaffPortal.jsx                # Staff dashboard (auth wrapper)
+│   ├── QueuePortal.jsx                # /queue: Queue and Metrics tabs (auth wrapper)
+│   ├── AdminPortal.jsx                # /admin: event management (auth wrapper)
 │   ├── CoordinatorQueue.jsx           # Visitor queue by status
 │   ├── CoordinatorVisitorDetail.jsx   # Edit items & record outcomes
 │   ├── Admin.jsx                      # Event management, per-event item limit, stats, QR codes, attendee CSV export
@@ -104,20 +106,26 @@ src/
 
 ## Routes
 
-### Public (no auth)
+The app has three access levels: **client** (no login), **volunteer** (the shared volunteer password) and **admin**.
+
+### Client (no login)
 
 | Route | Page | Description |
 |-------|------|-------------|
+| `/` | Landing | Picks the open event and sends visitors to check-in |
 | `/checkin?event=<id>` | CheckIn | Visitor check-in form (opened via QR code) |
 | `/fix/:id` | FixerSubmit | Fixer records repair outcome for a work order (id = work-order UUID, encoded in the ticket QR) |
 
-### Staff (password-protected)
+### Volunteer and admin (password-protected)
 
 | Route | Page | Description |
 |-------|------|-------------|
-| `/staff` | StaffPortal | Coordinator dashboard with Queue and Admin tabs |
+| `/queue` | QueuePortal | Coordinator queue and Metrics tabs (`?tab=metrics&event=<id>` opens Metrics on an event) |
+| `/admin` | AdminPortal | Event management, QR codes, attendee export |
 
-All other routes redirect to `/staff`.
+Each portal links to the other. Both currently use the shared volunteer password; `/admin` is planned to move to personal admin logins (see [`docs/admin-auth-plan.md`](./docs/admin-auth-plan.md)).
+
+All other routes redirect to `/`.
 
 ## Key Workflows
 
@@ -130,7 +138,7 @@ All other routes redirect to `/staff`.
 5. Receives confirmation with item codes (e.g. `R-A3K`)
 
 ### Coordinator Queue
-1. Logs into `/staff` with shared password
+1. Logs into `/queue` with the shared volunteer password
 2. Selects active event
 3. Filters visitors by work-order status — tabs: **All / Pending / Waiting / Done**
    (underlying statuses: `pending` → `pending_assignment` → `completed`)
@@ -144,7 +152,7 @@ All other routes redirect to `/staff`.
 2. Scans the QR (or opens `/fix/<id>`) for that work order
 3. Enters name and selects an outcome: **Fixed / Diagnosed / Not Fixed / Taken Home**
 
-(Coordinators can additionally apply the staff-only outcomes **Languished** and **Abandoned** from the visitor detail screen.)
+(Coordinators can additionally cancel an item from the visitor detail screen, with a reason such as **Languished** or **Client left**.)
 
 ## Database (Supabase)
 
@@ -170,9 +178,10 @@ in the Supabase SQL Editor (or via the MCP). It truncates the four tables first,
 **Do not run it against PROD.**
 
 ### Auth
-There are no individual user accounts. The staff portal (`PasswordGate`) is gated by a single shared
-password: sign-in calls Supabase Auth's `supabase.auth.signInWithPassword()` with a fixed admin email
-(`admin@repaircafe.app`) and the password the user types. The session is then used for all staff actions.
+There are no individual user accounts yet. Both portals (`PasswordGate`) are gated by a single shared
+volunteer password: sign-in calls Supabase Auth's `supabase.auth.signInWithPassword()` with a fixed
+email (`volunteer@repaircafe.app`, `VOLUNTEER_ACCOUNT_EMAIL` in `src/lib/constants.js`) and the password
+the user types. The session is then used for all queue and admin actions.
 
 ## Deployment
 
