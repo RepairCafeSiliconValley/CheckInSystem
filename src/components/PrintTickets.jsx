@@ -39,10 +39,12 @@ export default function PrintTickets({
   workOrders,
   attendeeName,
   isVolunteer,
-  // Whether this event collects phone numbers. Doubles as the texting switch,
-  // so it also decides whether the claim QR is worth printing. Defaults to
-  // true so a caller that hasn't been updated keeps the previous behaviour.
-  collectPhone = true,
+  // Will this client actually receive a text when the item is claimed? Needs
+  // all three gates: the event collects phone numbers, a usable number is on
+  // file, and they consented. Shown as a pill beside the priority number; the
+  // claim QR and its caption are the same either way. Defaults to false so a
+  // caller that hasn't been updated makes no promise it can't keep.
+  canTextClient = false,
   onClose,
 }) {
   const baseUrl = window.location.origin;
@@ -133,6 +135,7 @@ export default function PrintTickets({
             <TicketCodeBadge
               code={wo.priority}
               isVolunteer={isVolunteer}
+              canTextClient={canTextClient}
               mode={TICKET_CODE_BADGE_MODE.PRIORITY}
             />
           </div>
@@ -193,10 +196,11 @@ export default function PrintTickets({
               paddingRight: 6,
             }}
           >
-            {/* Left slot: the claim QR when this event texts clients, otherwise
-                the dashed placeholder that has always reserved the space. An
-                event that doesn't collect phone numbers can't text, so the QR
-                would promise something it can't deliver. */}
+            {/* Left slot: the claim QR, always printed. Scanning it is what
+                moves the item to With Fixer and records who took it, which is
+                worth having whether or not a text goes out. The caption says
+                which of the two it'll do, so a fixer isn't promised a message
+                that was never going to be sent. */}
             <div
               style={{
                 display: "flex",
@@ -204,44 +208,24 @@ export default function PrintTickets({
                 alignItems: "center",
               }}
             >
-              {collectPhone ? (
-                <>
-                  <div style={{ width: 76, height: 76, overflow: "hidden" }}>
-                    <QRCodeSVG
-                      value={`${baseUrl}/claim/${wo.id}`}
-                      size={76}
-                      level="M"
-                      style={{
-                        width: "76px",
-                        height: "76px",
-                        display: "block",
-                      }}
-                    />
-                  </div>
-                  <div style={qrCaptionStyle}>
-                    CLAIM &amp;
-                    <br />
-                    TEXT CLIENT
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      width: 76,
-                      height: 76,
-                      border: "1px dashed #000",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                  {/* invisible spacer matching the QR caption so both squares stay aligned */}
-                  <div style={{ ...qrCaptionStyle, visibility: "hidden" }}>
-                    SUBMIT
-                    <br />
-                    RESOLUTION
-                  </div>
-                </>
-              )}
+              <div style={{ width: 76, height: 76, overflow: "hidden" }}>
+                <QRCodeSVG
+                  value={`${baseUrl}/claim/${wo.id}`}
+                  size={76}
+                  level="M"
+                  style={{ width: "76px", height: "76px", display: "block" }}
+                />
+              </div>
+              {/* Names what the QR does, nothing more — whether a text goes
+                  out is shown by the pill next to the priority number at the
+                  top of the ticket. Two lines so the grid keeps this QR level
+                  with the one on the right, and never more than 10 characters
+                  per line: 12px bold Courier in a 76px column is 7.2px each. */}
+              <div style={qrCaptionStyle}>
+                CLAIM
+                <br />
+                ITEM
+              </div>
             </div>
 
             <div

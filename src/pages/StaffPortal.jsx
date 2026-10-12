@@ -13,6 +13,7 @@ import {
   fetchEvents,
   fetchVisitorDetail,
 } from "../lib/store";
+import { isTextablePhone } from "../lib/textMessage";
 
 export default function StaffPortal() {
   const [authed, setAuthed] = useState(false);
@@ -63,15 +64,22 @@ export default function StaffPortal() {
       const abbreviated = attendee.last_name
         ? `${attendee.first_name} ${attendee.last_name.charAt(0).toUpperCase()}.`
         : attendee.first_name;
-      // collect_phone decides whether the claim QR is printed: an event that
-      // doesn't collect numbers can't text, so the QR would promise a message
-      // it can't send. Comes from the visitor's own event, not the selected
-      // tab, so a reprint for another event still gets it right.
+      // Whether the ticket's QR caption promises a text. Same three gates the
+      // Edge Function applies at claim time, in the same order. Drawn from the
+      // visitor's own event rather than the selected tab, so a reprint for
+      // someone from another event still gets it right.
+      //
+      // This is a snapshot: the ticket is printed at check-in but the text is
+      // sent at claim time, so editing the phone or flipping the event setting
+      // in between leaves the printed caption stale.
       setPrintData({
         orders: printableOrders,
         attendeeName: abbreviated,
         isVolunteer: attendee.is_volunteer,
-        collectPhone: event?.collect_phone !== false,
+        canTextClient:
+          Boolean(event?.collect_phone) &&
+          Boolean(attendee.text_message_opt_in) &&
+          isTextablePhone(attendee.phone),
       });
       setPrintingVisitorId(attId);
     } catch (err) {
@@ -125,7 +133,7 @@ export default function StaffPortal() {
             workOrders={printData.orders}
             attendeeName={printData.attendeeName}
             isVolunteer={printData.isVolunteer}
-            collectPhone={printData.collectPhone}
+            canTextClient={printData.canTextClient}
             onClose={() => {
               setPrintingVisitorId(null);
               setPrintData(null);

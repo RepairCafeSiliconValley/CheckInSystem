@@ -201,6 +201,11 @@ export default function ClaimWorkOrder() {
   }
 
   const clientName = workOrder.client_name || "the client";
+  // Computed server-side by get_fixer_work_order (migration v10) from three
+  // values this public page isn't allowed to read: the event's collect_phone,
+  // and the client's phone and consent. Defaults to false so an older
+  // deployment promises nothing it can't deliver.
+  const canTextClient = workOrder.can_text_client === true;
 
   // Success screen after a claim.
   if (result) {
@@ -316,8 +321,9 @@ export default function ClaimWorkOrder() {
           Start Working on This Item
         </h2>
         <p style={{ ...bodyText, textAlign: "left", margin: "0 0 24px 0" }}>
-          Enter your name to claim this item and text the client to come to the
-          repair area.
+          {canTextClient
+            ? "Enter your name to claim this item and text the client to come to the repair area."
+            : "Enter your name to claim this item. No text will be sent — please look for the client in the waiting area."}
         </p>
 
         {/* Item details */}
@@ -402,7 +408,11 @@ export default function ClaimWorkOrder() {
               onClick={handleClaim}
               disabled={submitting || !fixerName.trim()}
             >
-              {submitting ? "Starting…" : "Claim this item & text client"}
+              {submitting
+                ? "Starting…"
+                : canTextClient
+                  ? "Claim this item & text client"
+                  : "Claim this item"}
             </Button>
             {!submitting && !fixerName.trim() && (
               <p

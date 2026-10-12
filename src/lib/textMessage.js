@@ -49,6 +49,16 @@ export function renderTemplate(template, values) {
   });
 }
 
+// Is this number one we could actually text?
+//
+// Mirrors toE164() in supabase/functions/claim-and-notify/index.ts and the
+// phone test in migration v10's get_fixer_work_order: exactly 10 digits, or 11
+// beginning with 1. A half-typed number must not promise a text.
+export function isTextablePhone(raw) {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  return digits.length === 10 || /^1\d{10}$/.test(digits);
+}
+
 // Stand-in values for the editor preview. Deliberately generic: the Create
 // Event form has no event yet, so there is no real data to draw on, and the
 // same component serves both that form and the settings modal.
