@@ -1,14 +1,14 @@
 -- The VOLUNTEER access level (the shared account, volunteer@repaircafe.app),
 -- and a signed-in session that is neither the volunteer nor an admin.
 -- Since supabase-admin-auth-migration.sql, "signed in" alone grants nothing:
--- PII needs can_access_queue(). Events stay writable by the volunteer until
--- the PR 3 lockdown; flip those expectations then.
+-- PII needs can_access_queue(). Since supabase-admin-auth-lockdown.sql,
+-- events are read-only for the volunteer (admins only).
 --
 -- Runs in a transaction that is rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(23);
 
 -- ── Fixtures (as postgres, bypassing RLS) ──
 insert into events (id, name, date, is_open)
@@ -61,16 +61,19 @@ with u as (update waiver_acceptances set waiver_text = 'tampered'
            where attendee_id = 'b0000000-0000-0000-0000-000000000002' returning 1)
 select is(count(*)::int, 0, 'volunteer cannot alter waiver_acceptances') from u;
 
--- Events (TRANSITION until PR 3): create and update allowed, delete not.
-select lives_ok(
+-- Events: readable, but no create, update or delete (admins only).
+select isnt_empty(
+  $$ select 1 from events where id = 'b0000000-0000-0000-0000-000000000001' $$,
+  'volunteer can read events');
+select throws_ok(
   $$ insert into events (id, name, date)
      values ('b0000000-0000-0000-0000-000000000004', 'Created Event', '2030-03-03') $$,
-  'volunteer can create events (until the PR 3 lockdown)');
+  '42501', null, 'volunteer cannot create events');
 with u as (update events set is_open = false
            where id = 'b0000000-0000-0000-0000-000000000001' returning 1)
-select is(count(*)::int, 1, 'volunteer can update events (until the PR 3 lockdown)') from u;
+select is(count(*)::int, 0, 'volunteer cannot update events') from u;
 with d as (delete from events
-           where id = 'b0000000-0000-0000-0000-000000000004' returning 1)
+           where id = 'b0000000-0000-0000-0000-000000000001' returning 1)
 select is(count(*)::int, 0, 'volunteer cannot delete events') from d;
 
 -- Admin tables: invisible and not writable.

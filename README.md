@@ -123,7 +123,7 @@ The app has three access levels: **client** (no login), **volunteer** (the share
 | `/queue` | QueuePortal | Coordinator queue and Metrics tabs (`?tab=metrics&event=<id>` opens Metrics on an event) |
 | `/admin` | AdminPortal | Event management, QR codes, attendee export |
 
-Each portal links to the other. Both currently use the shared volunteer password; `/admin` is planned to move to personal admin logins (see [`docs/admin-auth-plan.md`](./docs/admin-auth-plan.md)).
+Each portal links to the other. `/queue` uses the shared volunteer password; `/admin` uses personal Google logins for approved admins (see [Auth](#auth)).
 
 All other routes redirect to `/`.
 
@@ -178,10 +178,16 @@ in the Supabase SQL Editor (or via the MCP). It truncates the four tables first,
 **Do not run it against PROD.**
 
 ### Auth
-There are no individual user accounts yet. Both portals (`PasswordGate`) are gated by a single shared
-volunteer password: sign-in calls Supabase Auth's `supabase.auth.signInWithPassword()` with a fixed
-email (`volunteer@repaircafe.app`, `VOLUNTEER_ACCOUNT_EMAIL` in `src/lib/constants.js`) and the password
-the user types. The session is then used for all queue and admin actions.
+- **`/queue` (volunteers):** a single shared volunteer password (`PasswordGate`). Sign-in calls Supabase
+  Auth's `supabase.auth.signInWithPassword()` with a fixed email (`volunteer@repaircafe.app`,
+  `VOLUNTEER_ACCOUNT_EMAIL` in `src/lib/constants.js`) and the password the user types. Admins can use
+  `/queue` too.
+- **`/admin` (admins):** personal Google logins (`AdminLoginGate`). Only emails an admin has added to the
+  `admin_allowlist` table can sign up; Supabase Auth's Before User Created hook rejects everyone else.
+  The first admin in each environment is added with SQL (see `supabase-admin-auth-migration.sql`).
+
+The database enforces the same split with row-level security, because the anon key ships to every browser.
+See [`docs/admin-auth-plan.md`](./docs/admin-auth-plan.md).
 
 ## Deployment
 

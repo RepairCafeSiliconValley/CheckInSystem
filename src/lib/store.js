@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase, authRedirectError } from "./supabase";
 import { STATUSES, VOLUNTEER_ACCOUNT_EMAIL } from "./constants";
 
 // ─── Paging ───
@@ -442,11 +442,56 @@ export async function signInVolunteer(password) {
   return !error;
 }
 
+// Admins sign in with Google. The allowlist is enforced by Supabase Auth's
+// Before User Created hook, not here; a rejection comes back on the redirect
+// URL (getAuthRedirectError).
+export async function signInWithGoogle() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${window.location.origin}/admin` },
+  });
+  if (error) throw error;
+}
+
+// The error message from a rejected sign-in redirect, captured at startup.
+export function getAuthRedirectError() {
+  return authRedirectError;
+}
+
+// Drop the sign-in redirect's error params from the address bar.
+export function clearAuthRedirectParams() {
+  if (!authRedirectError) return;
+  window.history.replaceState(null, "", window.location.pathname);
+}
+
 export async function getSession() {
   const {
     data: { session },
   } = await supabase.auth.getSession();
   return session;
+}
+
+// The current session's access level:
+//   "signed-out" — no session
+//   "volunteer"  — the shared volunteer account
+//   "admin"      — an app_users row that isn't disabled (with its name)
+//   "disabled"   — an app_users row that is disabled
+//   "none"       — signed in, but neither (e.g. a login made outside the allowlist)
+// RLS enforces the same split; this only drives which screen to show.
+export async function getAccess() {
+  const session = await getSession();
+  if (!session) return { level: "signed-out" };
+  const { id, email } = session.user;
+  if (email === VOLUNTEER_ACCOUNT_EMAIL) return { level: "volunteer", email };
+
+  const { data, error } = await supabase
+    .from("app_users")
+    .select("name, disabled")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { level: "none", email };
+  return { level: data.disabled ? "disabled" : "admin", email, name: data.name };
 }
 
 export async function signOut() {

@@ -11,7 +11,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(46);
+select plan(49);
 
 -- ── Fixtures ──
 -- Ada and Bea are admins (allowlisted, then created). Cal is created without
@@ -95,6 +95,9 @@ select is(count(*)::int, 1, 'admin can update attendees') from u;
 select lives_ok(
   $$ insert into events (name, date) values ('Admin Event', '2030-02-02') $$,
   'admin can create events');
+with u as (update events set is_open = false
+           where id = 'd0000000-0000-0000-0000-000000000e01' returning 1)
+select is(count(*)::int, 1, 'admin can update events') from u;
 
 -- Allowlist.
 select results_eq(
@@ -155,6 +158,13 @@ select set_config('request.jwt.claims',
   true);
 
 select ok(not public.is_admin(),   'disabled admin: is_admin() is false');
+select results_eq(
+  $$ select email, disabled from app_users $$,
+  $$ values ('bea@example.com'::text, true) $$,
+  'disabled admin sees only their own row, marked disabled');
+select throws_ok(
+  $$ insert into events (name, date) values ('Disabled Event', '2030-03-03') $$,
+  '42501', null, 'disabled admin cannot create events');
 select is_empty($$ select 1 from attendees $$,       'disabled admin cannot read attendees');
 select is_empty($$ select 1 from admin_allowlist $$, 'disabled admin cannot read the allowlist');
 select throws_ok(

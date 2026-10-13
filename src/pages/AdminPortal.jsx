@@ -1,46 +1,59 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import PasswordGate from "../components/PasswordGate";
+import AdminLoginGate from "../components/AdminLoginGate";
 import PortalShell, { PortalLoading } from "../components/PortalShell";
 import Admin from "./Admin";
-import { getSession, signOut } from "../lib/store";
+import {
+  getAccess,
+  getAuthRedirectError,
+  clearAuthRedirectParams,
+  signOut,
+} from "../lib/store";
 
 const QUEUE_LINK = { to: "/queue", label: "Queue →" };
 
-// /admin: event management. Still behind the shared volunteer password until
-// personal admin logins replace it (docs/admin-auth-plan.md, PR 3).
+// /admin: event management, for admins only (a personal Google login whose
+// email was allowlisted; see docs/admin-auth-plan.md). Anyone else gets
+// AdminLoginGate. RLS enforces the same rule on the data.
 export default function AdminPortal() {
   const navigate = useNavigate();
-  const [authed, setAuthed] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
+  const [access, setAccess] = useState(null); // null while checking
+  const redirectError = getAuthRedirectError();
 
-  // Check existing session on mount
   useEffect(() => {
-    getSession().then((session) => {
-      if (session) setAuthed(true);
-      setCheckingSession(false);
-    });
+    clearAuthRedirectParams();
+    getAccess()
+      .then(setAccess)
+      .catch((err) => {
+        console.error("Failed to check access:", err);
+        setAccess({ level: "signed-out" });
+      });
   }, []);
 
   const handleLock = async () => {
     await signOut();
-    setAuthed(false);
+    setAccess({ level: "signed-out" });
   };
 
-  if (checkingSession) return <PortalLoading />;
+  if (!access) return <PortalLoading />;
 
-  if (!authed) {
+  if (access.level !== "admin") {
     return (
-      <PasswordGate
-        title="Admin Access"
+      <AdminLoginGate
+        access={access}
+        error={redirectError}
         crossLink={QUEUE_LINK}
-        onUnlock={() => setAuthed(true)}
+        onSignOut={handleLock}
       />
     );
   }
 
   return (
-    <PortalShell crossLink={QUEUE_LINK} onLogout={handleLock}>
+    <PortalShell
+      identity={`${access.name} (admin)`}
+      crossLink={QUEUE_LINK}
+      onLogout={handleLock}
+    >
       <Admin
         onViewMetrics={(id) => navigate(`/queue?tab=metrics&event=${id}`)}
       />

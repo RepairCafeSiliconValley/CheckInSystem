@@ -21,14 +21,17 @@ export function PortalLoading() {
 }
 
 // Shared frame for the signed-in portals (/queue and /admin): a header with
-// the logo, a link across to the other portal and Logout, the page content,
-// and a bottom tab bar (zIndex 100) when there is more than one tab.
+// the logo, who is signed in, a link across to the other portal and Logout,
+// an optional banner under it, the page content, and a bottom tab bar
+// (zIndex 100) when there is more than one tab.
 export default function PortalShell({
   tabs = [],
   activeTab,
   onTabChange,
+  identity,
   crossLink,
   onLogout,
+  banner,
   children,
 }) {
   return (
@@ -56,7 +59,23 @@ export default function PortalShell({
           }}
         >
           <Logo size="tiny" />
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+            {identity && (
+              <span
+                title={identity}
+                style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "12px",
+                  color: "#667085",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 160,
+                }}
+              >
+                {identity}
+              </span>
+            )}
             {crossLink && (
               <Link
                 to={crossLink.to}
@@ -73,6 +92,7 @@ export default function PortalShell({
             )}
             <button
               onClick={onLogout}
+              title="Signs out of both /queue and /admin on this device"
               style={{
                 background: "none",
                 border: "none",
@@ -87,6 +107,8 @@ export default function PortalShell({
           </div>
         </div>
       </div>
+
+      {banner}
 
       <div
         style={{ maxWidth: 640, margin: "0 auto", padding: "16px 16px 100px" }}
