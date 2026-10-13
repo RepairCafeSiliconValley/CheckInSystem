@@ -16,12 +16,12 @@ const font = "'Outfit', sans-serif";
 const MUTED = "#98a2b3";
 const textColor = (user, normal = "#344054") => (user.disabled ? MUTED : normal);
 
+// created_at is still stored and fetched; it just isn't shown.
 const COLUMNS = [
   { key: "name", label: "Name" },
   { key: "email", label: "Email" },
   { key: "phone", label: "Phone" },
   { key: "disabled", label: "Disabled" },
-  { key: "created_at", label: "Created" },
   { key: "last_login_at", label: "Last login" },
 ];
 
@@ -55,6 +55,20 @@ function useNarrow(maxWidth = 560) {
     return () => mq.removeEventListener("change", onChange);
   }, [query]);
   return narrow;
+}
+
+// An email that has to wrap breaks just before the @ ("bob.martinez /
+// @example.com"), not mid-word.
+function EmailText({ email }) {
+  const at = email.indexOf("@");
+  if (at <= 0) return email;
+  return (
+    <>
+      {email.slice(0, at)}
+      <wbr />
+      {email.slice(at)}
+    </>
+  );
 }
 
 // Inline name editor: saves on Enter or when the field loses focus.
@@ -230,11 +244,11 @@ export default function AdminUsers({ currentUserId }) {
             return (
               <Card key={u.id} style={{ marginBottom: 10, padding: "14px 16px" }}>
                 <NameField key={u.name} user={u} onSave={handleName(u)} />
-                <div style={{ fontFamily: font, fontSize: "13px", color: textColor(u), marginTop: 8, overflowWrap: "anywhere" }}>
-                  {u.email}{isSelf && <b> (you)</b>}
+                <div style={{ fontFamily: font, fontSize: "13px", color: textColor(u), marginTop: 8, overflowWrap: "break-word" }}>
+                  <EmailText email={u.email} />{isSelf && <b> (you)</b>}
                 </div>
                 <div style={{ fontFamily: font, fontSize: "12px", color: textColor(u, "#667085"), marginTop: 4 }}>
-                  {u.phone || "No phone"} · Created {formatDate(u.created_at)} · Last login {formatDate(u.last_login_at)}
+                  {u.phone || "No phone"} · Last login {formatDate(u.last_login_at)}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
                   <DisabledToggle user={u} isSelf={isSelf} onToggle={handleToggle(u)} />
@@ -270,14 +284,13 @@ export default function AdminUsers({ currentUserId }) {
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", width: 130 }}>
                       <NameField key={u.name} user={u} onSave={handleName(u)} />
                     </td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), overflowWrap: "anywhere" }}>
-                      {u.email}{isSelf && <b> (you)</b>}
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), overflowWrap: "break-word" }}>
+                      <EmailText email={u.email} />{isSelf && <b> (you)</b>}
                     </td>
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), whiteSpace: "nowrap" }}>{u.phone || "—"}</td>
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7" }}>
                       <DisabledToggle user={u} isSelf={isSelf} onToggle={handleToggle(u)} compact />
                     </td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), whiteSpace: "nowrap" }}>{formatDate(u.created_at)}</td>
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), whiteSpace: "nowrap" }}>{formatDate(u.last_login_at)}</td>
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7" }}>{deleteButton(u, isSelf)}</td>
                   </tr>
