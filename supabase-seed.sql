@@ -102,11 +102,9 @@ cross join waiver w;
 insert into admin_allowlist (email)
 select v.email
 from (values
-  ('freilich@gmail.com'),
   ('wigahluk@gmail.com'),
   ('geshort@gmail.com'),
-  ('henrieke.baunack@gmail.com'),
-  ('buchner.greg@gmail.com')
+  ('henrieke.baunack@gmail.com')
 ) v(email)
 where not exists (select 1 from app_users u where u.email = v.email)
 on conflict (email) do nothing;
