@@ -11,7 +11,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(49);
+select plan(50);
 
 -- ── Fixtures ──
 -- Ada and Bea are admins (allowlisted, then created). Cal is created without
@@ -41,8 +41,12 @@ select is(public.hook_before_user_created('{"user":{"email":"stranger@example.co
   '403', 'hook rejects an email that is not allowlisted');
 select is(public.hook_before_user_created('{"user":{"phone":"15555550100"}}') #>> '{error,http_code}',
   '403', 'hook rejects a sign-up with no email');
-select is(public.hook_before_user_created('{"user":{"email":"stranger@example.com"}}') #>> '{error,message}',
-  'This email has not been approved for admin access.', 'the rejection carries the message shown on /admin');
+select is(public.hook_before_user_created('{"user":{"email":"Stranger@Example.com"}}') #>> '{error,message}',
+  'stranger@example.com has not been approved for admin access.',
+  'the rejection names the (lower-cased) email that was refused');
+select is(public.hook_before_user_created('{"user":{"phone":"15555550100"}}') #>> '{error,message}',
+  'A sign-in without an email address has not been approved for admin access.',
+  'a sign-in with no email still gets a readable message');
 select function_privs_are('public', 'hook_before_user_created', array['jsonb'],
   'anon', array[]::text[], 'anon cannot execute the hook');
 select function_privs_are('public', 'hook_before_user_created', array['jsonb'],

@@ -115,10 +115,13 @@ begin
     return '{}'::jsonb;
   end if;
 
+  -- Naming the email shows which Google account was used. Only the person who
+  -- just signed in with it sees this, so it reveals nothing new.
   return jsonb_build_object(
     'error', jsonb_build_object(
       'http_code', 403,
-      'message', 'This email has not been approved for admin access.'
+      'message', coalesce(v_email, 'A sign-in without an email address')
+                 || ' has not been approved for admin access.'
     )
   );
 end;
