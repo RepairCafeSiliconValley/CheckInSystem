@@ -100,8 +100,11 @@ with u as (update events set is_open = false
 select is(count(*)::int, 1, 'admin can update events') from u;
 
 -- Allowlist.
+-- Filtered to this file's fixtures, so real local data doesn't affect it.
 select results_eq(
-  $$ select email from admin_allowlist order by email $$,
+  $$ select email from admin_allowlist
+     where email in ('ada@example.com', 'bea@example.com', 'dee@example.com')
+     order by email $$,
   $$ values ('dee@example.com'::text) $$,
   'admin can read the allowlist');
 select lives_ok(
@@ -118,9 +121,11 @@ select is(count(*)::int, 1, 'admin can remove from the allowlist') from d;
 
 -- Users table: read all, rename only.
 select results_eq(
-  $$ select email from app_users order by email $$,
+  $$ select email from app_users
+     where email in ('ada@example.com', 'bea@example.com', 'cal@example.com')
+     order by email $$,
   $$ values ('ada@example.com'::text), ('bea@example.com'::text) $$,
-  'admin can read app_users');
+  'admin can read app_users, including other admins');
 with u as (update app_users set name = 'Bea Renamed'
            where id = 'd0000000-0000-0000-0000-00000000000b' returning 1)
 select is(count(*)::int, 1, 'admin can rename a user') from u;

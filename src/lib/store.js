@@ -17,17 +17,18 @@ const PAGE_SIZE = 1000;
 // makeQuery must return a FRESH builder on each call — a PostgrestFilterBuilder
 // is thenable and single-use, so reusing one would re-await a settled promise
 // and loop forever.
-async function fetchAllPages(makeQuery) {
+async function fetchAllPages(makeQuery, key = "id") {
   const all = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    // The id sort is mandatory, not cosmetic: offset paging over an
+    // The key sort is mandatory, not cosmetic: offset paging over an
     // unspecified order lets Postgres return rows in a different order per
-    // page, silently skipping some and duplicating others. Every table here
-    // has a uuid primary key, so id gives a guaranteed total order. Chained
-    // .order() calls apply in sequence, so a caller's own sort stays primary
-    // and this only breaks ties.
+    // page, silently skipping some and duplicating others. `key` must be the
+    // table's primary key (uuid `id` everywhere except admin_allowlist, keyed
+    // by email), which gives a guaranteed total order. Chained .order() calls
+    // apply in sequence, so a caller's own sort stays primary and this only
+    // breaks ties.
     const { data, error } = await makeQuery()
-      .order("id", { ascending: true })
+      .order(key, { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
     all.push(...(data || []));
@@ -491,9 +492,69 @@ export async function getAccess() {
     .maybeSingle();
   if (error) throw error;
   if (!data) return { level: "none", email };
-  return { level: data.disabled ? "disabled" : "admin", email, name: data.name };
+  return { level: data.disabled ? "disabled" : "admin", id, email, name: data.name };
 }
 
 export async function signOut() {
   await supabase.auth.signOut();
+}
+
+// ─── Admin users (admins only; RLS enforces it) ───
+
+// Pending invites: emails that become admins on their first Google sign-in.
+export async function fetchAllowlist() {
+  return fetchAllPages(
+    () =>
+      supabase
+        .from("admin_allowlist")
+        .select("email, invited_by, created_at")
+        .order("created_at", { ascending: false }),
+    "email",
+  );
+}
+
+// `email` must already be trimmed and lower-cased (a CHECK enforces it).
+export async function addToAllowlist(email) {
+  const { error } = await supabase.from("admin_allowlist").insert({ email });
+  if (error) throw error;
+}
+
+export async function removeFromAllowlist(email) {
+  const { error } = await supabase
+    .from("admin_allowlist")
+    .delete()
+    .eq("email", email);
+  if (error) throw error;
+}
+
+export async function fetchAppUsers() {
+  return fetchAllPages(() =>
+    supabase
+      .from("app_users")
+      .select("id, email, name, phone, disabled, created_at, last_login_at"),
+  );
+}
+
+// Only `name` is directly editable; disabling and deleting go through RPCs
+// that refuse to act on yourself.
+export async function updateAppUserName(id, name) {
+  const { error } = await supabase
+    .from("app_users")
+    .update({ name })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function setUserDisabled(id, value) {
+  const { error } = await supabase.rpc("set_user_disabled", {
+    target: id,
+    value,
+  });
+  if (error) throw error;
+}
+
+// Removes the login itself; coming back needs a new allowlist entry.
+export async function deleteAppUser(id) {
+  const { error } = await supabase.rpc("delete_app_user", { target: id });
+  if (error) throw error;
 }

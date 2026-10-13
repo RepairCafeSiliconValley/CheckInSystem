@@ -84,6 +84,7 @@ pointed at DEV for the same reason.
 src/
 ├── components/       # Reusable UI components (Button, Card, Input, etc.)
 │   ├── ItemForm.jsx        # Repair item entry form
+│   ├── AdminLoginGate.jsx  # /admin sign-in (Continue with Google)
 │   ├── PasswordGate.jsx    # Shared volunteer password gate
 │   ├── PortalShell.jsx     # Header, portal links and tab bar for /queue and /admin
 │   ├── PrintTickets.jsx    # Print layout for repair tickets
@@ -91,7 +92,9 @@ src/
 ├── pages/
 │   ├── CheckIn.jsx                    # Visitor check-in form
 │   ├── QueuePortal.jsx                # /queue: Queue and Metrics tabs (auth wrapper)
-│   ├── AdminPortal.jsx                # /admin: event management (auth wrapper)
+│   ├── AdminPortal.jsx                # /admin: Events, Allowlist, Users tabs (auth wrapper)
+│   ├── AdminAllowlist.jsx             # Invite admins by email
+│   ├── AdminUsers.jsx                 # Manage admins: rename, disable, delete
 │   ├── CoordinatorQueue.jsx           # Visitor queue by status
 │   ├── CoordinatorVisitorDetail.jsx   # Edit items & record outcomes
 │   ├── Admin.jsx                      # Event management, per-event item limit, stats, QR codes, attendee CSV export
@@ -121,7 +124,7 @@ The app has three access levels: **client** (no login), **volunteer** (the share
 | Route | Page | Description |
 |-------|------|-------------|
 | `/queue` | QueuePortal | Coordinator queue and Metrics tabs (`?tab=metrics&event=<id>` opens Metrics on an event) |
-| `/admin` | AdminPortal | Event management, QR codes, attendee export |
+| `/admin` | AdminPortal | Event management, QR codes, attendee export; admin allowlist and users |
 
 Each portal links to the other. `/queue` uses the shared volunteer password; `/admin` uses personal Google logins for approved admins (see [Auth](#auth)).
 
