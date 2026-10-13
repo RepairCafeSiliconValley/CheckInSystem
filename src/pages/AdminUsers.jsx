@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
+import { useNarrow } from "../lib/useNarrow";
 import {
   fetchAppUsers,
   updateAppUserName,
@@ -44,18 +45,6 @@ function compareBy(key, dir) {
   };
 }
 
-// The cards layout for phones; the table needs more width than they have.
-function useNarrow(maxWidth = 560) {
-  const query = `(max-width: ${maxWidth}px)`;
-  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const onChange = (e) => setNarrow(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, [query]);
-  return narrow;
-}
 
 // An email that has to wrap breaks just before the @ ("bob.martinez /
 // @example.com"), not mid-word.
@@ -120,7 +109,8 @@ function DisabledToggle({ user, isSelf, onToggle, compact = false }) {
 // /admin → Users: every admin, sortable by any column. Name is editable
 // inline; Disabled and Delete go through RPCs that refuse to act on yourself.
 export default function AdminUsers({ currentUserId }) {
-  const narrow = useNarrow();
+  // Cards on phones; the table needs more width than they have.
+  const narrow = useNarrow(560);
   const [users, setUsers] = useState(null); // null while loading
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [error, setError] = useState(null);

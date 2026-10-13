@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import Logo from "./Logo";
+import { useNarrow } from "../lib/useNarrow";
 
 // Full-page placeholder while a portal checks for an existing session.
 export function PortalLoading() {
@@ -34,6 +35,27 @@ export default function PortalShell({
   banner,
   children,
 }) {
+  // On phones the identity gets its own line under the header row, so the
+  // portal link and Logout never wrap and the name isn't cut short.
+  const narrow = useNarrow(420);
+
+  const identityText = identity && (
+    <span
+      title={identity}
+      style={{
+        fontFamily: "'Outfit', sans-serif",
+        fontSize: "12px",
+        color: "#667085",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        ...(narrow ? { display: "block", marginTop: 6 } : { maxWidth: 160 }),
+      }}
+    >
+      {identity}
+    </span>
+  );
+
   return (
     <div
       style={{
@@ -60,22 +82,7 @@ export default function PortalShell({
         >
           <Logo size="tiny" />
           <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
-            {identity && (
-              <span
-                title={identity}
-                style={{
-                  fontFamily: "'Outfit', sans-serif",
-                  fontSize: "12px",
-                  color: "#667085",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: 160,
-                }}
-              >
-                {identity}
-              </span>
-            )}
+            {!narrow && identityText}
             {crossLink && (
               <Link
                 to={crossLink.to}
@@ -85,6 +92,7 @@ export default function PortalShell({
                   fontWeight: 600,
                   color: "#1e3a6e",
                   textDecoration: "none",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {crossLink.label}
@@ -100,12 +108,16 @@ export default function PortalShell({
                 fontSize: "12px",
                 color: "#98a2b3",
                 cursor: "pointer",
+                whiteSpace: "nowrap",
               }}
             >
               👋 Logout
             </button>
           </div>
         </div>
+        {narrow && identityText && (
+          <div style={{ maxWidth: 640, margin: "0 auto" }}>{identityText}</div>
+        )}
       </div>
 
       {banner}
