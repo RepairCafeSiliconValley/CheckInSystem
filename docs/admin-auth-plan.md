@@ -327,6 +327,8 @@ explicit UI:
     account."
   - a **Switch to volunteer account** button that signs out and shows the `PasswordGate`.
 
+> **As built (replaces the banner below):** `/queue` shows no banner. Instead, an admin session opening `/queue` re-locks `/admin`: going back needs a fresh "Continue with Google", with Google's account chooser forced. The header keeps showing "Name (admin)", and the Logout tooltip reminds people to also sign out of Google on a shared device. Limits: if the admin's Google account is still signed in to that browser, Google may not ask for a password, and the session still has admin rights outside the `/admin` pages.
+
 **Who's signed in, everywhere.** Both portal headers show the current identity next to Logout:
 "Volunteer account" or "Jane Doe (admin)". It comes from the session email plus `app_users.name`.
 The Logout button's tooltip notes that it signs out on both pages.

@@ -14,6 +14,7 @@ import {
   fetchVisitorDetail,
 } from "../lib/store";
 import { submittedStamp } from "../lib/metrics";
+import { lockAdmin } from "../lib/adminUnlock";
 
 const TABS = [
   { key: "queue", label: "Queue", Icon: ClipboardIcon },
@@ -22,28 +23,10 @@ const TABS = [
 
 const ADMIN_LINK = { to: "/admin", label: "Admin →" };
 
-// Shown on /queue when an admin's personal login is active, e.g. left
-// signed in on a front-desk device: volunteers would be working as that admin.
-function AdminSessionBanner({ name, onSwitch }) {
-  return (
-    <div style={{ background: "#fffaeb", borderBottom: "1px solid #fedf89", padding: "10px 16px" }}>
-      <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#93370d" }}>
-          Signed in as <b>{name}</b> (admin). This device isn't on the volunteer account.
-        </span>
-        <button
-          onClick={onSwitch}
-          style={{ background: "#fff", border: "1px solid #fedf89", borderRadius: 8, padding: "6px 12px", fontFamily: "'Outfit', sans-serif", fontSize: "12px", fontWeight: 600, color: "#93370d", cursor: "pointer" }}
-        >
-          Switch to volunteer account
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // /queue: the volunteer portal (Queue and Metrics), for the shared volunteer
-// account or an enabled admin. Admin's "View metrics" deep-links here as
+// account or an enabled admin. An admin session opening /queue re-locks
+// /admin (lib/adminUnlock), so a device left on the queue doesn't leave the
+// admin pages open. Admin's "View metrics" deep-links here as
 // /queue?tab=metrics&event=<id>; both params only seed the initial state.
 export default function QueuePortal() {
   const [searchParams] = useSearchParams();
@@ -63,7 +46,10 @@ export default function QueuePortal() {
   // disabled admin, a non-admin login) gets the password gate.
   useEffect(() => {
     getAccess()
-      .then(setAccess)
+      .then((a) => {
+        if (a.level === "admin") lockAdmin();
+        setAccess(a);
+      })
       .catch((err) => {
         console.error("Failed to check access:", err);
         setAccess({ level: "signed-out" });
@@ -164,9 +150,6 @@ export default function QueuePortal() {
       identity={access.level === "admin" ? `${access.name} (admin)` : "Volunteer account"}
       crossLink={ADMIN_LINK}
       onLogout={handleLock}
-      banner={access.level === "admin" && (
-        <AdminSessionBanner name={access.name} onSwitch={handleLock} />
-      )}
     >
       {activeTab === "queue" && !selectedVisitorId && (
         <CoordinatorQueue

@@ -10,6 +10,8 @@ const font = "'Outfit', sans-serif";
 // What to tell someone who reached /admin without an enabled admin session.
 function messageFor(access) {
   switch (access.level) {
+    case "relocked":
+      return `You're still signed in as ${access.name}, but this device has been on the volunteer queue since. Continue with Google to return to admin.`;
     case "volunteer":
       return "This device is signed in with the volunteer account. Sign in with your own Google account to manage events; that replaces the volunteer login on this device.";
     case "disabled":

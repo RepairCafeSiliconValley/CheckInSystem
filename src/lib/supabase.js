@@ -29,4 +29,10 @@ function readAuthRedirectError() {
 
 export const authRedirectError = readAuthRedirectError();
 
+// True when this page load is the return from a successful sign-in (the
+// implicit flow puts the tokens in the hash). Read before the client clears it.
+export const authRedirectSignedIn = new URLSearchParams(
+  window.location.hash.slice(1),
+).has("access_token");
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

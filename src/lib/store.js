@@ -1,4 +1,4 @@
-import { supabase, authRedirectError } from "./supabase";
+import { supabase, authRedirectError, authRedirectSignedIn } from "./supabase";
 import { STATUSES, VOLUNTEER_ACCOUNT_EMAIL } from "./constants";
 
 // ─── Paging ───
@@ -449,7 +449,12 @@ export async function signInVolunteer(password) {
 export async function signInWithGoogle() {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: `${window.location.origin}/admin` },
+    options: {
+      redirectTo: `${window.location.origin}/admin`,
+      // Always show Google's account chooser, so signing back in to /admin
+      // is a deliberate choice of account rather than an automatic hop.
+      queryParams: { prompt: "select_account" },
+    },
   });
   if (error) throw error;
 }
@@ -457,6 +462,11 @@ export async function signInWithGoogle() {
 // The error message from a rejected sign-in redirect, captured at startup.
 export function getAuthRedirectError() {
   return authRedirectError;
+}
+
+// Whether this page load is the return from a successful sign-in.
+export function justSignedIn() {
+  return authRedirectSignedIn;
 }
 
 // Drop the sign-in redirect's error params from the address bar.

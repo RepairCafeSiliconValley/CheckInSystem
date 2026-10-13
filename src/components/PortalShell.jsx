@@ -100,7 +100,7 @@ export default function PortalShell({
             )}
             <button
               onClick={onLogout}
-              title="Signs out of both /queue and /admin on this device"
+              title="Signs out of both /queue and /admin on this device. On a shared device, also sign out of Google in this browser."
               style={{
                 background: "none",
                 border: "none",

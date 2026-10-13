@@ -10,8 +10,10 @@ import {
   getAccess,
   getAuthRedirectError,
   clearAuthRedirectParams,
+  justSignedIn,
   signOut,
 } from "../lib/store";
+import { isAdminUnlocked, unlockAdmin, lockAdmin } from "../lib/adminUnlock";
 
 const QUEUE_LINK = { to: "/queue", label: "Queue →" };
 
@@ -24,6 +26,7 @@ const TABS = [
 // /admin: event management and admin accounts, for admins only (a personal
 // Google login whose email was allowlisted; see docs/admin-auth-plan.md).
 // Anyone else gets AdminLoginGate. RLS enforces the same rule on the data.
+// An admin who has since opened /queue must sign in again (lib/adminUnlock).
 export default function AdminPortal() {
   const navigate = useNavigate();
   const [access, setAccess] = useState(null); // null while checking
@@ -33,7 +36,10 @@ export default function AdminPortal() {
   useEffect(() => {
     clearAuthRedirectParams();
     getAccess()
-      .then(setAccess)
+      .then((a) => {
+        if (a.level === "admin" && justSignedIn()) unlockAdmin();
+        setAccess(a);
+      })
       .catch((err) => {
         console.error("Failed to check access:", err);
         setAccess({ level: "signed-out" });
@@ -41,16 +47,17 @@ export default function AdminPortal() {
   }, []);
 
   const handleLock = async () => {
+    lockAdmin();
     await signOut();
     setAccess({ level: "signed-out" });
   };
 
   if (!access) return <PortalLoading />;
 
-  if (access.level !== "admin") {
+  if (access.level !== "admin" || !isAdminUnlocked()) {
     return (
       <AdminLoginGate
-        access={access}
+        access={access.level === "admin" ? { ...access, level: "relocked" } : access}
         error={redirectError}
         crossLink={QUEUE_LINK}
         onSignOut={handleLock}
