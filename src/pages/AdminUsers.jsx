@@ -11,6 +11,11 @@ import {
 
 const font = "'Outfit', sans-serif";
 
+// A disabled user's text is greyed out; their controls (Disabled, Delete)
+// keep full strength because they still work.
+const MUTED = "#98a2b3";
+const textColor = (user, normal = "#344054") => (user.disabled ? MUTED : normal);
+
 const COLUMNS = [
   { key: "name", label: "Name" },
   { key: "email", label: "Email" },
@@ -75,7 +80,7 @@ function NameField({ user, onSave }) {
         if (e.key === "Escape") setValue(user.name);
       }}
       aria-label={`Name for ${user.email}`}
-      style={{ width: "100%", minWidth: 90, padding: "6px 8px", borderRadius: 8, border: "1.5px solid #e4e7ec", fontFamily: font, fontSize: "14px", color: "#1d2939", boxSizing: "border-box" }}
+      style={{ width: "100%", minWidth: 90, padding: "6px 8px", borderRadius: 8, border: "1.5px solid #e4e7ec", fontFamily: font, fontSize: "14px", color: textColor(user, "#1d2939"), boxSizing: "border-box" }}
     />
   );
 }
@@ -223,12 +228,12 @@ export default function AdminUsers({ currentUserId }) {
           {sorted.map((u) => {
             const isSelf = u.id === currentUserId;
             return (
-              <Card key={u.id} style={{ marginBottom: 10, padding: "14px 16px", opacity: u.disabled ? 0.6 : 1 }}>
+              <Card key={u.id} style={{ marginBottom: 10, padding: "14px 16px" }}>
                 <NameField key={u.name} user={u} onSave={handleName(u)} />
-                <div style={{ fontFamily: font, fontSize: "13px", color: "#344054", marginTop: 8, overflowWrap: "anywhere" }}>
+                <div style={{ fontFamily: font, fontSize: "13px", color: textColor(u), marginTop: 8, overflowWrap: "anywhere" }}>
                   {u.email}{isSelf && <b> (you)</b>}
                 </div>
-                <div style={{ fontFamily: font, fontSize: "12px", color: "#667085", marginTop: 4 }}>
+                <div style={{ fontFamily: font, fontSize: "12px", color: textColor(u, "#667085"), marginTop: 4 }}>
                   {u.phone || "No phone"} · Created {formatDate(u.created_at)} · Last login {formatDate(u.last_login_at)}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
@@ -261,19 +266,19 @@ export default function AdminUsers({ currentUserId }) {
               {sorted.map((u) => {
                 const isSelf = u.id === currentUserId;
                 return (
-                  <tr key={u.id} style={{ opacity: u.disabled ? 0.6 : 1 }}>
+                  <tr key={u.id}>
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", width: 130 }}>
                       <NameField key={u.name} user={u} onSave={handleName(u)} />
                     </td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: "#344054", overflowWrap: "anywhere" }}>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), overflowWrap: "anywhere" }}>
                       {u.email}{isSelf && <b> (you)</b>}
                     </td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: "#344054", whiteSpace: "nowrap" }}>{u.phone || "—"}</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), whiteSpace: "nowrap" }}>{u.phone || "—"}</td>
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7" }}>
                       <DisabledToggle user={u} isSelf={isSelf} onToggle={handleToggle(u)} compact />
                     </td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: "#344054", whiteSpace: "nowrap" }}>{formatDate(u.created_at)}</td>
-                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: "#344054", whiteSpace: "nowrap" }}>{formatDate(u.last_login_at)}</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), whiteSpace: "nowrap" }}>{formatDate(u.created_at)}</td>
+                    <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7", color: textColor(u), whiteSpace: "nowrap" }}>{formatDate(u.last_login_at)}</td>
                     <td style={{ padding: "8px 6px", borderBottom: "1px solid #f2f4f7" }}>{deleteButton(u, isSelf)}</td>
                   </tr>
                 );
