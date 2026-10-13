@@ -152,9 +152,9 @@ export default function PortalShell({
             }}
           >
             {tabs.map((t) => {
-              // Active: soft navy pill, full-colour icon, bold navy label.
-              // Inactive: greyscale icon and grey label, still fully legible
-              // (the old 45% opacity made them hard to see).
+              // Active: solid navy pill (like the primary buttons), white bold
+              // label, full-colour icon. Inactive: greyscale icon and slate
+              // label, fully legible (the old 45% opacity was hard to see).
               const active = activeTab === t.key;
               return (
                 <button
@@ -162,7 +162,7 @@ export default function PortalShell({
                   onClick={() => onTabChange(t.key)}
                   aria-current={active ? "page" : undefined}
                   style={{
-                    background: active ? "#e8eef7" : "none",
+                    background: active ? "#1e3a6e" : "none",
                     border: "none",
                     borderRadius: 12,
                     display: "flex",
@@ -177,7 +177,6 @@ export default function PortalShell({
                     style={{
                       fontSize: "20px",
                       filter: active ? "none" : "grayscale(1)",
-                      opacity: active ? 1 : 0.8,
                     }}
                   >
                     {t.icon}
@@ -187,7 +186,7 @@ export default function PortalShell({
                       fontFamily: "'Outfit', sans-serif",
                       fontSize: "11px",
                       fontWeight: active ? 700 : 500,
-                      color: active ? "#1e3a6e" : "#667085",
+                      color: active ? "#fff" : "#475467",
                       letterSpacing: "0.3px",
                     }}
                   >
