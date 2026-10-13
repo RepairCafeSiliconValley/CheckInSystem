@@ -41,6 +41,7 @@ const MIGRATIONS = [
   "supabase-migration-v8.sql",
   "supabase-metrics-migration.sql",
   "supabase-reason-notes-migration.sql",
+  "supabase-admin-auth-migration.sql",
 ];
 
 const SEED = "supabase-seed.sql";

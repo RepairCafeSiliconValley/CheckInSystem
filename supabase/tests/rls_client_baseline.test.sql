@@ -58,10 +58,8 @@ select throws_ok(
              'a0000000-0000-0000-0000-000000000001', 'Toaster', 'Dead') $$,
   '42501', null, 'client cannot insert work_orders directly');
 
--- Known gap, not fixed here: supabase-migration.sql's "Allow insert" policy
--- (with check true) still lets a client insert waiver rows directly for any
--- attendee id. Marked TODO so the suite passes and the gap stays visible.
-select todo('waiver_acceptances still has an open "Allow insert" policy', 1);
+-- supabase-admin-auth-migration.sql dropped the open "Allow insert" policy;
+-- waivers are written only by checkin_visitor.
 select throws_ok(
   $$ insert into waiver_acceptances (attendee_id, waiver_version, waiver_text, content_hash)
      values ('a0000000-0000-0000-0000-000000000002', 'forged', 'text', 'hash') $$,
