@@ -323,9 +323,10 @@ max_frequency = "5s"
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
 # Admin sign-in for /admin (docs/admin-auth-plan.md). Needs a Google Cloud OAuth client (type Web)
 # whose authorized redirect URI is http://127.0.0.1:54331/auth/v1/callback. Put the ID and secret in
-# supabase/.env (gitignored): SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID / _SECRET, then set enabled = true.
+# supabase/.env (gitignored): SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID / _SECRET. Without them, set
+# enabled = false to start the stack.
 [auth.external.google]
-enabled = false
+enabled = true
 client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
 redirect_uri = ""
