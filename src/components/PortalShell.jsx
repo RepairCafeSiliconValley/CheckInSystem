@@ -152,9 +152,9 @@ export default function PortalShell({
             }}
           >
             {tabs.map((t) => {
-              // On the navy bar: the active tab is a white pill with dark bold
-              // text and the full-colour icon; inactive tabs use light neutral
-              // greys (lightened greyscale icon), legible but clearly secondary.
+              // On the navy bar: the active tab is a white pill with a navy
+              // icon and dark bold text; inactive tabs are light neutral grey.
+              // Icons are line drawings coloured via CSS `color` (TabIcons).
               const active = activeTab === t.key;
               return (
                 <button
@@ -175,11 +175,11 @@ export default function PortalShell({
                 >
                   <span
                     style={{
-                      fontSize: "20px",
-                      filter: active ? "none" : "grayscale(1) brightness(1.25)",
+                      display: "flex",
+                      color: active ? "#1e3a6e" : "#d0d5dd",
                     }}
                   >
-                    {t.icon}
+                    <t.Icon />
                   </span>
                   <span
                     style={{

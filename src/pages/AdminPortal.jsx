@@ -5,6 +5,7 @@ import PortalShell, { PortalLoading } from "../components/PortalShell";
 import Admin from "./Admin";
 import AdminAllowlist from "./AdminAllowlist";
 import AdminUsers from "./AdminUsers";
+import { CalendarIcon, EnvelopeIcon, PeopleIcon } from "../components/TabIcons";
 import {
   getAccess,
   getAuthRedirectError,
@@ -15,9 +16,9 @@ import {
 const QUEUE_LINK = { to: "/queue", label: "Queue →" };
 
 const TABS = [
-  { key: "events", label: "Events", icon: "📅" },
-  { key: "allowlist", label: "Allowlist", icon: "✉️" },
-  { key: "users", label: "Users", icon: "👥" },
+  { key: "events", label: "Events", Icon: CalendarIcon },
+  { key: "allowlist", label: "Allowlist", Icon: EnvelopeIcon },
+  { key: "users", label: "Users", Icon: PeopleIcon },
 ];
 
 // /admin: event management and admin accounts, for admins only (a personal

@@ -6,6 +6,7 @@ import PrintTickets from "../components/PrintTickets";
 import CoordinatorQueue from "./CoordinatorQueue";
 import CoordinatorVisitorDetail from "./CoordinatorVisitorDetail";
 import Metrics from "./Metrics";
+import { ClipboardIcon, ChartIcon } from "../components/TabIcons";
 import {
   getAccess,
   signOut,
@@ -15,8 +16,8 @@ import {
 import { submittedStamp } from "../lib/metrics";
 
 const TABS = [
-  { key: "queue", label: "Queue", icon: "📋" },
-  { key: "metrics", label: "Metrics", icon: "📊" },
+  { key: "queue", label: "Queue", Icon: ClipboardIcon },
+  { key: "metrics", label: "Metrics", Icon: ChartIcon },
 ];
 
 const ADMIN_LINK = { to: "/admin", label: "Admin →" };
