@@ -151,37 +151,51 @@ export default function PortalShell({
               justifyContent: "space-around",
             }}
           >
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => onTabChange(t.key)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 2,
-                  padding: "6px 16px",
-                  cursor: "pointer",
-                  opacity: activeTab === t.key ? 1 : 0.45,
-                  transition: "opacity 0.15s",
-                }}
-              >
-                <span style={{ fontSize: "20px" }}>{t.icon}</span>
-                <span
+            {tabs.map((t) => {
+              // Active: soft navy pill, full-colour icon, bold navy label.
+              // Inactive: greyscale icon and grey label, still fully legible
+              // (the old 45% opacity made them hard to see).
+              const active = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => onTabChange(t.key)}
+                  aria-current={active ? "page" : undefined}
                   style={{
-                    fontFamily: "'Outfit', sans-serif",
-                    fontSize: "11px",
-                    fontWeight: activeTab === t.key ? 700 : 500,
-                    color: activeTab === t.key ? "#1e3a6e" : "#667085",
-                    letterSpacing: "0.3px",
+                    background: active ? "#e8eef7" : "none",
+                    border: "none",
+                    borderRadius: 12,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 2,
+                    padding: "6px 18px",
+                    cursor: "pointer",
                   }}
                 >
-                  {t.label}
-                </span>
-              </button>
-            ))}
+                  <span
+                    style={{
+                      fontSize: "20px",
+                      filter: active ? "none" : "grayscale(1)",
+                      opacity: active ? 1 : 0.8,
+                    }}
+                  >
+                    {t.icon}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "'Outfit', sans-serif",
+                      fontSize: "11px",
+                      fontWeight: active ? 700 : 500,
+                      color: active ? "#1e3a6e" : "#667085",
+                      letterSpacing: "0.3px",
+                    }}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
