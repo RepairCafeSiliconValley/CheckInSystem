@@ -19,7 +19,7 @@ The automated tests cover the database only: `supabase/tests/*.test.sql` pin the
 
 - `.env.local` (gitignored) holds `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Locally these must point at the **DEV** Supabase project or the local stack (see below), never PROD.
 - Branching: branch off `dev` as `feature/...`, PR into `dev`. `dev` → `main` is a release PR done by maintainers. Merging to `main` deploys Production on Vercel with the PROD keys; everything else deploys Preview against DEV.
-- `supabase-seed.sql` truncates all app tables and reseeds mock data. DEV only.
+- `supabase-seed.sql` truncates the four event tables and reseeds mock data, then adds the default admins to `admin_allowlist` (the admin tables are not truncated; emails that are already admins are skipped). DEV and local only.
 
 ## Architecture
 
