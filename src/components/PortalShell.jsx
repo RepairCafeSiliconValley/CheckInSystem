@@ -135,8 +135,8 @@ export default function PortalShell({
             bottom: 0,
             left: 0,
             right: 0,
-            background: "#fff",
-            borderTop: "1px solid #e8ebf0",
+            // Repair Café navy bar (the primary button colour).
+            background: "#1e3a6e",
             display: "flex",
             justifyContent: "center",
             padding: "8px 0 env(safe-area-inset-bottom, 12px)",
@@ -152,9 +152,9 @@ export default function PortalShell({
             }}
           >
             {tabs.map((t) => {
-              // Active: solid navy pill (like the primary buttons), white bold
-              // label, full-colour icon. Inactive: greyscale icon and slate
-              // label, fully legible (the old 45% opacity was hard to see).
+              // On the navy bar: the active tab is a white pill with dark bold
+              // text and the full-colour icon; inactive tabs use light neutral
+              // greys (lightened greyscale icon), legible but clearly secondary.
               const active = activeTab === t.key;
               return (
                 <button
@@ -162,7 +162,7 @@ export default function PortalShell({
                   onClick={() => onTabChange(t.key)}
                   aria-current={active ? "page" : undefined}
                   style={{
-                    background: active ? "#1e3a6e" : "none",
+                    background: active ? "#fff" : "none",
                     border: "none",
                     borderRadius: 12,
                     display: "flex",
@@ -176,7 +176,7 @@ export default function PortalShell({
                   <span
                     style={{
                       fontSize: "20px",
-                      filter: active ? "none" : "grayscale(1)",
+                      filter: active ? "none" : "grayscale(1) brightness(1.25)",
                     }}
                   >
                     {t.icon}
@@ -186,7 +186,7 @@ export default function PortalShell({
                       fontFamily: "'Outfit', sans-serif",
                       fontSize: "11px",
                       fontWeight: active ? 700 : 500,
-                      color: active ? "#fff" : "#475467",
+                      color: active ? "#1d2939" : "#d0d5dd",
                       letterSpacing: "0.3px",
                     }}
                   >
