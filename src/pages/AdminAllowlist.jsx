@@ -139,7 +139,7 @@ export default function AdminAllowlist() {
         invites.map((inv) => (
           <Card key={inv.email} style={{ marginBottom: 10, padding: "14px 16px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <div style={{ minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: font, fontSize: "15px", fontWeight: 600, color: "#1d2939", overflowWrap: "anywhere" }}>
                   {inv.email}
                 </div>
@@ -148,7 +148,13 @@ export default function AdminAllowlist() {
                   {nameFor(inv.invited_by) ? ` by ${nameFor(inv.invited_by)}` : ""}
                 </div>
               </div>
-              <Button variant="danger" onClick={() => setRemoving(inv)}>Remove</Button>
+              {/* Compact, not the full-width Button, so the email gets the room. */}
+              <button
+                onClick={() => setRemoving(inv)}
+                style={{ flexShrink: 0, background: "#fef3f2", color: "#b42318", border: "1.5px solid #fecdca", borderRadius: 8, padding: "6px 12px", fontFamily: font, fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+              >
+                Remove
+              </button>
             </div>
           </Card>
         ))
