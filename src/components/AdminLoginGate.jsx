@@ -23,7 +23,7 @@ function messageFor(access) {
 
 // /admin's sign-in screen: Continue with Google, plus the state of whatever
 // session is already on this device. `error` is a rejected sign-in redirect
-// (e.g. "This email hasn't been approved for admin access.").
+// (e.g. "This email has not been approved for admin access.").
 export default function AdminLoginGate({ access, error, crossLink, onSignOut }) {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(null);

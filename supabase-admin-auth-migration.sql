@@ -118,7 +118,7 @@ begin
   return jsonb_build_object(
     'error', jsonb_build_object(
       'http_code', 403,
-      'message', 'This email hasn''t been approved for admin access.'
+      'message', 'This email has not been approved for admin access.'
     )
   );
 end;
