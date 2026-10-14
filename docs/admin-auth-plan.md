@@ -382,10 +382,30 @@ as wrong. Rename it to `volunteer@repaircafe.app`:
 - In PR 1, put the email in a single constant, `VOLUNTEER_ACCOUNT_EMAIL` in `constants.js`.
   PR 2's `is_volunteer()` compares against the same address.
 - In each environment, change the existing auth user's email in place, so the password and id
-  stay the same. Use the Admin API (`auth.admin.updateUserById(id, { email, email_confirm:
-  true })`) or the Studio user editor. **Do it at the same moment that environment gets the PR 1
-  code**: DEV when PR 1 merges to `dev`, PROD at the next release to `main`. Between the two
-  steps the volunteer login fails, so pick a time with no event running.
+  stay the same. **Do it at the same moment that environment gets the PR 1 code**: DEV when PR 1
+  merges to `dev`, PROD at the next release to `main`. Between the two steps the volunteer login
+  fails, so pick a time with no event running. In the Supabase dashboard, go to **SQL Editor →
+  New query**, run the SQL below, then confirm under **Authentication → Users** that the user
+  shows the new email with the same User UID:
+
+  ```sql
+  -- Rename the shared login, keeping the same user, id and password.
+  update auth.users
+  set email = 'volunteer@repaircafe.app', updated_at = now()
+  where email = 'admin@repaircafe.app';
+
+  -- Supabase keeps a copy of the email on the password identity; update it too.
+  update auth.identities
+  set identity_data = jsonb_set(identity_data, '{email}', '"volunteer@repaircafe.app"'),
+      updated_at = now()
+  where provider = 'email' and identity_data->>'email' = 'admin@repaircafe.app';
+  ```
+
+  Tested on the local stack: afterwards the new email signs in with the old password, the old
+  email no longer does, and the user id is unchanged. To undo it (for example if it was run
+  before the new code deployed), run the same SQL with the two emails swapped. The Admin API
+  (`auth.admin.updateUserById(id, { email, email_confirm: true })`) does the same, but needs
+  the service-role key.
 - Until PR 2, RLS only checks `authenticated` and not the email, so the rename can't lock
   anyone out of data. Only the login screen depends on it.
 - Update `supabase-seed.sql`, the local Auth user, and the password comment in `.env.local`.
