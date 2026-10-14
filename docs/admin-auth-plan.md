@@ -419,7 +419,8 @@ not an access level, so they stay as they are.
    `http://127.0.0.1:54331/auth/v1/callback`.
 2. Supabase → Auth → Providers → Google: enter the client ID and secret.
 3. Supabase → Auth → URL Configuration: Site URL and redirect URLs (§3).
-4. Supabase → Auth → Hooks: enable Before User Created → `public.hook_before_user_created`.
+4. Supabase → Auth → Hooks: enable Before User Created → `public.hook_before_user_created`
+   (details in §7.2).
 5. Google Cloud consent screen: while it's in "Testing" mode, only listed test users can sign
    in. **Publish it.** An app that only asks for email and profile doesn't need Google's
    verification review. Otherwise each new admin has to be added in two places.
@@ -490,6 +491,46 @@ secret.
 
 **Secrets.** Client secrets live only in the Supabase dashboard, and locally in the gitignored
 `supabase/.env`. They never go in the repo.
+
+### 7.2 Turning on the sign-up hook
+
+The hook tells Supabase Auth to call `public.hook_before_user_created` (the allowlist check)
+before it creates any new user. The function comes from `supabase-admin-auth-migration.sql`;
+the hook only switches it on. Do this per environment, DEV first, **after** running that
+migration.
+
+**Steps in the Supabase dashboard:**
+1. Open the project and go to **Authentication → Hooks**. In some dashboard versions it's
+   **Auth Hooks**, under Authentication's *Configuration* group.
+2. Click **Add hook** (or **Add a new hook**) and choose **Before User Created**.
+3. Set **Hook type** to **Postgres**. Choose schema **`public`** and function
+   **`hook_before_user_created`**.
+4. Click **Create hook** / **Save**, and check that it shows as **enabled**.
+
+The dashboard may offer a block of SQL that grants permissions to `supabase_auth_admin`. It
+can be skipped: the migration already grants exactly that, and revokes the function from
+everyone else.
+
+**Order matters:**
+- **Run the migration first.** If the hook is enabled before the function exists, every new
+  sign-up fails with a generic error.
+- **Existing users aren't affected.** The hook only runs when a new user is created, so the
+  volunteer login and existing admins keep working.
+- **Users added from the dashboard skip it.** Adding a user under Authentication → Users uses
+  the service-role admin API, which skips the hook. Such a user still never becomes an admin,
+  because the `auth.users` insert trigger also checks the allowlist.
+
+**If "Before User Created" isn't offered,** the project's plan or version doesn't support it.
+It was only verified on the local stack. In that case, use the trigger fallback in §9: a
+`BEFORE INSERT` trigger on `auth.users` that raises an exception for emails not on the
+allowlist.
+
+**Test it after enabling.** In an incognito window, on that environment's `/admin`:
+1. **Continue with Google** with an account that is **not** on the allowlist should show
+   *"&lt;that email&gt; has not been approved for admin access."*
+2. With an **allowlisted** account, you should land on the Events page with your name in the
+   header. In the Table Editor, the invite disappears from `admin_allowlist` and a row appears
+   in `app_users`.
 
 ## 8. Testing
 
