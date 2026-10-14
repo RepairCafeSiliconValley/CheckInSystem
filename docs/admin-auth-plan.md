@@ -410,6 +410,67 @@ not an access level, so they stay as they are.
 8. Supabase → Auth → Providers → Email: **leave enabled**, because the volunteer account
    needs it. SMTP and email templates aren't needed until magic link is added.
 
+### 7.1 Google sign-in setup in detail
+
+**Who owns it.** The Google Cloud project should belong to an **organization-owned Google
+account**, not a volunteer's personal one, so the login doesn't depend on any one person. The
+options are:
+- **Google Workspace for Nonprofits.** Free for eligible 501(c)(3) organizations, with
+  addresses on the group's own domain.
+- **A shared organization Gmail account,** whose password more than one organizer holds.
+- **Keep an existing project** and add the organization account as an **Owner** (IAM & Admin →
+  IAM → Grant access → role *Owner*). You can make it the sole owner later.
+
+**One project, two clients.** DEV and PROD don't need separate Google Cloud projects. Use **one
+project** with **one OAuth client per environment**:
+- The consent screen (app name, branding, audience) is per project, so users see the same app
+  in both environments.
+- Each environment gets its own client ID and secret, so one can be rotated or revoked without
+  touching the other, and a leaked DEV secret doesn't affect PROD.
+- The local stack can use its own client, or the DEV client with
+  `http://127.0.0.1:54331/auth/v1/callback` added as a second redirect URI.
+
+A single client listing every redirect URI also works, but then all environments share one
+secret.
+
+**Steps in the Google Cloud Console** (Google Auth Platform):
+1. **Branding.**
+   - App name: "Repair Café Silicon Valley".
+   - Support email and developer contact email, preferably organization addresses.
+   - Under **Authorized domains**, add `supabase.co`, the domain of the redirect URIs below.
+   - **Don't upload a logo.** A logo triggers Google's brand verification review; without one,
+     no review is needed.
+2. **Audience.**
+   - User type **External**.
+   - Set the publishing status to **In production**. In *Testing*, only listed test users can
+     sign in, so every new admin would also have to be added there.
+   - Publishing doesn't need a review, because the app only uses the basic scopes.
+3. **Data access.** Keep the default scopes, `openid`, `email` and `profile`. Supabase asks for
+   nothing more.
+4. **Clients → Create client**, type **Web application**, once per environment:
+   - **"Supabase DEV":** authorized redirect URI
+     `https://<DEV project ref>.supabase.co/auth/v1/callback`.
+   - **"Supabase PROD":** authorized redirect URI
+     `https://<PROD project ref>.supabase.co/auth/v1/callback`.
+   - Authorized JavaScript origins can stay empty.
+   - Copy each client ID and secret when they're shown.
+
+**Steps in each Supabase project** (DEV first, then PROD):
+1. **Authentication → Sign In / Providers → Google.** Enable it and paste that environment's
+   client ID and secret. The **Callback URL** shown there must match the redirect URI entered in
+   Google exactly. Copy it from here if unsure.
+2. **Authentication → URL Configuration.**
+   - **PROD:** Site URL = the production site; add `https://<production domain>/admin` to
+     Redirect URLs.
+   - **DEV:** add the Vercel preview pattern for this project (for example
+     `https://*-repair-cafe-silicon-valley-s-projects.vercel.app/**`), so `/admin` sign-ins on
+     preview deployments can return.
+3. **Test.** On that environment's `/admin`, click **Continue with Google** and sign in with an
+   allowlisted account. You should land on the Events page with your name in the header.
+
+**Secrets.** Client secrets live only in the Supabase dashboard, and locally in the gitignored
+`supabase/.env`. They never go in the repo.
+
 ## 8. Testing
 
 The repo has no automated tests today. This work adds automated tests for the **database
