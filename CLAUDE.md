@@ -22,7 +22,7 @@ Three layers of automated tests, all against the **local stack** only (`scripts/
 - **Unit** — `tests/unit/metrics.test.js` covers `src/lib/metrics.js`, which is pure (no I/O, no React) and imports `./constants.js` with an explicit extension so it runs under plain `node`.
 - **Browser** — `e2e/*.spec.js` (Playwright, Chromium) drive every page. `playwright.config.js` starts its own Vite server on port 5175 with the local stack's URL and anon key, whatever `.env.local` says. Tests make their own data through `e2e/support/stack.js` (service-role key or the public RPCs), never relying on the seed: events are named `E2E …`, users use `@e2e.example.com`, and global setup/teardown delete both (`E2E_KEEP_DATA=1` keeps them). Sign-ins open a page with the URL hash Supabase Auth returns after a login, so Google itself is never called; admins are created by allowlisting an email and creating the user with the service-role API. Runs on one worker because `e2e/landing.spec.js` briefly closes every other open event. Needs `LOCAL_VOLUNTEER_PASSWORD` (see Local Supabase stack). A test for a known gap is marked `test.fail()` and should be flipped when the gap is fixed.
 
-What the browser tests can't reach still needs a manual click-through: real Google sign-in and the Before User Created hook, physical printing and scanning ticket QRs with a phone, phone-sized layout, and DEV/Vercel deploys. Run `npm run lint` too.
+What the browser tests can't reach still needs a manual click-through, listed in `docs/manual-test-playbook.md`: real Google sign-in and the Before User Created hook, physical printing and scanning ticket QRs with a phone, phone-sized layout, and DEV/Vercel deploys. Run `npm run lint` too.
 
 ## Environments — read before touching data
 
