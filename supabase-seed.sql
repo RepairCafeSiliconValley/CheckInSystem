@@ -10,11 +10,16 @@
 -- Coverage:
 --   • 3 events  — a past/closed event, today's open event, an upcoming one
 --   • 11 attendees — visitors + volunteers (is_volunteer)
---   • 14 work orders — every status (pending / pending_assignment / completed)
---     and every outcome (Fixed, Diagnosed, Not Fixed, Taken Home,
---     Languished, Abandoned), across categories from src/lib/constants.js
+--   • 16 work orders — every status (pending / pending_assignment / completed /
+--     canceled) and every outcome (Fixed, Diagnosed, Not Fixed, Taken Home),
+--     across categories from src/lib/constants.js. Canceled rows carry a
+--     cancel_reason, Not Fixed rows a not_fixed_reason, and one of each uses
+--     "Other" with an optional note (cancel_note / not_fixed_note).
 --   • 8 waiver acceptances — one per visitor, with real SHA-256 content_hash
 --     matching computeWaiverHash() ("WAIVER_VERSION|" + full waiver text)
+--
+-- Requires the full migration chain through supabase-reason-notes-migration.sql
+-- (see CLAUDE.md for the order) — it writes the reason and note columns.
 --
 -- Requires the pgcrypto extension (installed by default on Supabase in the
 -- `extensions` schema) for the waiver hash.
@@ -49,13 +54,13 @@ insert into attendees (id, event_id, first_name, last_name, email, phone, zip_co
 
 -- ── Work orders ──
 insert into work_orders (code, attendee_id, event_id, item_name, category, description, priority, status, outcome, fixer_name, created_at, printed_at, completed_at) values
-  -- Event 1: all completed, covers all 6 outcomes
+  -- Event 1: closed — every outcome (Fixed, Not Fixed, Diagnosed, Taken Home) plus two cancellations
   ('R-M4K', 'aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'KitchenAid stand mixer',   'Basic Appliances / Lamp', 'Motor makes a grinding noise and won''t turn on consistently.',  1, 'completed', 'Fixed',      'Sam Rivera',   '2026-03-15 10:05-07', '2026-03-15 10:08-07', '2026-03-15 11:20-07'),
   ('R-J8T', 'aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Winter jacket',            'Sewing / Textiles',       'Zipper is stuck halfway and the pull tab broke off.',            2, 'completed', 'Not Fixed',  'Sam Rivera',   '2026-03-15 10:06-07', '2026-03-15 10:09-07', '2026-03-15 11:55-07'),
   ('R-B2P', 'aaaaaaaa-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Bluetooth speaker',        'Electronics',             'Charges but no sound comes out; already tried a factory reset.', 1, 'completed', 'Diagnosed',  'Sam Rivera',   '2026-03-15 10:30-07', '2026-03-15 10:33-07', '2026-03-15 12:10-07'),
-  ('R-R5L', 'aaaaaaaa-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Vintage transistor radio', 'Electronics',             'Crackles and cuts out; suspect a bad capacitor.',               2, 'completed', 'Languished', '',             '2026-03-15 10:31-07', '2026-03-15 10:34-07', '2026-03-15 13:30-07'),
+  ('R-R5L', 'aaaaaaaa-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Vintage transistor radio', 'Electronics',             'Crackles and cuts out; suspect a bad capacitor.',               2, 'canceled',  null,         '',             '2026-03-15 10:31-07', '2026-03-15 10:34-07', '2026-03-15 13:30-07'),
   ('R-L9C', 'aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Brass table lamp',         'Basic Appliances / Lamp', 'Flickers when switched on; cord looks frayed near the base.',    1, 'completed', 'Taken Home', 'Lee Park',     '2026-03-15 10:50-07', '2026-03-15 10:52-07', '2026-03-15 12:05-07'),
-  ('R-W3X', 'aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Pocket watch',             'Jewelry',                 'Winds up but the second hand does not move.',                   2, 'completed', 'Abandoned',  '',             '2026-03-15 10:51-07', '2026-03-15 10:53-07', '2026-03-15 13:45-07'),
+  ('R-W3X', 'aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Pocket watch',             'Jewelry',                 'Winds up but the second hand does not move.',                   2, 'canceled',  null,         '',             '2026-03-15 10:51-07', '2026-03-15 10:53-07', '2026-03-15 13:45-07'),
 
   -- Event 2: today, live mix of statuses
   ('R-K7M', 'aaaaaaaa-0000-0000-0000-000000000005', '22222222-2222-2222-2222-222222222222', 'Laptop',         'Computer / Phone',        'Fan runs constantly and it overheats within minutes of booting.', 1, 'pending',            null, '', '2026-05-25 09:32-07', null,                  null),
@@ -64,10 +69,23 @@ insert into work_orders (code, attendee_id, event_id, item_name, category, descr
   ('R-T2A', 'aaaaaaaa-0000-0000-0000-000000000006', '22222222-2222-2222-2222-222222222222', 'Toaster',        'Basic Appliances / Lamp', 'Lever will not stay down; nothing heats up.',                     2, 'completed', 'Fixed', 'Linda Nguyen',  '2026-05-25 09:48-07', '2026-05-25 09:51-07', '2026-05-25 10:40-07'),
   ('R-Q9R', 'aaaaaaaa-0000-0000-0000-000000000006', '22222222-2222-2222-2222-222222222222', 'Silver necklace','Jewelry',                 'Clasp spring is broken; will not stay closed.',                   3, 'pending',            null, '', '2026-05-25 09:49-07', null,                  null),
   ('R-D5B', 'aaaaaaaa-0000-0000-0000-000000000007', '22222222-2222-2222-2222-222222222222', 'Mountain bike',  'Bikes',                   'Rear derailleur skips gears; chain slips under load.',            1, 'pending_assignment', null, '', '2026-05-25 10:07-07', '2026-05-25 10:10-07', null),
+  ('R-N4V', 'aaaaaaaa-0000-0000-0000-000000000007', '22222222-2222-2222-2222-222222222222', 'Espresso machine', 'Basic Appliances / Lamp', 'Pump hums but no water comes through the group head.',          2, 'completed', 'Not Fixed', 'Tom Becker', '2026-05-25 10:08-07', '2026-05-25 10:11-07', '2026-05-25 11:30-07'),
+  ('R-X2C', 'aaaaaaaa-0000-0000-0000-000000000005', '22222222-2222-2222-2222-222222222222', 'Desk lamp',        'Basic Appliances / Lamp', 'Switch is loose and the lamp flickers.',                         3, 'canceled',  null,        '',           '2026-05-25 09:34-07', null,                  '2026-05-25 10:15-07'),
 
   -- Event 3: upcoming, pre-registered (pending, not yet printed)
   ('R-F3W', 'aaaaaaaa-0000-0000-0000-000000000010', '33333333-3333-3333-3333-333333333333', 'Wooden dining chair', 'Furniture / Wood', 'Joint at the back leg is loose and wobbles.', 1, 'pending', null, '', '2026-05-22 14:02-07', null, null),
   ('R-H8K', 'aaaaaaaa-0000-0000-0000-000000000011', '33333333-3333-3333-3333-333333333333', 'Tube radio',          'Electronics',      'Hums loudly and the dial light is out.',      1, 'pending', null, '', '2026-05-23 16:22-07', null, null);
+
+-- ── Cancel / not-fixed reasons (values from src/lib/constants.js) ──
+update work_orders set not_fixed_reason = 'Spare parts not available'                where code = 'R-J8T';
+update work_orders set cancel_reason = 'Languished'                                   where code = 'R-R5L';
+update work_orders set cancel_reason = 'Client left'                                  where code = 'R-W3X';
+update work_orders set not_fixed_reason = 'Other',
+                       not_fixed_note = 'Pump needs a part the manufacturer no longer makes; owner will look for a used unit.'
+                                                                                      where code = 'R-N4V';
+update work_orders set cancel_reason = 'Other',
+                       cancel_note = 'Duplicate of an item already checked in under another family member.'
+                                                                                      where code = 'R-X2C';
 
 -- ── Waiver acceptances (one per visitor; volunteers excluded) ──
 -- content_hash mirrors src/lib/constants.js computeWaiverHash():
@@ -108,6 +126,8 @@ select
   wo.priority,
   wo.status,
   wo.outcome,
+  coalesce(wo.not_fixed_reason, wo.cancel_reason) as reason,
+  coalesce(wo.not_fixed_note, wo.cancel_note) as note,
   wo.fixer_name
 from events e
 join attendees a on a.event_id = e.id
