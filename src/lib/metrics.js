@@ -209,7 +209,7 @@ export function computeMetrics({ attendees = [], orders = [], events = null } = 
   ).filter((r) => r.known || r.count > 0);
 
   // ── categories ──
-  // Staff assign a category after check-in, so in-flight items legitimately
+  // Volunteers assign a category after check-in, so in-flight items legitimately
   // have none. `categorized` vs `total` makes that gap visible rather than
   // making it look like items went missing.
   const ordersByCategory = new Map();

@@ -111,6 +111,22 @@ from (values
 ) v(id, accepted_at)
 cross join waiver w;
 
+-- ── Admin allowlist ──
+-- Default admins: each becomes an admin the first time they sign in to /admin
+-- with Google. Requires supabase-admin-auth-migration.sql. Unlike the tables
+-- above, admin_allowlist and app_users are NOT truncated, so existing admins
+-- and invites survive a re-run; emails that already belong to an admin are
+-- skipped, since their invite could never be used.
+insert into admin_allowlist (email)
+select v.email
+from (values
+  ('wigahluk@gmail.com'),
+  ('geshort@gmail.com'),
+  ('henrieke.baunack@gmail.com')
+) v(email)
+where not exists (select 1 from app_users u where u.email = v.email)
+on conflict (email) do nothing;
+
 commit;
 
 -- ── Verify ──

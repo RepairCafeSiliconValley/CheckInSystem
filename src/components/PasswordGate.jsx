@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import Logo from "./Logo";
 import Card from "./Card";
 import Input from "./Input";
 import Button from "./Button";
-import { signIn } from "../lib/store";
+import { signInVolunteer } from "../lib/store";
 
-export default function PasswordGate({ onUnlock }) {
+// Shared volunteer password gate. crossLink ({ to, label }) shows a link to the
+// other portal under the card, so it can be reached before signing in.
+export default function PasswordGate({ title, crossLink, onUnlock }) {
   const [pw, setPw] = useState("");
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
@@ -13,7 +16,7 @@ export default function PasswordGate({ onUnlock }) {
 
   const attempt = async () => {
     setLoading(true);
-    const valid = await signIn(pw);
+    const valid = await signInVolunteer(pw);
     setLoading(false);
     if (valid) {
       onUnlock();
@@ -31,8 +34,8 @@ export default function PasswordGate({ onUnlock }) {
         <Card style={{ textAlign: "left" }}>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#f0f4f8", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: "22px" }}>🔒</div>
-            <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700, color: "#1d2939", margin: "0 0 4px 0" }}>Staff Access</h2>
-            <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", margin: 0 }}>Enter the shared password to continue.</p>
+            <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700, color: "#1d2939", margin: "0 0 4px 0" }}>{title}</h2>
+            <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#667085", margin: 0 }}>Enter the volunteer password to continue.</p>
           </div>
           <div style={{ animation: shake ? "shake 0.4s ease" : "none" }}>
             <Input label="Password" value={pw} onChange={(v) => { setPw(v); setError(false); }} placeholder="Enter password" type="password" required />
@@ -40,6 +43,9 @@ export default function PasswordGate({ onUnlock }) {
           {error && <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginBottom: 14 }}><span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>Incorrect password.</span></div>}
           <Button onClick={attempt} disabled={!pw.trim() || loading}>{loading ? "Checking..." : "Unlock"}</Button>
         </Card>
+        {crossLink && (
+          <Link to={crossLink.to} style={{ display: "inline-block", marginTop: 16, fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 600, color: "#1e3a6e", textDecoration: "none" }}>{crossLink.label}</Link>
+        )}
       </div>
       <style>{`@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(5px); } }`}</style>
     </div>
