@@ -294,7 +294,7 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
       supabase
         .from("work_orders")
         .select(
-          "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, not_fixed_reason, fixer_name, weight_kg, created_at, printed_at, completed_at"
+          "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, cancel_note, not_fixed_reason, not_fixed_note, fixer_name, weight_kg, created_at, printed_at, completed_at"
         )
         .in("event_id", eventIds)
         .order("created_at", { ascending: true })
@@ -323,7 +323,7 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
     "Event Name", "Event Date", "Event ID", "Work Order ID", "Code",
     "Attendee ID", "Zip Code", "Volunteer",
     "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
-    "Cancel Reason", "Not Fixed Reason", "Fixer", "Weight (kg)",
+    "Cancel Reason", "Cancel Note", "Not Fixed Reason", "Not Fixed Note", "Fixer", "Weight (kg)",
     "Created At", "Printed At", "Completed At",
   ].join(",");
 
@@ -344,7 +344,10 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
       att ? (att.is_volunteer ? "Yes" : "No") : "",
       esc(w.item_name), esc(w.category), esc(w.priority),
       esc(w.status), esc(labelOf(w.status)), esc(w.outcome),
-      esc(w.cancel_reason), esc(w.not_fixed_reason), esc(w.fixer_name), esc(w.weight_kg),
+      // Notes are free text typed after choosing "Other"; esc() quotes any
+      // commas, quotes or line breaks so each stays in its own cell.
+      esc(w.cancel_reason), esc(w.cancel_note), esc(w.not_fixed_reason), esc(w.not_fixed_note),
+      esc(w.fixer_name), esc(w.weight_kg),
       esc(w.created_at), esc(w.printed_at), esc(w.completed_at),
     ].join(",");
   });

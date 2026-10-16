@@ -32,6 +32,7 @@ React 19 + Vite SPA, React Router v7, Supabase (Postgres + Auth + Realtime), hos
 - Joins are done as two queries merged in JS — no PostgREST embedded selects anywhere.
 - Multi-row public writes are atomic Postgres RPCs: `checkin_visitor` (attendee + work orders + waiver) and `submit_fixer_outcome`. The public fixer page reads via `get_fixer_work_order` (returns a pre-abbreviated client name). Staff edits are direct table updates under the authenticated session.
 - Metrics and work-order CSV export deliberately select no PII (no name/email/phone). Keep it that way. Don't select DEV-only columns like `assigned_at` — a column missing on PROD fails the whole query.
+- When a migration adds a column to `work_orders` (or a table the export joins), decide whether the work-order CSV export (`exportWorkOrdersCSV` in `store.js`) should include it. If it plainly belongs, add it to the select, header and row in the same PR. If it's unclear, ask the user rather than leaving it out silently. Always ask for free-text fields, which can hold PII. Only select a new column once the migration that adds it has run on PROD.
 - Queue live-updates via `subscribeToEvent` (Realtime on `attendees` and `work_orders` filtered by event).
 
 **Auth:** no user accounts. Staff sign in with one shared password via `signInWithPassword` against the fixed email `admin@repaircafe.app`. PII protection relies on RLS policies (`supabase-rls-migration.sql`, `supabase-pii-rls-fix.sql`) because the anon key ships to every browser.
