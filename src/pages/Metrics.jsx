@@ -122,32 +122,27 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
 
   // Seeding the scope happens here rather than in a follow-up effect: the
   // events are already in hand, so it costs no extra render pass.
-  const load = useCallback(async (seedEventId) => {
-    try {
-      // One read of everything, filtered client-side. Scope changes are then
-      // instant and cost no round trips.
-      const [evs, data] = await Promise.all([
-        fetchEvents(),
-        fetchMetricsRows(null),
-      ]);
-      setEvents(evs);
-      setRows(data);
-      // Open on whatever event the rest of the portal is looking at — that's
-      // the live-event case.
-      const seed = seedEventId && evs.find((e) => e.id === seedEventId);
-      if (seed) setSelectedIds([seed.id]);
-      else if (evs.length) setSelectedIds([evs[0].id]);
-      setError(null);
-    } catch (err) {
-      console.error("Failed to load metrics:", err);
-      setError("Couldn't load metrics. Check your connection and try again.");
-    }
-    setLoading(false);
-  }, []);
-
+  // State is set from the promise callbacks, not in the effect body.
   useEffect(() => {
-    load(initialEventId);
-  }, [load, initialEventId]);
+    // One read of everything, filtered client-side. Scope changes are then
+    // instant and cost no round trips.
+    Promise.all([fetchEvents(), fetchMetricsRows(null)])
+      .then(([evs, data]) => {
+        setEvents(evs);
+        setRows(data);
+        // Open on whatever event the rest of the portal is looking at —
+        // that's the live-event case.
+        const seed = initialEventId && evs.find((e) => e.id === initialEventId);
+        if (seed) setSelectedIds([seed.id]);
+        else if (evs.length) setSelectedIds([evs[0].id]);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error("Failed to load metrics:", err);
+        setError("Couldn't load metrics. Check your connection and try again.");
+      })
+      .finally(() => setLoading(false));
+  }, [initialEventId]);
 
   // Oldest first — the charts and the by-event list depend on this order.
   // (EventPicker displays newest-first; that's a separate concern.)

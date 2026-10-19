@@ -1,0 +1,203 @@
+import { Link } from "react-router-dom";
+import Logo from "./Logo";
+import { useNarrow } from "../lib/useNarrow";
+
+// Full-page placeholder while a portal checks for an existing session.
+export function PortalLoading() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f6f8",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <p style={{ fontFamily: "'Outfit', sans-serif", color: "#667085" }}>
+        Loading...
+      </p>
+    </div>
+  );
+}
+
+// Shared frame for the signed-in portals (/queue and /admin): a header with
+// the logo, who is signed in, a link across to the other portal and Logout,
+// an optional banner under it, the page content, and a bottom tab bar
+// (zIndex 100) when there is more than one tab.
+export default function PortalShell({
+  tabs = [],
+  activeTab,
+  onTabChange,
+  identity,
+  crossLink,
+  onLogout,
+  banner,
+  children,
+}) {
+  // On phones the identity gets its own line under the header row, so the
+  // portal link and Logout never wrap and the name isn't cut short.
+  const narrow = useNarrow(420);
+
+  const identityText = identity && (
+    <span
+      title={identity}
+      style={{
+        fontFamily: "'Outfit', sans-serif",
+        fontSize: "12px",
+        color: "#667085",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        ...(narrow ? { display: "block", marginTop: 6 } : { maxWidth: 160 }),
+      }}
+    >
+      {identity}
+    </span>
+  );
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f6f8",
+        fontFamily: "'Outfit', sans-serif",
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderBottom: "1px solid #e8ebf0",
+          padding: "10px 16px",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 640,
+            margin: "0 auto",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Logo size="tiny" />
+          <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+            {!narrow && identityText}
+            {crossLink && (
+              <Link
+                to={crossLink.to}
+                style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#1e3a6e",
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {crossLink.label}
+              </Link>
+            )}
+            <button
+              onClick={onLogout}
+              title="Signs out of both /queue and /admin on this device. On a shared device, also sign out of Google in this browser."
+              style={{
+                background: "none",
+                border: "none",
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "12px",
+                color: "#98a2b3",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              👋 Logout
+            </button>
+          </div>
+        </div>
+        {narrow && identityText && (
+          <div style={{ maxWidth: 640, margin: "0 auto" }}>{identityText}</div>
+        )}
+      </div>
+
+      {banner}
+
+      <div
+        style={{ maxWidth: 640, margin: "0 auto", padding: "16px 16px 100px" }}
+      >
+        {children}
+      </div>
+
+      {tabs.length > 1 && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            // Repair Café navy bar (the primary button colour).
+            background: "#1e3a6e",
+            display: "flex",
+            justifyContent: "center",
+            padding: "8px 0 env(safe-area-inset-bottom, 12px)",
+            zIndex: 100,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              maxWidth: 640,
+              width: "100%",
+              justifyContent: "space-around",
+            }}
+          >
+            {tabs.map((t) => {
+              // On the navy bar: the active tab is a white pill with a navy
+              // icon and dark bold text; inactive tabs are light neutral grey.
+              // Icons are line drawings coloured via CSS `color` (TabIcons).
+              const active = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => onTabChange(t.key)}
+                  aria-current={active ? "page" : undefined}
+                  style={{
+                    background: active ? "#fff" : "none",
+                    border: "none",
+                    borderRadius: 12,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 2,
+                    padding: "6px 18px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "flex",
+                      color: active ? "#1e3a6e" : "#d0d5dd",
+                    }}
+                  >
+                    <t.Icon />
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "'Outfit', sans-serif",
+                      fontSize: "11px",
+                      fontWeight: active ? 700 : 500,
+                      color: active ? "#1d2939" : "#d0d5dd",
+                      letterSpacing: "0.3px",
+                    }}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

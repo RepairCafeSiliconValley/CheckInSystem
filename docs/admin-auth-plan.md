@@ -327,6 +327,8 @@ explicit UI:
     account."
   - a **Switch to volunteer account** button that signs out and shows the `PasswordGate`.
 
+> **As built (replaces the banner below):** `/queue` shows no banner. Instead, an admin session opening `/queue` re-locks `/admin`: going back needs a fresh "Continue with Google", with Google's account chooser forced. The header keeps showing "Name (admin)", and the Logout tooltip reminds people to also sign out of Google on a shared device. Limits: if the admin's Google account is still signed in to that browser, Google may not ask for a password, and the session still has admin rights outside the `/admin` pages.
+
 **Who's signed in, everywhere.** Both portal headers show the current identity next to Logout:
 "Volunteer account" or "Jane Doe (admin)". It comes from the session email plus `app_users.name`.
 The Logout button's tooltip notes that it signs out on both pages.
@@ -380,10 +382,30 @@ as wrong. Rename it to `volunteer@repaircafe.app`:
 - In PR 1, put the email in a single constant, `VOLUNTEER_ACCOUNT_EMAIL` in `constants.js`.
   PR 2's `is_volunteer()` compares against the same address.
 - In each environment, change the existing auth user's email in place, so the password and id
-  stay the same. Use the Admin API (`auth.admin.updateUserById(id, { email, email_confirm:
-  true })`) or the Studio user editor. **Do it at the same moment that environment gets the PR 1
-  code**: DEV when PR 1 merges to `dev`, PROD at the next release to `main`. Between the two
-  steps the volunteer login fails, so pick a time with no event running.
+  stay the same. **Do it at the same moment that environment gets the PR 1 code**: DEV when PR 1
+  merges to `dev`, PROD at the next release to `main`. Between the two steps the volunteer login
+  fails, so pick a time with no event running. In the Supabase dashboard, go to **SQL Editor →
+  New query**, run the SQL below, then confirm under **Authentication → Users** that the user
+  shows the new email with the same User UID:
+
+  ```sql
+  -- Rename the shared login, keeping the same user, id and password.
+  update auth.users
+  set email = 'volunteer@repaircafe.app', updated_at = now()
+  where email = 'admin@repaircafe.app';
+
+  -- Supabase keeps a copy of the email on the password identity; update it too.
+  update auth.identities
+  set identity_data = jsonb_set(identity_data, '{email}', '"volunteer@repaircafe.app"'),
+      updated_at = now()
+  where provider = 'email' and identity_data->>'email' = 'admin@repaircafe.app';
+  ```
+
+  Tested on the local stack: afterwards the new email signs in with the old password, the old
+  email no longer does, and the user id is unchanged. To undo it (for example if it was run
+  before the new code deployed), run the same SQL with the two emails swapped. The Admin API
+  (`auth.admin.updateUserById(id, { email, email_confirm: true })`) does the same, but needs
+  the service-role key.
 - Until PR 2, RLS only checks `authenticated` and not the email, so the rename can't lock
   anyone out of data. Only the login screen depends on it.
 - Update `supabase-seed.sql`, the local Auth user, and the password comment in `.env.local`.
@@ -397,7 +419,8 @@ not an access level, so they stay as they are.
    `http://127.0.0.1:54331/auth/v1/callback`.
 2. Supabase → Auth → Providers → Google: enter the client ID and secret.
 3. Supabase → Auth → URL Configuration: Site URL and redirect URLs (§3).
-4. Supabase → Auth → Hooks: enable Before User Created → `public.hook_before_user_created`.
+4. Supabase → Auth → Hooks: enable Before User Created → `public.hook_before_user_created`
+   (details in §7.2).
 5. Google Cloud consent screen: while it's in "Testing" mode, only listed test users can sign
    in. **Publish it.** An app that only asks for email and profile doesn't need Google's
    verification review. Otherwise each new admin has to be added in two places.
@@ -407,6 +430,107 @@ not an access level, so they stay as they are.
    both local and DEV if it lists both redirect URIs. PROD should get its own client.
 8. Supabase → Auth → Providers → Email: **leave enabled**, because the volunteer account
    needs it. SMTP and email templates aren't needed until magic link is added.
+
+### 7.1 Google sign-in setup in detail
+
+**Who owns it.** The Google Cloud project should belong to an **organization-owned Google
+account**, not a volunteer's personal one, so the login doesn't depend on any one person. The
+options are:
+- **Google Workspace for Nonprofits.** Free for eligible 501(c)(3) organizations, with
+  addresses on the group's own domain.
+- **A shared organization Gmail account,** whose password more than one organizer holds.
+- **Keep an existing project** and add the organization account as an **Owner** (IAM & Admin →
+  IAM → Grant access → role *Owner*). You can make it the sole owner later.
+
+**One project, two clients.** DEV and PROD don't need separate Google Cloud projects. Use **one
+project** with **one OAuth client per environment**:
+- The consent screen (app name, branding, audience) is per project, so users see the same app
+  in both environments.
+- Each environment gets its own client ID and secret, so one can be rotated or revoked without
+  touching the other, and a leaked DEV secret doesn't affect PROD.
+- The local stack can use its own client, or the DEV client with
+  `http://127.0.0.1:54331/auth/v1/callback` added as a second redirect URI.
+
+A single client listing every redirect URI also works, but then all environments share one
+secret.
+
+**Steps in the Google Cloud Console** (Google Auth Platform):
+1. **Branding.**
+   - App name: "Repair Café Silicon Valley".
+   - Support email and developer contact email, preferably organization addresses.
+   - Under **Authorized domains**, add `supabase.co`, the domain of the redirect URIs below.
+   - **Don't upload a logo.** A logo triggers Google's brand verification review; without one,
+     no review is needed.
+2. **Audience.**
+   - User type **External**.
+   - Set the publishing status to **In production**. In *Testing*, only listed test users can
+     sign in, so every new admin would also have to be added there.
+   - Publishing doesn't need a review, because the app only uses the basic scopes.
+3. **Data access.** Keep the default scopes, `openid`, `email` and `profile`. Supabase asks for
+   nothing more.
+4. **Clients → Create client**, type **Web application**, once per environment:
+   - **"Supabase DEV":** authorized redirect URI
+     `https://<DEV project ref>.supabase.co/auth/v1/callback`.
+   - **"Supabase PROD":** authorized redirect URI
+     `https://<PROD project ref>.supabase.co/auth/v1/callback`.
+   - Authorized JavaScript origins can stay empty.
+   - Copy each client ID and secret when they're shown.
+
+**Steps in each Supabase project** (DEV first, then PROD):
+1. **Authentication → Sign In / Providers → Google.** Enable it and paste that environment's
+   client ID and secret. The **Callback URL** shown there must match the redirect URI entered in
+   Google exactly. Copy it from here if unsure.
+2. **Authentication → URL Configuration.**
+   - **PROD:** Site URL = the production site; add `https://<production domain>/admin` to
+     Redirect URLs.
+   - **DEV:** add the Vercel preview pattern for this project (for example
+     `https://*-repair-cafe-silicon-valley-s-projects.vercel.app/**`), so `/admin` sign-ins on
+     preview deployments can return.
+3. **Test.** On that environment's `/admin`, click **Continue with Google** and sign in with an
+   allowlisted account. You should land on the Events page with your name in the header.
+
+**Secrets.** Client secrets live only in the Supabase dashboard, and locally in the gitignored
+`supabase/.env`. They never go in the repo.
+
+### 7.2 Turning on the sign-up hook
+
+The hook tells Supabase Auth to call `public.hook_before_user_created` (the allowlist check)
+before it creates any new user. The function comes from `supabase-admin-auth-migration.sql`;
+the hook only switches it on. Do this per environment, DEV first, **after** running that
+migration.
+
+**Steps in the Supabase dashboard:**
+1. Open the project and go to **Authentication → Hooks**. In some dashboard versions it's
+   **Auth Hooks**, under Authentication's *Configuration* group.
+2. Click **Add hook** (or **Add a new hook**) and choose **Before User Created**.
+3. Set **Hook type** to **Postgres**. Choose schema **`public`** and function
+   **`hook_before_user_created`**.
+4. Click **Create hook** / **Save**, and check that it shows as **enabled**.
+
+The dashboard may offer a block of SQL that grants permissions to `supabase_auth_admin`. It
+can be skipped: the migration already grants exactly that, and revokes the function from
+everyone else.
+
+**Order matters:**
+- **Run the migration first.** If the hook is enabled before the function exists, every new
+  sign-up fails with a generic error.
+- **Existing users aren't affected.** The hook only runs when a new user is created, so the
+  volunteer login and existing admins keep working.
+- **Users added from the dashboard skip it.** Adding a user under Authentication → Users uses
+  the service-role admin API, which skips the hook. Such a user still never becomes an admin,
+  because the `auth.users` insert trigger also checks the allowlist.
+
+**If "Before User Created" isn't offered,** the project's plan or version doesn't support it.
+It was only verified on the local stack. In that case, use the trigger fallback in §9: a
+`BEFORE INSERT` trigger on `auth.users` that raises an exception for emails not on the
+allowlist.
+
+**Test it after enabling.** In an incognito window, on that environment's `/admin`:
+1. **Continue with Google** with an account that is **not** on the allowlist should show
+   *"&lt;that email&gt; has not been approved for admin access."*
+2. With an **allowlisted** account, you should land on the Events page with your name in the
+   header. In the Table Editor, the invite disappears from `admin_allowlist` and a row appears
+   in `app_users`.
 
 ## 8. Testing
 

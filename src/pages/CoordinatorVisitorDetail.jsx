@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Card from "../components/Card";
 import Input from "../components/Input";
 import Select from "../components/Select";
@@ -48,50 +48,59 @@ export default function CoordinatorVisitorDetail({
   const itemEditsRef = useRef({});
   const ordersRef = useRef([]);
 
-  attFirstNameRef.current = attFirstName;
-  attLastNameRef.current = attLastName;
-  attEmailRef.current = attEmail;
-  attPhoneRef.current = attPhone;
-  attZipCodeRef.current = attZipCode;
-  itemEditsRef.current = itemEdits;
-  ordersRef.current = orders;
+  // Synced after every commit, before the browser can fire the next blur.
+  useLayoutEffect(() => {
+    attFirstNameRef.current = attFirstName;
+    attLastNameRef.current = attLastName;
+    attEmailRef.current = attEmail;
+    attPhoneRef.current = attPhone;
+    attZipCodeRef.current = attZipCode;
+    itemEditsRef.current = itemEdits;
+    ordersRef.current = orders;
+  });
 
   const showSaved = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const applyVisitor = ({ attendee: att, orders: wo, event: ev }) => {
+    setAttendee(att);
+    setOrders(wo);
+    setEvent(ev);
+    setAttFirstName(att.first_name);
+    setAttLastName(att.last_name);
+    setAttEmail(att.email || "");
+    setAttPhone(att.phone || "");
+    setAttZipCode(att.zip_code || "");
+    const edits = {};
+    wo.forEach((w) => {
+      edits[w.id] = {
+        item_name: w.item_name,
+        category: w.category,
+        description: w.description,
+        fixer_name: w.fixer_name || "",
+        weight_kg: w.weight_kg ?? "",
+      };
+    });
+    setItemEdits(edits);
+  };
+
   const loadData = async () => {
     try {
-      const { attendee: att, orders: wo, event: ev } =
-        await fetchVisitorDetail(attendeeId);
-      setAttendee(att);
-      setOrders(wo);
-      setEvent(ev);
-      setAttFirstName(att.first_name);
-      setAttLastName(att.last_name);
-      setAttEmail(att.email || "");
-      setAttPhone(att.phone || "");
-      setAttZipCode(att.zip_code || "");
-      const edits = {};
-      wo.forEach((w) => {
-        edits[w.id] = {
-          item_name: w.item_name,
-          category: w.category,
-          description: w.description,
-          fixer_name: w.fixer_name || "",
-          weight_kg: w.weight_kg ?? "",
-        };
-      });
-      setItemEdits(edits);
+      applyVisitor(await fetchVisitorDetail(attendeeId));
     } catch (err) {
       console.error("Failed to load visitor:", err);
     }
     setLoading(false);
   };
 
+  // State is set from the promise callbacks, not in the effect body.
   useEffect(() => {
-    loadData();
+    fetchVisitorDetail(attendeeId)
+      .then(applyVisitor)
+      .catch((err) => console.error("Failed to load visitor:", err))
+      .finally(() => setLoading(false));
   }, [attendeeId]);
 
   if (loading) {
