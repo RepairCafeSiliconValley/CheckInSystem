@@ -7,7 +7,7 @@ import Input from "../components/Input";
 import Button from "../components/Button";
 import TextArea from "../components/TextArea";
 import { fetchWorkOrderById, submitFixerOutcome } from "../lib/store";
-import { OUTCOMES, NOT_FIXED_REASONS, OTHER_REASON } from "../lib/constants";
+import { OUTCOMES, NOT_FIXED_REASONS, OTHER_REASON, NOTE_HINT } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
   Fixed: "✅",
@@ -618,6 +618,7 @@ export default function FixerSubmit() {
                             onChange={setNotFixedNote}
                             placeholder="Briefly describe why it wasn't fixed"
                             rows={2}
+                            hint={NOTE_HINT}
                           />
                         </div>
                       )}

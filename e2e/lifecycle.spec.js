@@ -48,6 +48,7 @@ test("Not Fixed from the volunteer side needs a reason and shows it, with the no
   await expect(page.getByText("Select a reason it wasn't fixed to submit.")).toBeVisible();
   await page.getByRole("button", { name: "Other", exact: true }).click();
   await page.getByLabel("Details (optional)").fill("E2E staff note");
+  await expect(page.getByText("Don't include names or contact details. Notes are included in data exports.")).toBeVisible();
   await submit(page).click();
 
   await expect(page.getByText("Reason: Other")).toBeVisible();
@@ -108,6 +109,7 @@ test("cancel a printed item with Other and a note; undo returns it to Checked-In
   await page.getByRole("button", { name: "✕ Cancel item" }).click();
   await page.getByRole("button", { name: "Other", exact: true }).click();
   await page.getByLabel("Details (optional)").fill("E2E cancel note");
+  await expect(page.getByText("Don't include names or contact details. Notes are included in data exports.")).toBeVisible();
   await page.getByRole("button", { name: 'Confirm "Other"' }).click();
   await expect(page.getByText("Cancelled — Other")).toBeVisible();
   await expect(page.getByText("Note: E2E cancel note")).toBeVisible();

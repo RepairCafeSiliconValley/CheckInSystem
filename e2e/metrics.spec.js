@@ -27,7 +27,7 @@ async function seedEvent() {
   await markPrinted(a.orders[0].id, "Electronics");
   await updateWorkOrder(a.orders[0].id, done("Fixed", { fixer_name: "E2E Pat", weight_kg: 2.5 }));
   await markPrinted(a.orders[1].id, "Electronics");
-  await updateWorkOrder(a.orders[1].id, done("Not Fixed", { not_fixed_reason: "Other", not_fixed_note: "E2E secret", fixer_name: "e2e pat", weight_kg: 1.2 }));
+  await updateWorkOrder(a.orders[1].id, done("Not Fixed", { not_fixed_reason: "Other", not_fixed_note: "E2E repair note", fixer_name: "e2e pat", weight_kg: 1.2 }));
   await markPrinted(c.orders[0].id, "Bikes");
   await updateWorkOrder(c.orders[0].id, done("Taken Home", { fixer_name: "E2E Sam" }));
   await updateWorkOrder(c.orders[1].id, cancel("Client left"));
@@ -129,16 +129,21 @@ test("work-order CSV: one row per item, the right columns, no personal data", as
     "Event Name", "Event Date", "Event ID", "Work Order ID", "Code",
     "Attendee ID", "Zip Code", "Volunteer",
     "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
-    "Cancel Reason", "Not Fixed Reason", "Fixer", "Weight (kg)",
+    "Cancel Reason", "Cancel Note", "Not Fixed Reason", "Not Fixed Note", "Fixer", "Weight (kg)",
     "Created At", "Printed At", "Completed At",
   ]);
   expect(rows).toHaveLength(6);
-  for (const secret of ["E2E Alice", "Tester", "alice@example.com", "4085550101", "E2E secret"]) {
+  // Notes are exported on purpose (free text after "Other"; the UI asks for no
+  // names or contact details), but names, emails and phones never are.
+  for (const secret of ["E2E Alice", "Tester", "alice@example.com", "4085550101"]) {
     expect(csv).not.toContain(secret);
   }
   const cancelled = rows.find((r) => r.includes("Client left")).split(",");
   expect(cancelled[12]).toBe("Cancelled"); // Status Label
   expect(cancelled[13]).toBe(""); // Outcome stays empty on a cancel
+  const notFixed = rows.find((r) => r.includes("E2E repair note")).split(",");
+  expect(notFixed[16]).toBe("Other"); // Not Fixed Reason
+  expect(notFixed[17]).toBe("E2E repair note"); // Not Fixed Note
 });
 
 test("attendee CSV from Admin has one row per client with newsletter flags", async ({ page, asAdmin }) => {
