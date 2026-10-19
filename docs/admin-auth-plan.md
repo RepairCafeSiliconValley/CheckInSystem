@@ -457,8 +457,16 @@ secret.
 **Steps in the Google Cloud Console** (Google Auth Platform):
 1. **Branding.**
    - App name: "Repair Café Silicon Valley".
-   - Support email and developer contact email, preferably organization addresses.
-   - Under **Authorized domains**, add `supabase.co`, the domain of the redirect URIs below.
+   - Support email and developer contact email, preferably organization addresses. The
+     **User support email** dropdown only offers the email of the account signed in to the
+     Console (plus Google Groups it manages), not other project owners. To use the
+     organization's address, sign in to the Console **as the organization account** and set it
+     there. Until then, any owner's own address works, and it can be changed any time.
+   - Under **Authorized domains**, add each Supabase project's own domain,
+     `<project ref>.supabase.co` (the host part of its callback URL), once for DEV and once
+     for PROD. **Not** `supabase.co` on its own: Google rejects it as "not a top private
+     domain", because `supabase.co` is a shared public suffix. Also add the site's own domain
+     (e.g. `repaircafesv.org`) if you fill in the Application home page with it.
    - **Don't upload a logo.** A logo triggers Google's brand verification review; without one,
      no review is needed.
 2. **Audience.**
