@@ -2,7 +2,7 @@ import { useState } from "react";
 import Input from "./Input";
 import TextArea from "./TextArea";
 import Button from "./Button";
-import { OUTCOMES, NOT_FIXED_REASONS, OTHER_REASON } from "../lib/constants";
+import { OUTCOMES, NOT_FIXED_REASONS, OTHER_REASON, NOTE_HINT } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
   Fixed: "✅",
@@ -151,6 +151,7 @@ export default function RecordOutcome({
                 onChange={setNotFixedNote}
                 placeholder="Briefly describe why it wasn't fixed"
                 rows={2}
+                hint={NOTE_HINT}
               />
             </div>
           )}

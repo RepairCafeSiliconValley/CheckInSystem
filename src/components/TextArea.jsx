@@ -1,6 +1,7 @@
 import { useId } from "react";
 
-export default function TextArea({ label, value, onChange, onBlur, placeholder, required = false, rows = 3 }) {
+// `hint` (optional) is a short line of guidance shown under the box.
+export default function TextArea({ label, value, onChange, onBlur, placeholder, required = false, rows = 3, hint }) {
   const id = useId();
   return (
     <div style={{ marginBottom: 16 }}>
@@ -9,6 +10,7 @@ export default function TextArea({ label, value, onChange, onBlur, placeholder, 
         style={{ width: "100%", padding: "12px 14px", borderRadius: "10px", border: "1.5px solid #d0d5dd", fontFamily: "'Outfit', sans-serif", fontSize: "15px", color: "#1d2939", background: "#fff", boxSizing: "border-box", outline: "none", resize: "vertical", transition: "border-color 0.2s" }}
         onFocus={(e) => (e.target.style.borderColor = "#1e3a6e")}
         onBlur={(e) => { e.target.style.borderColor = "#d0d5dd"; onBlur?.(); }} />
+      {hint && <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "12px", color: "#667085", margin: "4px 0 0 0", lineHeight: 1.4 }}>{hint}</p>}
     </div>
   );
 }

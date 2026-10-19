@@ -1,7 +1,7 @@
 import { useState } from "react";
 import TextArea from "./TextArea";
 import Button from "./Button";
-import { OTHER_REASON } from "../lib/constants";
+import { OTHER_REASON, NOTE_HINT } from "../lib/constants";
 
 // Grid of reason buttons. Every reason commits on click except "Other", which
 // first reveals an optional note and an explicit confirm. Calls
@@ -70,6 +70,7 @@ export default function ReasonPicker({ label, reasons, onPick, compact = false }
             onChange={setNote}
             placeholder="Briefly describe the reason"
             rows={2}
+            hint={NOTE_HINT}
           />
           <Button
             variant="primary"

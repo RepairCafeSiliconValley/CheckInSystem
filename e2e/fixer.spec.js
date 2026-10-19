@@ -75,6 +75,7 @@ test("Not Fixed needs a reason; Other takes a note the public page never shows",
 
   await page.getByRole("button", { name: "Other", exact: true }).click();
   await page.getByLabel("Details (optional)").fill("E2E note: missing screw");
+  await expect(page.getByText("Don't include names or contact details. Notes are included in data exports.")).toBeVisible();
   await submit(page).click();
   await expect(page.getByRole("heading", { name: "Outcome Submitted" })).toBeVisible();
 

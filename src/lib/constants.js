@@ -70,6 +70,11 @@ export const NOT_FIXED_REASONS = [
 // stored in cancel_note / not_fixed_note so the reason columns stay canonical.
 export const OTHER_REASON = "Other";
 
+// Shown under every "Other" note box: notes are exported in the work-order
+// CSV, which otherwise carries no personal data.
+export const NOTE_HINT =
+  "Don't include names or contact details. Notes are included in data exports.";
+
 // ─── Access ───
 // The shared volunteer password signs in as this Supabase Auth user. Renaming
 // it means renaming that user in each environment's Auth at the same time.
