@@ -18,12 +18,10 @@
 // the local container by name.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { VOLUNTEER_ACCOUNT_EMAIL } from "../src/lib/constants.js";
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+import { ROOT, supabaseCli as supabase, localStackEnv, volunteerPassword } from "./local-stack.mjs";
 
 // The order that actually applies, by function dependencies. This list is
 // the source of truth; CLAUDE.md points here.
@@ -72,12 +70,6 @@ const EXPECTED_ERRORS = [
   /column "name"( of relation "attendees")? does not exist/,
 ];
 
-function supabase(args) {
-  // One command string under a shell, so Windows resolves supabase.cmd.
-  // The arguments are fixed strings from this file.
-  return spawnSync(`supabase ${args.join(" ")}`, { cwd: ROOT, encoding: "utf8", shell: true });
-}
-
 function psql(container, sql, label) {
   const result = spawnSync(
     "docker",
@@ -93,36 +85,24 @@ function psql(container, sql, label) {
   return errors.length;
 }
 
-function volunteerPassword() {
-  if (process.env.LOCAL_VOLUNTEER_PASSWORD) return process.env.LOCAL_VOLUNTEER_PASSWORD;
-  const envFile = join(ROOT, ".env.local");
-  if (!existsSync(envFile)) return null;
-  const match = readFileSync(envFile, "utf8").match(/^#?\s*LOCAL_VOLUNTEER_PASSWORD=(\S+)/m);
-  return match ? match[1] : null;
-}
-
 async function createVolunteerUser() {
   const password = volunteerPassword();
   if (!password) {
     console.log(`  ⚠ Skipped ${VOLUNTEER_ACCOUNT_EMAIL}: set LOCAL_VOLUNTEER_PASSWORD to create it.`);
     return;
   }
-  const status = supabase(["status", "-o", "env"]);
-  const env = Object.fromEntries(
-    (status.stdout || "")
-      .split("\n")
-      .map((line) => line.match(/^(\w+)="?([^"]*)"?$/))
-      .filter(Boolean)
-      .map((m) => [m[1], m[2]]),
-  );
-  if (!env.API_URL || !env.SERVICE_ROLE_KEY) fail("Couldn't read API_URL / SERVICE_ROLE_KEY from `supabase status`.");
-  if (!/^http:\/\/(127\.0\.0\.1|localhost)/.test(env.API_URL)) fail(`Refusing to create users on ${env.API_URL}.`);
+  let env;
+  try {
+    env = localStackEnv();
+  } catch (err) {
+    fail(err.message);
+  }
 
-  const res = await fetch(`${env.API_URL}/auth/v1/admin/users`, {
+  const res = await fetch(`${env.apiUrl}/auth/v1/admin/users`, {
     method: "POST",
     headers: {
-      apikey: env.SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${env.SERVICE_ROLE_KEY}`,
+      apikey: env.serviceRoleKey,
+      Authorization: `Bearer ${env.serviceRoleKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ email: VOLUNTEER_ACCOUNT_EMAIL, password, email_confirm: true }),
