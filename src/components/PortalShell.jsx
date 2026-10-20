@@ -139,7 +139,9 @@ export default function PortalShell({
             background: "#1e3a6e",
             display: "flex",
             justifyContent: "center",
-            padding: "8px 0 env(safe-area-inset-bottom, 12px)",
+            // Equal top/bottom padding centres the tabs; on phones with a home
+            // indicator the safe-area inset is added below that.
+            padding: "8px 0 calc(8px + env(safe-area-inset-bottom, 0px))",
             zIndex: 100,
           }}
         >
