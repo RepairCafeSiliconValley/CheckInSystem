@@ -33,8 +33,9 @@ test("record Fixed with a saved fixer name, then edit it back to Checked-In", as
   await page.getByRole("button", { name: /Edit Outcome/ }).click();
   await expect(page.getByText("Checked-In", { exact: true })).toBeVisible();
   await expect(page.getByText("Record Outcome:")).toBeVisible();
+  await expect(page.getByLabel("Fixer Name (optional)")).toHaveValue("E2E Staff Fixer");
   expect(await getWorkOrder(id)).toMatchObject({
-    status: "pending_assignment", outcome: null, fixer_name: "", completed_at: null,
+    status: "pending_assignment", outcome: null, fixer_name: "E2E Staff Fixer", completed_at: null,
   });
 });
 
@@ -104,6 +105,7 @@ test("cancel a printed item with Other and a note; undo returns it to Checked-In
   const v = await checkIn(event.id, { firstName: "E2E CancelPrinted" });
   const id = v.orders[0].id;
   await markPrinted(id);
+  await updateWorkOrder(id, { fixer_name: "E2E Cancel Fixer" });
   await openVisitor(page, asVolunteer, event.id, "E2E CancelPrinted Tester");
 
   await page.getByRole("button", { name: "✕ Cancel item" }).click();
@@ -116,7 +118,10 @@ test("cancel a printed item with Other and a note; undo returns it to Checked-In
 
   await page.getByRole("button", { name: /Undo Cancel/ }).click();
   await expect(page.getByText("Checked-In", { exact: true })).toBeVisible();
-  expect(await getWorkOrder(id)).toMatchObject({ status: "pending_assignment", cancel_reason: null, cancel_note: null });
+  await expect(page.getByLabel("Fixer Name (optional)")).toHaveValue("E2E Cancel Fixer");
+  expect(await getWorkOrder(id)).toMatchObject({
+    status: "pending_assignment", cancel_reason: null, cancel_note: null, fixer_name: "E2E Cancel Fixer",
+  });
 });
 
 // Known gap (playbook "known gaps"): submit_fixer_outcome only refuses

@@ -276,11 +276,11 @@ export default function CoordinatorVisitorDetail({
 
   // Revert a completed OR canceled item back into the active flow. Items canceled
   // before their ticket was printed (no printed_at) go back to 'pending'.
+  // fixer_name is kept so re-recording the outcome doesn't lose who worked on it.
   const editOutcome = async (woId) => {
     const wo = orders.find((o) => o.id === woId);
     await updateWorkOrder(woId, {
       status: wo?.printed_at ? "pending_assignment" : "pending",
-      fixer_name: "",
       outcome: null,
       cancel_reason: null,
       cancel_note: null,
