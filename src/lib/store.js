@@ -27,10 +27,11 @@ async function fetchAllPages(makeQuery, key = "id") {
     // by email), which gives a guaranteed total order. Chained .order() calls
     // apply in sequence, so a caller's own sort stays primary and this only
     // breaks ties.
-    const { data, error } = await makeQuery()
+    const { data, error, status } = await makeQuery()
       .order(key, { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
+    // The HTTP status isn't on the error itself; keep it for messages.
+    if (error) throw Object.assign(error, { status });
     all.push(...(data || []));
     // A short page means the end. Reads under PAGE_SIZE cost exactly one
     // request, same as before.
