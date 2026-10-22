@@ -7,6 +7,7 @@ import Input from "../components/Input";
 import Button from "../components/Button";
 import TextArea from "../components/TextArea";
 import { fetchWorkOrderById, submitFixerOutcome } from "../lib/store";
+import { getSavedFixerName, saveFixerName } from "../lib/fixerName";
 import { OUTCOMES, NOT_FIXED_REASONS, OTHER_REASON, NOTE_HINT } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
@@ -79,7 +80,8 @@ export default function FixerSubmit() {
   useEffect(() => {
     fetchWorkOrderById(id).then((wo) => {
       setWorkOrder(wo);
-      setFixerName(wo?.fixer_name || "");
+      // A name a volunteer saved on the item wins over this device's last one.
+      setFixerName(wo?.fixer_name || getSavedFixerName());
       setLoading(false);
     });
   }, [id]);
@@ -106,6 +108,7 @@ export default function FixerSubmit() {
           ? notFixedNote
           : null,
       );
+      saveFixerName(fixerName.trim());
       setSubmitted(selectedOutcome);
     } catch {
       setError("Something went wrong. Please try again.");

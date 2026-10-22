@@ -106,6 +106,47 @@ test("a fixer name saved by a volunteer is pre-filled", async ({ page, event }) 
   await expect(page.getByLabel("Fixer Name")).toHaveValue("E2E Saved Fixer");
 });
 
+test("the last submitted fixer name is remembered on this device", async ({ page, event }) => {
+  const first = await printedItem(event);
+  const second = await printedItem(event);
+  await page.goto(`/fix/${first.order.id}`);
+  await expect(page.getByLabel("Fixer Name")).toHaveValue("");
+  await page.getByLabel("Fixer Name").fill("  E2E Pat  ");
+  await page.getByRole("button", { name: "✅ Fixed" }).click();
+  await submit(page).click();
+  await expect(page.getByRole("heading", { name: "Outcome Submitted" })).toBeVisible();
+
+  await page.goto(`/fix/${second.order.id}`);
+  await expect(page.getByLabel("Fixer Name")).toHaveValue("E2E Pat");
+
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload();
+  await expect(page.getByLabel("Fixer Name")).toHaveValue("");
+});
+
+test("a failed submit doesn't remember the name; a name on the item wins over it", async ({ page, event }) => {
+  const first = await printedItem(event);
+  const second = await printedItem(event);
+  await page.goto(`/fix/${first.order.id}`);
+  await page.getByLabel("Fixer Name").fill("E2E Typo");
+  await page.getByRole("button", { name: "✅ Fixed" }).click();
+  await page.route("**/rest/v1/rpc/submit_fixer_outcome", (route) => route.abort());
+  await submit(page).click();
+  await expect(page.getByText("Something went wrong. Please try again.")).toBeVisible();
+  await page.unroute("**/rest/v1/rpc/submit_fixer_outcome");
+  await page.reload();
+  await expect(page.getByLabel("Fixer Name")).toHaveValue("");
+
+  await page.getByLabel("Fixer Name").fill("E2E Pat");
+  await page.getByRole("button", { name: "✅ Fixed" }).click();
+  await submit(page).click();
+  await expect(page.getByRole("heading", { name: "Outcome Submitted" })).toBeVisible();
+
+  await updateWorkOrder(second.order.id, { fixer_name: "E2E Saved Fixer" });
+  await page.goto(`/fix/${second.order.id}`);
+  await expect(page.getByLabel("Fixer Name")).toHaveValue("E2E Saved Fixer");
+});
+
 test("two open tabs: the first submission wins, the second gets an error", async ({ page, context, event }) => {
   const { order } = await printedItem(event);
   const other = await context.newPage();

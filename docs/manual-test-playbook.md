@@ -8,7 +8,7 @@ The automated suites run against the local Supabase stack. Run them first; a man
 | --- | --- | --- |
 | `npm run test:db` | RLS and the public RPCs for each access level, plus the known gaps as expected failures (pgTAP, 109 checks) | ~1 s |
 | `npm run test:unit` | Every Metrics, Queue and Admin number (`metrics.js`, 19 tests) | ~1 s |
-| `npm run test:e2e` | Every page in Chromium: routing, check-in form and waiver, queue, visitor detail, printing (preview only), fixer page, cancel and undo, admin events, allowlist and users, access gates, Metrics, both CSV exports, landing page (71 tests) | ~1 min |
+| `npm run test:e2e` | Every page in Chromium: routing, check-in form and waiver, queue, visitor detail, printing (preview only), fixer page (including the remembered fixer name), cancel and undo, admin events, allowlist and users, access gates, Metrics, both CSV exports, landing page (73 tests) | ~1 min |
 | `npm test` | All three | ~1.5 min |
 
 The browser tests sign in with the same URL hash Supabase returns after a login, so they never touch Google. They create their own `E2E …` events and `@e2e.example.com` users and delete them afterwards.
@@ -55,6 +55,7 @@ The tests check the print preview and stub out the browser's print call. They ca
 | 2.4 | Read a printed ticket | Submitted time, priority badge, category, item, issue and "QA Alice T." are legible at arm's length. The QR is sharp |
 | 2.5 | Scan each ticket's QR with a phone | It opens `/fix/<id>` on the preview URL and shows the right item |
 | 2.6 | On the phone, record Fixed for item 1 | The laptop's Queue shows Completed for that item within a few seconds |
+| 2.6a | On the same phone, scan item 2's QR with the camera app | Fixer Name is already filled with the name from 2.6. A QR-scanner app that opens links in its own built-in browser keeps separate storage, so there the name may need typing once |
 | 2.7 | Mark Bob as a volunteer, then print his ticket | The priority badge carries the volunteer marker |
 | 2.8 | Reprint Alice's tickets | The same tickets print again, with the same submitted time |
 
