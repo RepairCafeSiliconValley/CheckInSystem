@@ -78,7 +78,7 @@ export default function CoordinatorQueue({
   }, [selectedEventId]);
 
   useEffect(() => {
-    // Only feeds the event selector; QueuePortal reports a failed events
+    // Only feeds the event selector; Portal reports a failed events
     // fetch, so a failure here just leaves the selector empty.
     fetchEvents()
       .then(setEvents)

@@ -14,8 +14,8 @@ import {
 // ── Volunteer sign-in ──
 
 test("volunteer password gate: wrong, then right, then reload and logout", async ({ page }) => {
-  await page.goto("/queue");
-  const password = page.getByLabel("Password");
+  await page.goto("/admin");
+  const password = page.getByLabel("Volunteer password");
   await password.fill("definitely-wrong");
   await page.getByRole("button", { name: "Unlock" }).click();
   await expect(page.getByText("Incorrect password.")).toBeVisible();
@@ -32,9 +32,9 @@ test("volunteer password gate: wrong, then right, then reload and logout", async
   await expect(page.getByText("Volunteer account")).toBeVisible();
 
   await page.getByRole("button", { name: /Logout/ }).click();
-  await expect(page.getByRole("heading", { name: "Volunteer Access" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Volunteer Access" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
 });
 
 // ── Queue list ──
@@ -48,7 +48,7 @@ test("queue lists visitors newest first with counts, chips and contact line", as
   });
   await checkIn(event.id, { firstName: "E2E Bob", zip: "94040", items: [{ name: "E2E Bike", description: "z" }] });
 
-  await asVolunteer(`/queue?event=${event.id}`);
+  await asVolunteer(`/admin?event=${event.id}`);
   await expect(page.getByText(`2 clients`)).toBeVisible();
   await expect(page.getByText("(2 waiting)")).toBeVisible();
   await expect(chip(page, "All")).toHaveText("All (3)");
@@ -66,7 +66,7 @@ test("queue lists visitors newest first with counts, chips and contact line", as
 
 test("a new check-in appears live without reloading", async ({ page, event, asVolunteer }) => {
   await checkIn(event.id, { firstName: "E2E First" });
-  await asVolunteer(`/queue?event=${event.id}`);
+  await asVolunteer(`/admin?event=${event.id}`);
   await expect(page.getByText("E2E First Tester")).toBeVisible();
   await checkIn(event.id, { firstName: "E2E Live" });
   await expect(page.getByText("E2E Live Tester")).toBeVisible({ timeout: 15_000 });
@@ -79,7 +79,7 @@ test("search matches name, email, phone, zip, code and item, case-insensitively"
     items: [{ name: "E2E Toaster", description: "x" }],
   });
   await checkIn(event.id, { firstName: "E2E Bob", zip: "94040", items: [{ name: "E2E Bike", description: "z" }] });
-  await asVolunteer(`/queue?event=${event.id}`);
+  await asVolunteer(`/admin?event=${event.id}`);
 
   const search = page.getByPlaceholder("Search by name, email, phone, code, or item...");
   for (const q of ["e2e alice", "ALICE@EXAMPLE", "555010", "95035", `${a.baseCode}-1`.toLowerCase(), "toaster"]) {
@@ -98,7 +98,7 @@ test("switching events reloads the list for that event", async ({ page, event, a
   const other = await createEvent();
   await checkIn(event.id, { firstName: "E2E Here" });
   await checkIn(other.id, { firstName: "E2E There" });
-  await asVolunteer(`/queue?event=${event.id}`);
+  await asVolunteer(`/admin?event=${event.id}`);
   await expect(page.getByText("E2E Here Tester")).toBeVisible();
   await page.locator("select").first().selectOption(other.id);
   await expect(page.getByText("E2E There Tester")).toBeVisible();
@@ -108,7 +108,7 @@ test("switching events reloads the list for that event", async ({ page, event, a
 // ── Visitor detail ──
 
 async function openVisitor(page, asVolunteer, eventId, name) {
-  await asVolunteer(`/queue?event=${eventId}`);
+  await asVolunteer(`/admin?event=${eventId}`);
   await page.getByText(name).click();
   await expect(page.getByRole("button", { name: "← Queue" })).toBeVisible();
 }

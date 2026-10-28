@@ -267,6 +267,33 @@ dashboard (Auth → Hooks), separately in DEV and PROD. Locally that is `config.
 
 ## 6. Front-end design
 
+> **As built, superseding most of §6.1–§6.3:** the two portals have since merged back into **one**,
+> at `/admin`, because toggling between them — and the re-lock that made the toggle cost a Google
+> sign-in — was too much friction for an organizer also working the front desk. What stands now:
+>
+> - **One route.** `src/pages/Portal.jsx` at `/admin`; `/queue` is a redirect to it that carries the
+> query string. `/admin` stays the canonical path so `signInWithGoogle()`'s `redirectTo` is unchanged
+> and no environment's Redirect URLs (§3, §7.1) need touching.
+> - **One tab bar, filtered by session.** Queue and Metrics for everyone; Events and Admins for an
+> enabled admin. The admin tabs aren't rendered for a volunteer, and the active tab is resolved
+> against the visible set, so `?tab=events` falls back to the Queue. RLS still does the real
+> enforcing.
+> - **One sign-in card.** `SignInGate` replaces `PasswordGate` and `AdminLoginGate`: the volunteer
+> password on top, then **Continue with Google**. The `relocked` and `volunteer` states are gone — a
+> volunteer session is signed in, so it never reaches the gate. There is deliberately no Google
+> button in the portal header either: an admin at a device holding the volunteer session logs out
+> first, which is the one route from one to the other.
+> - **No cross-portal links and no deep link between portals.** Events' "View metrics" is a local tab
+> switch again, as it was before the split.
+> - **The re-lock is gone** (`src/lib/adminUnlock.js` deleted, along with `justSignedIn()` and
+> `authRedirectSignedIn`). Logout is now the only way to lock a shared device — a deliberate trade of
+> the §6.3 shared-device guard for no friction between tabs.
+> - **Allowlist and Users are one Admins tab** (`src/pages/AdminAccounts.jsx`): the invite form,
+> pending invites, then the admin list, over a single `Promise.all([fetchAllowlist(), fetchAppUsers()])`
+> so the two halves can't disagree. `Admin.jsx` was renamed `Events.jsx` to match its tab.
+>
+> Nothing in §5 (tables, functions, RLS) or §7 (environment setup) changed.
+
 ### 6.1 Routes (`src/App.jsx`)
 ```
 /queue   → QueuePortal   (PasswordGate → Queue | Metrics tabs)
@@ -327,7 +354,7 @@ explicit UI:
     account."
   - a **Switch to volunteer account** button that signs out and shows the `PasswordGate`.
 
-> **As built (replaces the banner below):** `/queue` shows no banner. Instead, an admin session opening `/queue` re-locks `/admin`: going back needs a fresh "Continue with Google", with Google's account chooser forced. The header keeps showing "Name (admin)", and the Logout tooltip reminds people to also sign out of Google on a shared device. Limits: if the admin's Google account is still signed in to that browser, Google may not ask for a password, and the session still has admin rights outside the `/admin` pages.
+> **As built (replaced the banner below), then retired:** the shipped answer was a re-lock — an admin session opening `/queue` meant going back to `/admin` needed a fresh "Continue with Google", with Google's account chooser forced. It was removed when the portals merged (see the note at the top of §6): that re-lock *was* the toggling friction, and with one tab bar there is no crossing for it to catch. A shared device is now locked by Logout alone.
 
 **Who's signed in, everywhere.** Both portal headers show the current identity next to Logout:
 "Volunteer account" or "Jane Doe (admin)". It comes from the session email plus `app_users.name`.

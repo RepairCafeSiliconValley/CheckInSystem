@@ -216,7 +216,7 @@ This project doesn't have automatic tests, so "testing" means **you** click thro
 
 1. **Click through the workflow you touched** in the browser:
    - Visitor check-in: open `http://localhost:5173/checkin?event=<some-event-id>` (ask for a DEV event id, or grab one from the Admin screen).
-   - Volunteer portal: open `http://localhost:5173/queue`, and admin portal: `http://localhost:5173/admin` (both need the shared volunteer password).
+   - Portal: open `http://localhost:5173/admin`. The shared volunteer password gets you the Queue and Metrics tabs; a Google sign-in as an admin adds Events and Admins.
    - Fixer screen: open `http://localhost:5173/fix/<work-order-id>`.
 2. **Run the linter** — an automatic style/typo checker for code:
    ```bash

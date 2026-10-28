@@ -84,20 +84,17 @@ pointed at DEV for the same reason.
 src/
 ├── components/       # Reusable UI components (Button, Card, Input, etc.)
 │   ├── ItemForm.jsx        # Repair item entry form
-│   ├── AdminLoginGate.jsx  # /admin sign-in (Continue with Google)
-│   ├── PasswordGate.jsx    # Shared volunteer password gate
-│   ├── PortalShell.jsx     # Header, portal links and tab bar for /queue and /admin
+│   ├── SignInGate.jsx      # One sign-in card: volunteer password + Continue with Google
+│   ├── PortalShell.jsx     # Header and tab bar for the portal
 │   ├── PrintTickets.jsx    # Print layout for repair tickets
 │   └── WaiverStep.jsx      # Waiver acceptance screen
 ├── pages/
 │   ├── CheckIn.jsx                    # Visitor check-in form
-│   ├── QueuePortal.jsx                # /queue: Queue and Metrics tabs (auth wrapper)
-│   ├── AdminPortal.jsx                # /admin: Events, Allowlist, Users tabs (auth wrapper)
-│   ├── AdminAllowlist.jsx             # Invite admins by email
-│   ├── AdminUsers.jsx                 # Manage admins: rename, disable, delete
+│   ├── Portal.jsx                     # /admin: the one portal — auth, and which tabs the session gets
+│   ├── AdminAccounts.jsx              # Admins tab: invite admins, pending invites, manage admins
 │   ├── CoordinatorQueue.jsx           # Visitor queue by status
 │   ├── CoordinatorVisitorDetail.jsx   # Edit items & record outcomes
-│   ├── Admin.jsx                      # Event management, per-event item limit, stats, QR codes, attendee CSV export
+│   ├── Events.jsx                     # Event management, per-event item limit, stats, QR codes, attendee CSV export
 │   └── FixerSubmit.jsx                # Fixer outcome submission
 ├── lib/
 │   ├── supabase.js    # Supabase client init
@@ -123,12 +120,23 @@ The app has three access levels: **client** (no login), **volunteer** (the share
 
 | Route | Page | Description |
 |-------|------|-------------|
-| `/queue` | QueuePortal | Coordinator queue and Metrics tabs (`?tab=metrics&event=<id>` opens Metrics on an event) |
-| `/admin` | AdminPortal | Event management, QR codes, attendee export; admin allowlist and users |
+| `/admin` | Portal | The one portal. `?tab=` and `?event=` seed the initial tab and event |
 
-Each portal links to the other. `/queue` uses the shared volunteer password; `/admin` uses personal Google logins for approved admins (see [Auth](#auth)).
+Both kinds of sign-in happen here, on one card: the shared volunteer password, or a personal Google
+login for approved admins (see [Auth](#auth)). The session decides which tabs exist:
 
-All other routes redirect to `/`.
+| Tab | Who sees it | Description |
+|-----|-------------|-------------|
+| Queue | volunteer, admin | Coordinator queue, visitor detail and ticket printing |
+| Metrics | volunteer, admin | Per-event and multi-event numbers |
+| Events | admin | Event management, QR codes, attendee export |
+| Admins | admin | Invite admins by email, pending invites, and manage admins |
+
+A volunteer can't reach the admin tabs: they aren't rendered, `?tab=events` falls back to the Queue,
+and row-level security refuses the data either way.
+
+`/queue` redirects to `/admin`, keeping its query string — it was a second portal with its own tab
+bar until the two merged. All other routes redirect to `/`.
 
 ## Key Workflows
 
@@ -141,7 +149,7 @@ All other routes redirect to `/`.
 5. Receives confirmation with item codes (e.g. `R-A3K`)
 
 ### Coordinator Queue
-1. Logs into `/queue` with the shared volunteer password
+1. Logs into `/admin` with the shared volunteer password
 2. Selects active event
 3. Filters visitors by work-order status — tabs: **All / Pending / Waiting / Done**
    (underlying statuses: `pending` → `pending_assignment` → `completed`)
@@ -181,13 +189,18 @@ in the Supabase SQL Editor (or via the MCP). It truncates the four tables first,
 **Do not run it against PROD.**
 
 ### Auth
-- **`/queue` (volunteers):** a single shared volunteer password (`PasswordGate`). Sign-in calls Supabase
+Both logins live on one card (`SignInGate`) at `/admin`.
+- **Volunteers:** a single shared password. Sign-in calls Supabase
   Auth's `supabase.auth.signInWithPassword()` with a fixed email (`volunteer@repaircafe.app`,
-  `VOLUNTEER_ACCOUNT_EMAIL` in `src/lib/constants.js`) and the password the user types. Admins can use
-  `/queue` too.
-- **`/admin` (admins):** personal Google logins (`AdminLoginGate`). Only emails an admin has added to the
+  `VOLUNTEER_ACCOUNT_EMAIL` in `src/lib/constants.js`) and the password the user types.
+- **Admins:** personal Google logins. Only emails an admin has added to the
   `admin_allowlist` table can sign up; Supabase Auth's Before User Created hook rejects everyone else.
   The first admin in each environment is added with SQL (see `supabase-admin-auth-migration.sql`).
+  `signInWithGoogle()` redirects back to `<origin>/admin`, which is why the portal lives at that
+  path: moving it means updating the Redirect URLs in every Supabase project.
+
+An admin's tabs stay open for as long as the session does, so **Logout is the only way to lock a
+shared front-desk device** (and on a shared device, sign out of Google in the browser too).
 
 The database enforces the same split with row-level security, because the anon key ships to every browser.
 See [`docs/admin-auth-plan.md`](./docs/admin-auth-plan.md).

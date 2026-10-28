@@ -43,7 +43,7 @@ async function copiedSummary(page) {
 
 test("metrics for one event match the rows and the queue", async ({ page, asVolunteer }) => {
   const event = await seedEvent();
-  await asVolunteer(`/queue?tab=metrics&event=${event.id}`);
+  await asVolunteer(`/admin?tab=metrics&event=${event.id}`);
   await expect(page.getByRole("heading", { name: "Metrics" })).toBeVisible();
   await expect(page.getByText("· Live", { exact: true })).toBeVisible();
   await expect(page.getByText("Right now")).toBeVisible();
@@ -82,7 +82,7 @@ test("metrics for one event match the rows and the queue", async ({ page, asVolu
 
 test("metrics update live when a visitor checks in", async ({ page, event, asVolunteer }) => {
   await checkIn(event.id, { firstName: "E2E One" });
-  await asVolunteer(`/queue?tab=metrics&event=${event.id}`);
+  await asVolunteer(`/admin?tab=metrics&event=${event.id}`);
   expect(await copiedSummary(page)).toContain("1 client");
   await checkIn(event.id, { firstName: "E2E Two" });
   await expect.poll(async () => copiedSummary(page), { timeout: 15_000 }).toContain("2 clients");
@@ -91,7 +91,7 @@ test("metrics update live when a visitor checks in", async ({ page, event, asVol
 test("event picker: add an event, clear, select all, and back to one", async ({ page, event, asVolunteer }) => {
   const second = await createEvent();
   await checkIn(second.id, { firstName: "E2E Second" });
-  await asVolunteer(`/queue?tab=metrics&event=${event.id}`);
+  await asVolunteer(`/admin?tab=metrics&event=${event.id}`);
 
   const picker = page.getByRole("button", { name: event.name });
   await picker.click();
@@ -117,7 +117,7 @@ test("event picker: add an event, clear, select all, and back to one", async ({ 
 
 test("work-order CSV: one row per item, the right columns, no personal data", async ({ page, asVolunteer }) => {
   const event = await seedEvent();
-  await asVolunteer(`/queue?tab=metrics&event=${event.id}`);
+  await asVolunteer(`/admin?tab=metrics&event=${event.id}`);
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export CSV" }).click();
   const download = await downloadPromise;
@@ -146,11 +146,11 @@ test("work-order CSV: one row per item, the right columns, no personal data", as
   expect(notFixed[17]).toBe("E2E repair note"); // Not Fixed Note
 });
 
-test("attendee CSV from Admin has one row per client with newsletter flags", async ({ page, asAdmin }) => {
+test("attendee CSV from the Events tab has one row per client with newsletter flags", async ({ page, asAdmin }) => {
   const event = await createEvent();
   await checkIn(event.id, { firstName: "E2E Alice", email: "alice@example.com", newsletter: true });
   await checkIn(event.id, { firstName: "E2E Bob" });
-  await asAdmin("/admin");
+  await asAdmin("/admin?tab=events");
   const card = page.locator("div").filter({ has: page.getByText(event.name, { exact: true }) })
     .filter({ has: page.getByRole("button", { name: "Export Attendees" }) }).last();
 

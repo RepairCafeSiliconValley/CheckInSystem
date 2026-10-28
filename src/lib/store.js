@@ -1,4 +1,4 @@
-import { supabase, authRedirectError, authRedirectSignedIn } from "./supabase";
+import { supabase, authRedirectError } from "./supabase";
 import { STATUSES, VOLUNTEER_ACCOUNT_EMAIL } from "./constants";
 
 // ─── Paging ───
@@ -466,11 +466,6 @@ export async function signInWithGoogle() {
 // The error message from a rejected sign-in redirect, captured at startup.
 export function getAuthRedirectError() {
   return authRedirectError;
-}
-
-// Whether this page load is the return from a successful sign-in.
-export function justSignedIn() {
-  return authRedirectSignedIn;
 }
 
 // Drop the sign-in redirect's error params from the address bar.
