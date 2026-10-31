@@ -1,0 +1,135 @@
+#!/usr/bin/env node
+// Rebuilds the LOCAL Supabase database from the root supabase-*.sql files.
+//
+//   npm run db:reset
+//
+// 1. `supabase db reset --local --no-seed`: wipes the local database,
+//    including Auth users. supabase/migrations/ is unused, so this leaves an
+//    empty public schema.
+// 2. Applies MIGRATIONS below, in order, with psql inside the local DB
+//    container.
+// 3. Drops v2's stale checkin_visitor overload (see CLAUDE.md).
+// 4. Runs supabase-seed.sql.
+// 5. Recreates the volunteer login (VOLUNTEER_ACCOUNT_EMAIL) through the Auth
+//    admin API, with the password from LOCAL_VOLUNTEER_PASSWORD (environment,
+//    or a `LOCAL_VOLUNTEER_PASSWORD=` line in .env.local, commented or not).
+//
+// Only ever touches the local stack: the reset is --local, and SQL goes to
+// the local container by name.
+
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { VOLUNTEER_ACCOUNT_EMAIL } from "../src/lib/constants.js";
+import { ROOT, supabaseCli as supabase, localStackEnv, volunteerPassword } from "./local-stack.mjs";
+
+// The order that actually applies, by function dependencies. This list is
+// the source of truth; CLAUDE.md points here.
+const MIGRATIONS = [
+  "supabase-migration.sql",
+  "supabase-rls-migration.sql",
+  "supabase-migration-v2.sql",
+  "supabase-migration-v3.sql",
+  "supabase-migration-v4.sql",
+  "supabase-migration-v5.sql",
+  "supabase-pii-rls-fix.sql", // alters v4's 10-arg checkin_visitor
+  "supabase-newsletter-opt-in-migration.sql", // v6 drops its 11-arg overload
+  "supabase-migration-v6.sql",
+  "supabase-status-overhaul.sql", // V7
+  "supabase-migration-v8.sql",
+  "supabase-metrics-migration.sql",
+  "supabase-reason-notes-migration.sql",
+  "supabase-admin-auth-migration.sql",
+  "supabase-admin-auth-lockdown.sql",
+];
+
+const SEED = "supabase-seed.sql";
+
+// v2 leaves this overload behind; it references the dropped `name` column.
+const DROP_STALE_OVERLOAD =
+  "drop function if exists public.checkin_visitor(uuid, text, text, jsonb, text, text, text, text, text);";
+
+function fail(message) {
+  console.error(`\n✖ ${message}`);
+  process.exit(1);
+}
+
+function projectId() {
+  const config = readFileSync(join(ROOT, "supabase", "config.toml"), "utf8");
+  const match = config.match(/^project_id\s*=\s*"([^"]+)"/m);
+  if (!match) fail("No project_id in supabase/config.toml.");
+  return match[1];
+}
+
+// Errors that replaying the chain on a fresh database always prints, because
+// supabase-migration.sql has since been edited to include later columns.
+const EXPECTED_ERRORS = [
+  /already exists/,
+  // v4 backfills first_name/last_name from an attendees.name column that the
+  // current base migration no longer creates.
+  /column "name"( of relation "attendees")? does not exist/,
+];
+
+function psql(container, sql, label) {
+  const result = spawnSync(
+    "docker",
+    ["exec", "-i", container, "psql", "-U", "postgres", "-d", "postgres", "-q", "-v", "ON_ERROR_STOP=0"],
+    { input: sql, encoding: "utf8" },
+  );
+  if (result.error) fail(`Couldn't run docker: ${result.error.message}`);
+  const errors = (result.stderr || "")
+    .split("\n")
+    .filter((line) => /ERROR/.test(line) && !EXPECTED_ERRORS.some((re) => re.test(line)));
+  console.log(`  ${errors.length ? "⚠" : "✓"} ${label}`);
+  errors.forEach((line) => console.log(`      ${line.trim()}`));
+  return errors.length;
+}
+
+async function createVolunteerUser() {
+  const password = volunteerPassword();
+  if (!password) {
+    console.log(`  ⚠ Skipped ${VOLUNTEER_ACCOUNT_EMAIL}: set LOCAL_VOLUNTEER_PASSWORD to create it.`);
+    return;
+  }
+  let env;
+  try {
+    env = localStackEnv();
+  } catch (err) {
+    fail(err.message);
+  }
+
+  const res = await fetch(`${env.apiUrl}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: {
+      apikey: env.serviceRoleKey,
+      Authorization: `Bearer ${env.serviceRoleKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email: VOLUNTEER_ACCOUNT_EMAIL, password, email_confirm: true }),
+  });
+  if (!res.ok) fail(`Creating ${VOLUNTEER_ACCOUNT_EMAIL} failed: ${res.status} ${await res.text()}`);
+  console.log(`  ✓ Created ${VOLUNTEER_ACCOUNT_EMAIL}`);
+}
+
+const container = `supabase_db_${projectId()}`;
+
+console.log("Resetting the local database…");
+const reset = supabase(["db", "reset", "--local", "--no-seed"]);
+if (reset.status !== 0) fail(`supabase db reset failed:\n${reset.stdout}${reset.stderr}`);
+console.log("  ✓ supabase db reset --local");
+
+console.log("Applying migrations…");
+let problems = 0;
+for (const file of MIGRATIONS) {
+  problems += psql(container, readFileSync(join(ROOT, file), "utf8"), file);
+}
+problems += psql(container, DROP_STALE_OVERLOAD, "drop stale checkin_visitor overload");
+
+console.log("Seeding…");
+problems += psql(container, readFileSync(join(ROOT, SEED), "utf8"), SEED);
+
+console.log("Auth…");
+await createVolunteerUser();
+
+console.log(problems ? `\nDone, with ${problems} unexpected error line(s) above.` : "\nDone.");
+process.exit(problems ? 1 : 0);

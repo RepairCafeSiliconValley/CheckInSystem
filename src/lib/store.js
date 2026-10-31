@@ -1,5 +1,5 @@
-import { supabase } from "./supabase";
-import { STATUSES } from "./constants";
+import { supabase, authRedirectError } from "./supabase";
+import { STATUSES, VOLUNTEER_ACCOUNT_EMAIL } from "./constants";
 import { DEFAULT_TEXT_MESSAGE } from "./textMessage";
 
 // ─── Paging ───
@@ -18,19 +18,21 @@ const PAGE_SIZE = 1000;
 // makeQuery must return a FRESH builder on each call — a PostgrestFilterBuilder
 // is thenable and single-use, so reusing one would re-await a settled promise
 // and loop forever.
-async function fetchAllPages(makeQuery) {
+async function fetchAllPages(makeQuery, key = "id") {
   const all = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    // The id sort is mandatory, not cosmetic: offset paging over an
+    // The key sort is mandatory, not cosmetic: offset paging over an
     // unspecified order lets Postgres return rows in a different order per
-    // page, silently skipping some and duplicating others. Every table here
-    // has a uuid primary key, so id gives a guaranteed total order. Chained
-    // .order() calls apply in sequence, so a caller's own sort stays primary
-    // and this only breaks ties.
-    const { data, error } = await makeQuery()
-      .order("id", { ascending: true })
+    // page, silently skipping some and duplicating others. `key` must be the
+    // table's primary key (uuid `id` everywhere except admin_allowlist, keyed
+    // by email), which gives a guaranteed total order. Chained .order() calls
+    // apply in sequence, so a caller's own sort stays primary and this only
+    // breaks ties.
+    const { data, error, status } = await makeQuery()
+      .order(key, { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
+    // The HTTP status isn't on the error itself; keep it for messages.
+    if (error) throw Object.assign(error, { status });
     all.push(...(data || []));
     // A short page means the end. Reads under PAGE_SIZE cost exactly one
     // request, same as before.
@@ -203,12 +205,13 @@ export async function fetchWorkOrderById(id) {
 
 // ─── Fixer outcome (public, via RPC) ───
 
-export async function submitFixerOutcome(workOrderId, fixerName, outcome, notFixedReason = null) {
+export async function submitFixerOutcome(workOrderId, fixerName, outcome, notFixedReason = null, notFixedNote = null) {
   const { error } = await supabase.rpc("submit_fixer_outcome", {
     p_work_order_id: workOrderId,
     p_fixer_name: fixerName.trim(),
     p_outcome: outcome,
     p_not_fixed_reason: notFixedReason || null,
+    p_not_fixed_note: notFixedNote?.trim() || null,
   });
   if (error) throw error;
 }
@@ -310,7 +313,7 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
       supabase
         .from("work_orders")
         .select(
-          "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, not_fixed_reason, fixer_name, weight_kg, created_at, printed_at, completed_at"
+          "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, cancel_note, not_fixed_reason, not_fixed_note, fixer_name, weight_kg, created_at, printed_at, completed_at"
         )
         .in("event_id", eventIds)
         .order("created_at", { ascending: true })
@@ -339,7 +342,7 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
     "Event Name", "Event Date", "Event ID", "Work Order ID", "Code",
     "Attendee ID", "Zip Code", "Volunteer",
     "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
-    "Cancel Reason", "Not Fixed Reason", "Fixer", "Weight (kg)",
+    "Cancel Reason", "Cancel Note", "Not Fixed Reason", "Not Fixed Note", "Fixer", "Weight (kg)",
     "Created At", "Printed At", "Completed At",
   ].join(",");
 
@@ -360,7 +363,10 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
       att ? (att.is_volunteer ? "Yes" : "No") : "",
       esc(w.item_name), esc(w.category), esc(w.priority),
       esc(w.status), esc(labelOf(w.status)), esc(w.outcome),
-      esc(w.cancel_reason), esc(w.not_fixed_reason), esc(w.fixer_name), esc(w.weight_kg),
+      // Notes are free text typed after choosing "Other"; esc() quotes any
+      // commas, quotes or line breaks so each stays in its own cell.
+      esc(w.cancel_reason), esc(w.cancel_note), esc(w.not_fixed_reason), esc(w.not_fixed_note),
+      esc(w.fixer_name), esc(w.weight_kg),
       esc(w.created_at), esc(w.printed_at), esc(w.completed_at),
     ].join(",");
   });
@@ -450,12 +456,40 @@ export function subscribeToEvent(eventId, onUpdate) {
 
 // ─── Auth ───
 
-export async function signIn(password) {
+// The shared volunteer password signs in as one fixed Supabase Auth user.
+export async function signInVolunteer(password) {
   const { error } = await supabase.auth.signInWithPassword({
-    email: "admin@repaircafe.app",
+    email: VOLUNTEER_ACCOUNT_EMAIL,
     password,
   });
   return !error;
+}
+
+// Admins sign in with Google. The allowlist is enforced by Supabase Auth's
+// Before User Created hook, not here; a rejection comes back on the redirect
+// URL (getAuthRedirectError).
+export async function signInWithGoogle() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/admin`,
+      // Always show Google's account chooser, so signing back in to /admin
+      // is a deliberate choice of account rather than an automatic hop.
+      queryParams: { prompt: "select_account" },
+    },
+  });
+  if (error) throw error;
+}
+
+// The error message from a rejected sign-in redirect, captured at startup.
+export function getAuthRedirectError() {
+  return authRedirectError;
+}
+
+// Drop the sign-in redirect's error params from the address bar.
+export function clearAuthRedirectParams() {
+  if (!authRedirectError) return;
+  window.history.replaceState(null, "", window.location.pathname);
 }
 
 export async function getSession() {
@@ -465,6 +499,89 @@ export async function getSession() {
   return session;
 }
 
+// The current session's access level:
+//   "signed-out" — no session
+//   "volunteer"  — the shared volunteer account
+//   "admin"      — an app_users row that isn't disabled (with its name)
+//   "disabled"   — an app_users row that is disabled
+//   "none"       — signed in, but neither (e.g. a login made outside the allowlist)
+// RLS enforces the same split; this only drives which screen to show.
+export async function getAccess() {
+  const session = await getSession();
+  if (!session) return { level: "signed-out" };
+  const { id, email } = session.user;
+  if (email === VOLUNTEER_ACCOUNT_EMAIL) return { level: "volunteer", email };
+
+  const { data, error } = await supabase
+    .from("app_users")
+    .select("name, disabled")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { level: "none", email };
+  return { level: data.disabled ? "disabled" : "admin", id, email, name: data.name };
+}
+
 export async function signOut() {
   await supabase.auth.signOut();
+}
+
+// ─── Admin users (admins only; RLS enforces it) ───
+
+// Pending invites: emails that become admins on their first Google sign-in.
+export async function fetchAllowlist() {
+  return fetchAllPages(
+    () =>
+      supabase
+        .from("admin_allowlist")
+        .select("email, invited_by, created_at")
+        .order("created_at", { ascending: false }),
+    "email",
+  );
+}
+
+// `email` must already be trimmed and lower-cased (a CHECK enforces it).
+export async function addToAllowlist(email) {
+  const { error } = await supabase.from("admin_allowlist").insert({ email });
+  if (error) throw error;
+}
+
+export async function removeFromAllowlist(email) {
+  const { error } = await supabase
+    .from("admin_allowlist")
+    .delete()
+    .eq("email", email);
+  if (error) throw error;
+}
+
+export async function fetchAppUsers() {
+  return fetchAllPages(() =>
+    supabase
+      .from("app_users")
+      .select("id, email, name, phone, disabled, created_at, last_login_at"),
+  );
+}
+
+// Only `name` is directly editable; disabling and deleting go through RPCs
+// that refuse to act on yourself.
+export async function updateAppUserName(id, name) {
+  const { error } = await supabase
+    .from("app_users")
+    .update({ name })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function setUserDisabled(id, value) {
+  const { error } = await supabase.rpc("set_user_disabled", {
+    target: id,
+    value,
+  });
+  if (error) throw error;
+}
+
+// Removes the login itself; coming back needs a new allowlist entry.
+export async function deleteAppUser(id) {
+  const { error } = await supabase.rpc("delete_app_user", { target: id });
+  if (error) throw error;
 }

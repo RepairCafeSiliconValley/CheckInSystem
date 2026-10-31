@@ -520,24 +520,22 @@ export default function CheckIn() {
         items: result.items,
       });
       setStep("confirm");
-    } catch (err) {
+    } catch {
       setError("Something went wrong. Please try again.");
     }
     setSubmitting(false);
   };
 
   useEffect(() => {
-    if (!eventId) {
-      setLoading(false);
-      return;
-    }
+    if (!eventId) return;
     fetchEventById(eventId).then((ev) => {
       setEvent(ev);
       setLoading(false);
     });
   }, [eventId]);
 
-  if (loading) {
+  // With no ?event= there's nothing to fetch, so never show the spinner.
+  if (eventId && loading) {
     return (
       <div
         style={{
@@ -628,7 +626,7 @@ export default function CheckIn() {
         )}
       </div>
       {/* <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "12px", textAlign: "center", background: "#f5f6f8" }}>
-        <Link to="/admin" style={{ background: "none", border: "none", fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: "#c0c5ce", cursor: "pointer", padding: "4px 8px", textDecoration: "none" }}>Staff Portal →</Link>
+        <Link to="/admin" style={{ background: "none", border: "none", fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: "#c0c5ce", cursor: "pointer", padding: "4px 8px", textDecoration: "none" }}>Volunteer Portal →</Link>
       </div> */}
     </div>
   );

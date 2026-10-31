@@ -5,8 +5,10 @@ import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Input from "../components/Input";
 import Button from "../components/Button";
+import TextArea from "../components/TextArea";
 import { fetchWorkOrderById, submitFixerOutcome } from "../lib/store";
-import { OUTCOMES, NOT_FIXED_REASONS } from "../lib/constants";
+import { getSavedFixerName, saveFixerName } from "../lib/fixerName";
+import { OUTCOMES, NOT_FIXED_REASONS, OTHER_REASON, NOTE_HINT } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
   Fixed: "✅",
@@ -72,12 +74,14 @@ export default function FixerSubmit() {
   const [submitted, setSubmitted] = useState(null);
   const [selectedOutcome, setSelectedOutcome] = useState(null);
   const [notFixedReason, setNotFixedReason] = useState(null);
+  const [notFixedNote, setNotFixedNote] = useState(""); // optional, only for "Other"
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchWorkOrderById(id).then((wo) => {
       setWorkOrder(wo);
-      setFixerName(wo?.fixer_name || "");
+      // A name a volunteer saved on the item wins over this device's last one.
+      setFixerName(wo?.fixer_name || getSavedFixerName());
       setLoading(false);
     });
   }, [id]);
@@ -100,7 +104,11 @@ export default function FixerSubmit() {
         fixerName,
         selectedOutcome,
         selectedOutcome === "Not Fixed" ? notFixedReason : null,
+        selectedOutcome === "Not Fixed" && notFixedReason === OTHER_REASON
+          ? notFixedNote
+          : null,
       );
+      saveFixerName(fixerName.trim());
       setSubmitted(selectedOutcome);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -606,6 +614,18 @@ export default function FixerSubmit() {
                           );
                         })}
                       </div>
+                      {notFixedReason === OTHER_REASON && (
+                        <div style={{ marginTop: 12 }}>
+                          <TextArea
+                            label="Details (optional)"
+                            value={notFixedNote}
+                            onChange={setNotFixedNote}
+                            placeholder="Briefly describe why it wasn't fixed"
+                            rows={2}
+                            hint={NOTE_HINT}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 

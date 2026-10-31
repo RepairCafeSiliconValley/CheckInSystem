@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
 import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
+import { formatClockTime } from "../lib/metrics";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -27,13 +28,6 @@ const qrCaptionStyle = {
   textAlign: "center",
   lineHeight: 1.3,
 };
-function formatCheckInTime(dateStr) {
-  if (!dateStr) return null;
-  return new Date(dateStr).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export default function PrintTickets({
   workOrders,
@@ -45,10 +39,14 @@ export default function PrintTickets({
   // claim QR and its caption are the same either way. Defaults to false so a
   // caller that hasn't been updated makes no promise it can't keep.
   canTextClient = false,
+  submittedAt,
   onClose,
 }) {
   const baseUrl = window.location.origin;
   const divider = { borderTop: "1px solid #000", margin: "10px 0" };
+  // One time for the whole visit, matching the queue card — an item added
+  // later at the desk still belongs to the same submission.
+  const submittedLabel = formatClockTime(submittedAt);
 
   const handlePrint = useCallback(() => {
     setTimeout(() => window.print(), 50);
@@ -119,7 +117,7 @@ export default function PrintTickets({
               marginBottom: 8,
             }}
           >
-            {formatCheckInTime(wo.created_at) && (
+            {submittedLabel && (
               <div
                 style={{
                   padding: "4px 10px",
@@ -129,7 +127,7 @@ export default function PrintTickets({
                   color: "#000",
                 }}
               >
-                {formatCheckInTime(wo.created_at)}
+                {submittedLabel}
               </div>
             )}
             <TicketCodeBadge

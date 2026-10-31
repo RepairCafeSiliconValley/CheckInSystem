@@ -118,38 +118,31 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openCategory, setOpenCategory] = useState(null);
-  const [openFixer, setOpenFixer] = useState(null);
-  const [showAllFixers, setShowAllFixers] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Seeding the scope happens here rather than in a follow-up effect: the
   // events are already in hand, so it costs no extra render pass.
-  const load = useCallback(async (seedEventId) => {
-    try {
-      // One read of everything, filtered client-side. Scope changes are then
-      // instant and cost no round trips.
-      const [evs, data] = await Promise.all([
-        fetchEvents(),
-        fetchMetricsRows(null),
-      ]);
-      setEvents(evs);
-      setRows(data);
-      // Open on whatever event the rest of the portal is looking at — that's
-      // the live-event case.
-      const seed = seedEventId && evs.find((e) => e.id === seedEventId);
-      if (seed) setSelectedIds([seed.id]);
-      else if (evs.length) setSelectedIds([evs[0].id]);
-      setError(null);
-    } catch (err) {
-      console.error("Failed to load metrics:", err);
-      setError("Couldn't load metrics. Check your connection and try again.");
-    }
-    setLoading(false);
-  }, []);
-
+  // State is set from the promise callbacks, not in the effect body.
   useEffect(() => {
-    load(initialEventId);
-  }, [load, initialEventId]);
+    // One read of everything, filtered client-side. Scope changes are then
+    // instant and cost no round trips.
+    Promise.all([fetchEvents(), fetchMetricsRows(null)])
+      .then(([evs, data]) => {
+        setEvents(evs);
+        setRows(data);
+        // Open on whatever event the rest of the portal is looking at —
+        // that's the live-event case.
+        const seed = initialEventId && evs.find((e) => e.id === initialEventId);
+        if (seed) setSelectedIds([seed.id]);
+        else if (evs.length) setSelectedIds([evs[0].id]);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error("Failed to load metrics:", err);
+        setError("Couldn't load metrics. Check your connection and try again.");
+      })
+      .finally(() => setLoading(false));
+  }, [initialEventId]);
 
   // Oldest first — the charts and the by-event list depend on this order.
   // (EventPicker displays newest-first; that's a separate concern.)
@@ -788,79 +781,6 @@ export default function Metrics({ initialEventId, onOpenQueueForEvent }) {
               </StatBar>
             ))}
           </Section>
-
-          {/* ── Fixers ── */}
-          {m.fixers.length > 0 && (
-            <Section
-              title="Fixers"
-              subtitle={`${m.fixers.length} fixer${
-                m.fixers.length === 1 ? "" : "s"
-              } recorded a completed item`}
-            >
-              {(showAllFixers ? m.fixers : m.fixers.slice(0, 8)).map((f) => (
-                <StatBar
-                  key={f.name}
-                  label={f.name}
-                  count={f.count}
-                  total={m.fixers[0].count}
-                  color="#6941c6"
-                  right={f.count ? formatPct(f.fixRate) : "—"}
-                  onClick={() => setOpenFixer(openFixer === f.name ? null : f.name)}
-                  expanded={openFixer === f.name}
-                >
-                  <div style={{ paddingLeft: 4 }}>
-                    {/* Every order here is completed, so these rows always sum
-                        back to the fixer's own count. */}
-                    {f.outcomes.map((o) => (
-                      <StatBar
-                        key={o.label}
-                        label={o.label}
-                        count={o.count}
-                        total={f.count}
-                        color={o.color}
-                        indent
-                        muted
-                        right={formatPct(pct(o.count, f.count))}
-                      />
-                    ))}
-                    {f.topNotFixedReason && (
-                      <div
-                        style={{
-                          fontFamily: "'Outfit', sans-serif",
-                          fontSize: "11px",
-                          color: "#98a2b3",
-                          paddingLeft: 14,
-                        }}
-                      >
-                        top not-fixed reason: {f.topNotFixedReason.label}
-                      </div>
-                    )}
-                  </div>
-                </StatBar>
-              ))}
-              {m.fixers.length > 8 && (
-                <button
-                  onClick={() => {
-                    // Collapsing the list could hide the expanded row.
-                    setOpenFixer(null);
-                    setShowAllFixers(!showAllFixers);
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    fontFamily: "'Outfit', sans-serif",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#1e3a6e",
-                    cursor: "pointer",
-                  }}
-                >
-                  {showAllFixers ? "Show fewer" : `Show all ${m.fixers.length}`}
-                </button>
-              )}
-            </Section>
-          )}
 
           {/* ── Cross-event comparison ── */}
           {byEvent.length >= 2 && (

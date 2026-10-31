@@ -1,0 +1,84 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+npm install        # install dependencies
+npm run dev        # Vite dev server at http://localhost:5173
+npm run build      # production build to dist/
+npm run lint       # ESLint (flat config in eslint.config.js)
+npm run db:reset   # rebuild the LOCAL database: migrations in order, seed, volunteer login
+npm run test:db    # pgTAP tests in supabase/tests/ against the local stack
+npm run test:unit  # node:test unit tests in tests/unit/ (metrics.js)
+npm run test:e2e   # Playwright browser tests in e2e/ against the local stack
+npm test           # all three
+```
+
+Three layers of automated tests, all against the **local stack** only (`scripts/local-stack.mjs` refuses any non-localhost URL):
+
+- **Database** — `supabase/tests/*.test.sql` pin the RLS rules and public RPCs for each access level (acting as `anon` / `authenticated` via `set local role` and `request.jwt.claims`, inside a rolled-back transaction). Any RLS or RPC change must update them. `rpc_known_gaps.test.sql` pins rules the RPCs don't enforce yet inside `todo_start()`/`todo_end()`; when a fix makes one pass, remove its todo wrapper.
+- **Unit** — `tests/unit/metrics.test.js` covers `src/lib/metrics.js`, which is pure (no I/O, no React) and imports `./constants.js` with an explicit extension so it runs under plain `node`.
+- **Browser** — `e2e/*.spec.js` (Playwright, Chromium) drive every page. `playwright.config.js` starts its own Vite server on port 5175 with the local stack's URL and anon key, whatever `.env.local` says. Tests make their own data through `e2e/support/stack.js` (service-role key or the public RPCs), never relying on the seed: events are named `E2E …`, users use `@e2e.example.com`, and global setup/teardown delete both (`E2E_KEEP_DATA=1` keeps them). Sign-ins open a page with the URL hash Supabase Auth returns after a login, so Google itself is never called; admins are created by allowlisting an email and creating the user with the service-role API. Runs on one worker because `e2e/landing.spec.js` briefly closes every other open event. Needs `LOCAL_VOLUNTEER_PASSWORD` (see Local Supabase stack). A test for a known gap is marked `test.fail()` and should be flipped when the gap is fixed.
+
+What the browser tests can't reach still needs a manual click-through, listed in `docs/manual-test-playbook.md`: real Google sign-in and the Before User Created hook, physical printing and scanning ticket QRs with a phone, phone-sized layout, and DEV/Vercel deploys. Run `npm run lint` too.
+
+## Environments — read before touching data
+
+- `.env.local` (gitignored) holds `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Locally these must point at the **DEV** Supabase project or the local stack (see below), never PROD.
+- Branching: branch off `dev` as `feature/...`, PR into `dev`. `dev` → `main` is a release PR done by maintainers. Merging to `main` deploys Production on Vercel with the PROD keys; everything else deploys Preview against DEV.
+- `supabase-seed.sql` truncates the four event tables and reseeds mock data, then adds the default admins to `admin_allowlist` (the admin tables are not truncated; emails that are already admins are skipped). DEV and local only.
+
+## Architecture
+
+React 19 + Vite SPA, React Router v7, Supabase (Postgres + Auth + Realtime), hosted on Vercel (`vercel.json` rewrites all paths to `index.html`). Styling is **inline CSS only** — no Tailwind, no CSS modules, no stylesheets.
+
+**Access levels:** admin, volunteer, client. Don't use "staff" for any of them. `docs/admin-auth-plan.md` is the design doc for personal admin logins; it has shipped, and the "As built" notes in its §6 record where the code now differs from the plan.
+
+**Routes** (`src/App.jsx` is authoritative):
+- `/` Landing, `/checkin?event=<id>` visitor check-in (client, via QR), `/fix/:id` fixer outcome page (client level — no login; id = work-order UUID from the ticket QR), `/admin` the portal. `/queue` redirects to `/admin` carrying its query string (it was a second portal until the tabs merged; kept for bookmarks). Everything else redirects to `/`.
+- **One portal, `Portal` at `/admin`**, for the volunteer account and for admins alike; `/admin` is the canonical path because `signInWithGoogle()` redirects back to it, so renaming it means updating the Supabase Redirect URLs on every environment. Anyone else gets `SignInGate`. The session decides the tabs, held in local state: `queue` and `metrics` for everyone, plus `events` and `admins` for an enabled admin. `?tab=` and `?event=` seed the initial state only, so `/queue?tab=metrics&event=<id>` still works through the redirect.
+- **Tabs are filtered, not just hidden.** `TABS` in `Portal.jsx` marks the admin ones `adminOnly`, `visibleTabs` drops them for a volunteer, and the active tab is resolved against `visibleTabs` on every render so `?tab=admins` as a volunteer lands on the Queue. RLS is the real enforcement (see Auth).
+- Tab bodies: Queue (`CoordinatorQueue`, drilling into `CoordinatorVisitorDetail`; printing goes through `PrintTickets`, a thermal ticket layout), Metrics, Events (`Events.jsx` — event setup; its "View metrics" is now a local tab switch, not a URL hop) and Admins (`AdminAccounts`: invite an admin, pending invites, and the sortable admin list — rename inline, disable/enable, delete; never yourself). One `load()` feeds both halves of the Admins tab, so deleting an admin frees their email for a new invite at once.
+- The portal renders inside `PortalShell` (header with who is signed in and Logout, an optional banner, and a white bottom tab bar at zIndex 100 whose tabs are `{ key, label, Icon }` with an outline icon from `TabIcons.jsx`). The bar matches the header's white so the page reads as one frame; the active tab is a navy filled pill, the same `#1e3a6e`/`#667085` pair the queue's filter chips use, so the two rows of tabs on the Queue screen agree. There is deliberately no Google button in the header: an admin at a device holding the volunteer session logs out first, then uses the gate. `getAccess()` in `store.js` decides the access level.
+
+**Data layer:** all Supabase access goes through `src/lib/store.js`; pages don't call `supabase` directly. Rules enforced there:
+- Every multi-row `.select()` must go through `fetchAllPages()`. Supabase silently truncates at 1000 rows with no error; this previously caused prod metrics to under-report. `makeQuery` must return a fresh builder each call, and paging always adds a primary-key tiebreak sort (`id`, or pass the key, e.g. `"email"` for `admin_allowlist`).
+- Joins are done as two queries merged in JS — no PostgREST embedded selects anywhere.
+- Multi-row public writes are atomic Postgres RPCs: `checkin_visitor` (attendee + work orders + waiver) and `submit_fixer_outcome`. The public fixer page reads via `get_fixer_work_order` (returns a pre-abbreviated client name). Queue and admin edits are direct table updates under the authenticated session.
+- Metrics and work-order CSV export deliberately select no PII (no name/email/phone). Keep it that way. Don't select DEV-only columns like `assigned_at` — a column missing on PROD fails the whole query.
+- When a migration adds a column to `work_orders` (or a table the export joins), decide whether the work-order CSV export (`exportWorkOrdersCSV` in `store.js`) should include it. If it plainly belongs, add it to the select, header and row in the same PR. If it's unclear, ask the user rather than leaving it out silently. Always ask for free-text fields, which can hold PII. Only select a new column once the migration that adds it has run on PROD.
+- Queue live-updates via `subscribeToEvent` (Realtime on `attendees` and `work_orders` filtered by event).
+
+**Auth:** `SignInGate` offers both logins on one card. Volunteers use one shared password: `signInVolunteer()` calls `signInWithPassword` against the fixed email `VOLUNTEER_ACCOUNT_EMAIL` (`volunteer@repaircafe.app`, in `constants.js`). Admins use personal Google logins: `signInWithGoogle()` redirects back to `<origin>/admin`, and a rejected sign-in's error params are read in `supabase.js` before the client starts (`getAuthRedirectError()`). The Supabase client keeps one session per browser. There is no step-up lock on the admin tabs — an earlier `adminUnlock.js` re-locked `/admin` after a visit to `/queue`, and it was dropped when the portals merged, so **Logout is the only way to lock a shared front-desk device**. PII protection relies on RLS because the anon key ships to every browser. Since `supabase-admin-auth-migration.sql`, being signed in grants nothing by itself: PII tables need `can_access_queue()` (= `is_admin()` or `is_volunteer()`), and `admin_allowlist` / `app_users` need `is_admin()` (an `app_users` row that isn't `disabled`; anyone can read their own row). Since `supabase-admin-auth-lockdown.sql`, only admins can create or update events. The `is_volunteer()` email in SQL must match `VOLUNTEER_ACCOUNT_EMAIL`. Admin sign-ups are gated by the Before User Created hook `public.hook_before_user_created` (allowlist only; enabled in `supabase/config.toml` locally and in the dashboard per environment); the service-role admin API skips it, but the `auth.users` insert trigger only makes allowlisted emails admins.
+
+**Metrics:** `fetchMetricsRows()` loads raw rows once; `src/lib/metrics.js` does all aggregation for the Queue, Admin and Metrics tabs so the numbers can't drift. Breakdowns list every canonical value (even at zero) and append unrecognised values rather than dropping them.
+
+## Domain model
+
+Tables: `events` (per-event settings `max_items`, `collect_email`, `collect_phone`, `collect_weight`, `is_open`), `attendees`, `work_orders`, `waiver_acceptances`, plus the admin tables `admin_allowlist` (pending invites, lower-case `email` key) and `app_users` (one row per admin, id = `auth.users.id`; only `name` is directly editable, `disabled` and deletion go through the `set_user_disabled` / `delete_app_user` RPCs).
+
+`src/lib/constants.js` is the single source of truth for categories, statuses, outcomes, cancel reasons and not-fixed reasons. Values are validated in JS only (no DB CHECK constraints). The status/outcome model (see `docs/status-outcome-overhaul.md`):
+- `status` says whether an item finished; `outcome` says how. Pipeline: `pending` (not printed) → `pending_assignment` (printed) → `assigned` (written only by an external claim Edge Function) → `completed` | `canceled`.
+- Recording any outcome sets `status='completed'`. "Not Fixed" also sets `not_fixed_reason`.
+- Canceling sets `status='canceled'` with `outcome` left NULL and the reason in `cancel_reason`. Undo returns to `pending` if never printed, else `pending_assignment`.
+- Status `key` is stored in the DB; `label` is display-only and can be renamed without a migration.
+
+**Waiver:** if you change `WAIVER_SECTIONS` text you must bump `WAIVER_VERSION`. The version, full text and a SHA-256 hash are stored per acceptance as an audit trail.
+
+## Database migrations
+
+Schema changes are hand-written `supabase-*.sql` files at the repo root, run manually in the Supabase SQL Editor (DEV first). Each file's header lists its prerequisites, but some headers are wrong. The order that actually applies (by function dependencies) is the `MIGRATIONS` list in `scripts/db-reset.mjs`; that list is the source of truth, so add new files there. Add a new file for new changes rather than editing an applied one. Changing an RPC's arguments or `RETURNS TABLE` requires dropping the old function first.
+
+`supabase-migration.sql` has since been edited to include later columns (`first_name`/`last_name`, `newsletter_opt_in`), so replaying the chain on a fresh database gives harmless "already exists" errors in v4 and the newsletter migration. It also leaves v2's stale `checkin_visitor(uuid, text, text, jsonb, text, text, text, text, text)` overload (it references the dropped `name` column); drop it by hand.
+
+**Keep `supabase-seed.sql` in step with schema changes.** In the same PR as a migration, update the seed where appropriate: populate new columns with realistic values, and move rows off renamed or retired values (constants, statuses, outcomes, reasons) so a freshly seeded DEV database exercises the new behaviour instead of showing unrecognised values in Metrics. Update the seed's header (coverage and the last migration it requires) and its verify query to match. Purely internal changes (indexes, grants, RLS, function bodies) usually need no seed change. The seed truncates every app table, so test it against a scratch database, not one holding data you want to keep.
+
+## Local Supabase stack
+
+`supabase/config.toml` runs a local stack as `project_id = "checkinsystem"` with every port shifted +10 (API `54331`, DB `54332`, Studio `54333`, Mailpit `54334`) so it can run alongside another project's stack on the default ports. `supabase start` / `supabase stop` from the repo root. The `supabase/migrations/` folder is not used. `npm run db:reset` rebuilds the local database (wiping it, including Auth users): it applies the root `supabase-*.sql` files in order, drops v2's stale overload, runs `supabase-seed.sql`, and recreates the volunteer login with the password from a `LOCAL_VOLUNTEER_PASSWORD=` comment in `.env.local`. Replaying the chain prints known-harmless errors (v4's backfill reads an `attendees.name` column the edited base migration no longer creates; some "already exists"); the script filters those and reports anything else.
+
+## Legacy files
+
+`repair-cafe-checkin-v5.jsx` (in-memory prototype) and `repair-cafe-implementation-brief-v4.md` are the original spec the app was built from. They are not imported by the app and are out of date relative to `src/`.

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Card from "../components/Card";
 import Input from "../components/Input";
 import Checkbox from "../components/Checkbox";
@@ -7,7 +7,9 @@ import TextArea from "../components/TextArea";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
-import { CATEGORIES, OUTCOMES, CANCEL_REASONS, NOT_FIXED_REASONS } from "../lib/constants";
+import RecordOutcome from "../components/RecordOutcome";
+import ReasonPicker from "../components/ReasonPicker";
+import { CATEGORIES, CANCEL_REASONS } from "../lib/constants";
 import {
   fetchVisitorDetail,
   updateAttendee,
@@ -35,9 +37,8 @@ export default function CoordinatorVisitorDetail({
   // Editable item fields — keyed by work order id
   const [itemEdits, setItemEdits] = useState({});
 
-  // Which work order (if any) is showing the cancel-reason / not-fixed-reason picker
+  // Which work order (if any) is showing the cancel-reason picker
   const [cancelingId, setCancelingId] = useState(null);
-  const [notFixingId, setNotFixingId] = useState(null);
 
   // Refs to always have latest values in async callbacks without stale closures
   const attFirstNameRef = useRef("");
@@ -48,50 +49,59 @@ export default function CoordinatorVisitorDetail({
   const itemEditsRef = useRef({});
   const ordersRef = useRef([]);
 
-  attFirstNameRef.current = attFirstName;
-  attLastNameRef.current = attLastName;
-  attEmailRef.current = attEmail;
-  attPhoneRef.current = attPhone;
-  attZipCodeRef.current = attZipCode;
-  itemEditsRef.current = itemEdits;
-  ordersRef.current = orders;
+  // Synced after every commit, before the browser can fire the next blur.
+  useLayoutEffect(() => {
+    attFirstNameRef.current = attFirstName;
+    attLastNameRef.current = attLastName;
+    attEmailRef.current = attEmail;
+    attPhoneRef.current = attPhone;
+    attZipCodeRef.current = attZipCode;
+    itemEditsRef.current = itemEdits;
+    ordersRef.current = orders;
+  });
 
   const showSaved = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const applyVisitor = ({ attendee: att, orders: wo, event: ev }) => {
+    setAttendee(att);
+    setOrders(wo);
+    setEvent(ev);
+    setAttFirstName(att.first_name);
+    setAttLastName(att.last_name);
+    setAttEmail(att.email || "");
+    setAttPhone(att.phone || "");
+    setAttZipCode(att.zip_code || "");
+    const edits = {};
+    wo.forEach((w) => {
+      edits[w.id] = {
+        item_name: w.item_name,
+        category: w.category,
+        description: w.description,
+        fixer_name: w.fixer_name || "",
+        weight_kg: w.weight_kg ?? "",
+      };
+    });
+    setItemEdits(edits);
+  };
+
   const loadData = async () => {
     try {
-      const { attendee: att, orders: wo, event: ev } =
-        await fetchVisitorDetail(attendeeId);
-      setAttendee(att);
-      setOrders(wo);
-      setEvent(ev);
-      setAttFirstName(att.first_name);
-      setAttLastName(att.last_name);
-      setAttEmail(att.email || "");
-      setAttPhone(att.phone || "");
-      setAttZipCode(att.zip_code || "");
-      const edits = {};
-      wo.forEach((w) => {
-        edits[w.id] = {
-          item_name: w.item_name,
-          category: w.category,
-          description: w.description,
-          fixer_name: w.fixer_name || "",
-          weight_kg: w.weight_kg ?? "",
-        };
-      });
-      setItemEdits(edits);
+      applyVisitor(await fetchVisitorDetail(attendeeId));
     } catch (err) {
       console.error("Failed to load visitor:", err);
     }
     setLoading(false);
   };
 
+  // State is set from the promise callbacks, not in the effect body.
   useEffect(() => {
-    loadData();
+    fetchVisitorDetail(attendeeId)
+      .then(applyVisitor)
+      .catch((err) => console.error("Failed to load visitor:", err))
+      .finally(() => setLoading(false));
   }, [attendeeId]);
 
   if (loading) {
@@ -237,27 +247,28 @@ export default function CoordinatorVisitorDetail({
     onPrint(attendeeId);
   };
 
-  const setOrderOutcome = async (woId, outcome, notFixedReason = null) => {
+  const setOrderOutcome = async (woId, outcome, notFixedReason = null, notFixedNote = null) => {
     const e = itemEdits[woId];
     const updates = {
       outcome,
       not_fixed_reason: notFixedReason,
+      not_fixed_note: notFixedNote?.trim() || null,
       status: "completed",
       completed_at: new Date().toISOString(),
     };
     if (e?.fixer_name?.trim()) updates.fixer_name = e.fixer_name.trim();
     await updateWorkOrder(woId, updates);
-    setNotFixingId(null);
     await loadData();
   };
 
   // Cancel is available at any point before an outcome is recorded (pending or
   // pending_assignment). Canceled rows keep outcome=null; the why lives in cancel_reason.
-  const cancelOrder = async (woId, reason) => {
+  const cancelOrder = async (woId, reason, note = null) => {
     await updateWorkOrder(woId, {
       status: "canceled",
       outcome: null,
       cancel_reason: reason,
+      cancel_note: note?.trim() || null,
       completed_at: new Date().toISOString(),
     });
     setCancelingId(null);
@@ -266,14 +277,16 @@ export default function CoordinatorVisitorDetail({
 
   // Revert a completed OR canceled item back into the active flow. Items canceled
   // before their ticket was printed (no printed_at) go back to 'pending'.
+  // fixer_name is kept so re-recording the outcome doesn't lose who worked on it.
   const editOutcome = async (woId) => {
     const wo = orders.find((o) => o.id === woId);
     await updateWorkOrder(woId, {
       status: wo?.printed_at ? "pending_assignment" : "pending",
-      fixer_name: "",
       outcome: null,
       cancel_reason: null,
+      cancel_note: null,
       not_fixed_reason: null,
+      not_fixed_note: null,
       completed_at: null,
     });
     await loadData();
@@ -536,117 +549,14 @@ export default function CoordinatorVisitorDetail({
                 out an item whose fixer lost the ticket or never submitted. */}
             {(wo.status === "pending_assignment" ||
               wo.status === "assigned") && (
-              <div style={{ marginTop: 8 }}>
-                <Input
-                  label="Fixer Name (optional)"
-                  value={e.fixer_name || ""}
-                  onChange={(v) => updateItem(wo.id, "fixer_name", v)}
-                  onBlur={() => saveWorkOrder(wo.id)}
-                  placeholder="Who worked on this?"
-                />
-                <p
-                  style={{
-                    fontFamily: "'Outfit', sans-serif",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#344054",
-                    margin: "0 0 8px 0",
-                  }}
-                >
-                  Record Outcome:
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                  }}
-                >
-                  {OUTCOMES.map((o) => {
-                    const isNotFixedOpen =
-                      o === "Not Fixed" && notFixingId === wo.id;
-                    return (
-                      <button
-                        key={o}
-                        onClick={() =>
-                          o === "Not Fixed"
-                            ? setNotFixingId(
-                                notFixingId === wo.id ? null : wo.id,
-                              )
-                            : setOrderOutcome(wo.id, o)
-                        }
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: "8px",
-                          border: isNotFixedOpen
-                            ? "1.5px solid #1e3a6e"
-                            : "1.5px solid #d0d5dd",
-                          background: isNotFixedOpen ? "#eef2f9" : "#fff",
-                          fontFamily: "'Outfit', sans-serif",
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          color: "#475467",
-                          cursor: "pointer",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {o === "Fixed" && "✅ "}
-                        {o === "Diagnosed" && "🔍 "}
-                        {o === "Not Fixed" && "❌ "}
-                        {o === "Taken Home" && "🥡 "}
-                        {o}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Not-Fixed reason picker — appears when "Not Fixed" is chosen */}
-                {notFixingId === wo.id && (
-                  <div style={{ marginTop: 8 }}>
-                    <p
-                      style={{
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#344054",
-                        margin: "0 0 6px 0",
-                      }}
-                    >
-                      Why wasn't it fixed?
-                    </p>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 8,
-                      }}
-                    >
-                      {NOT_FIXED_REASONS.map((r) => (
-                        <button
-                          key={r}
-                          onClick={() =>
-                            setOrderOutcome(wo.id, "Not Fixed", r)
-                          }
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: "8px",
-                            border: "1.5px solid #d0d5dd",
-                            background: "#fff",
-                            fontFamily: "'Outfit', sans-serif",
-                            fontSize: "12px",
-                            fontWeight: 500,
-                            color: "#475467",
-                            cursor: "pointer",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <RecordOutcome
+                fixerName={e.fixer_name || ""}
+                onFixerNameChange={(v) => updateItem(wo.id, "fixer_name", v)}
+                onFixerNameBlur={() => saveWorkOrder(wo.id)}
+                onRecord={(outcome, reason, note) =>
+                  setOrderOutcome(wo.id, outcome, reason, note)
+                }
+              />
             )}
 
             {/* Cancel — available at any point before an outcome is recorded */}
@@ -662,45 +572,11 @@ export default function CoordinatorVisitorDetail({
               >
                 {cancelingId === wo.id ? (
                   <>
-                    <p
-                      style={{
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#344054",
-                        margin: "0 0 6px 0",
-                      }}
-                    >
-                      Cancel reason:
-                    </p>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 8,
-                      }}
-                    >
-                      {CANCEL_REASONS.map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => cancelOrder(wo.id, r)}
-                          style={{
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            border: "1.5px solid #d0d5dd",
-                            background: "#fff",
-                            fontFamily: "'Outfit', sans-serif",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            color: "#475467",
-                            cursor: "pointer",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
+                    <ReasonPicker
+                      label="Cancel reason:"
+                      reasons={CANCEL_REASONS}
+                      onPick={(reason, note) => cancelOrder(wo.id, reason, note)}
+                    />
                     <button
                       onClick={() => setCancelingId(null)}
                       style={{
@@ -785,6 +661,19 @@ export default function CoordinatorVisitorDetail({
                           }}
                         >
                           Reason: {wo.not_fixed_reason}
+                        </div>
+                      )}
+                      {(isCanceled ? wo.cancel_note : wo.not_fixed_note) && (
+                        <div
+                          style={{
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "12px",
+                            color: "#667085",
+                            marginTop: 4,
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          Note: {isCanceled ? wo.cancel_note : wo.not_fixed_note}
                         </div>
                       )}
                     </div>
