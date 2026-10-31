@@ -1,56 +1,72 @@
-// Who gets into which portal: admin, volunteer, disabled admin, a signed-in
-// non-admin, and the /admin re-lock after visiting /queue. Google itself is
-// not exercised (see the manual playbook); sign-ins use the same redirect
-// hash Supabase Auth returns after Google.
+// Who gets which tabs in the one portal: admin, volunteer, disabled admin and
+// a signed-in non-admin. Google itself is not exercised (see the manual
+// playbook); sign-ins use the same redirect hash Supabase Auth returns after
+// Google.
 
 import { test, expect } from "./support/fixtures.js";
 import { createAdmin, createStrayUser, sessionHashFor } from "./support/stack.js";
 
-const adminGate = (page) => page.getByRole("heading", { name: "Admin Access" });
+const gate = (page) => page.getByRole("heading", { name: "Sign In" });
 
-test("an admin signing in lands on /admin with their name", async ({ page, admin, asAdmin }) => {
+const ADMIN_TABS = ["Queue", "Metrics", "Events", "Admins"];
+
+test("an admin signing in gets every tab in one bar", async ({ page, admin, asAdmin }) => {
   await asAdmin("/admin");
   await expect(page.getByText(`${admin.name} (admin)`)).toBeVisible();
-  for (const tab of ["Events", "Allowlist", "Users"]) {
+  for (const tab of ADMIN_TABS) {
     await expect(page.getByRole("button", { name: tab })).toBeVisible();
   }
   // The tokens are gone from the address bar.
   await expect(page).not.toHaveURL(/access_token/);
 });
 
-test("an admin can use /queue, which re-locks /admin until a fresh sign-in", async ({ page, admin, asAdmin }) => {
+test("an admin moves between every tab without signing in again", async ({ page, admin, asAdmin }) => {
   await asAdmin("/admin");
-  await expect(page.getByText(`${admin.name} (admin)`)).toBeVisible();
-  await page.getByRole("link", { name: "Queue →" }).click();
-  await expect(page.getByText(`${admin.name} (admin)`)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Queue" })).toBeVisible();
-
-  await page.goto("/admin");
-  await expect(adminGate(page)).toBeVisible();
-  await expect(page.getByText(`You're still signed in as ${admin.name}`)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
-
-  // A fresh sign-in unlocks it again. (Via a blank page: going from /admin to
-  // /admin#tokens would only change the hash and never reload the app.)
-  await page.goto("about:blank");
-  await page.goto(`/admin${await sessionHashFor(admin)}`);
-  await expect(page.getByText(`${admin.name} (admin)`)).toBeVisible();
+  for (const tab of ["Events", "Admins", "Metrics", "Queue", "Events"]) {
+    await page.getByRole("button", { name: tab }).click();
+    // Still signed in, and still holding the whole tab bar.
+    await expect(page.getByText(`${admin.name} (admin)`)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Admins" })).toBeVisible();
+  }
+  await expect(gate(page)).toHaveCount(0);
 });
 
-test("the volunteer account is told to use Google at /admin", async ({ page, asVolunteer }) => {
-  await asVolunteer("/queue");
+test("the volunteer account gets only Queue and Metrics", async ({ page, asVolunteer }) => {
+  await asVolunteer("/admin");
   await expect(page.getByText("Volunteer account")).toBeVisible();
-  await page.goto("/admin");
-  await expect(adminGate(page)).toBeVisible();
-  await expect(page.getByText("This device is signed in with the volunteer account.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Queue" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Metrics" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Events" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Admins" })).toHaveCount(0);
+  // Logout is the only thing beside the identity: an admin on this device
+  // signs out first, then uses the gate's Continue with Google.
+  await expect(page.getByRole("button", { name: /Logout/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /sign-in/i })).toHaveCount(0);
 });
 
-test("a disabled admin is refused at /admin and at /queue", async ({ page }) => {
+for (const tab of ["events", "admins"]) {
+  test(`?tab=${tab} as a volunteer lands on the Queue`, async ({ page, asVolunteer }) => {
+    await asVolunteer(`/admin?tab=${tab}`);
+    await expect(page.getByText("Volunteer account")).toBeVisible();
+    // Hidden isn't enough: the tab must not open, and its page must not render.
+    await expect(page.getByRole("button", { name: "Queue" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("heading", { name: "Admins" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Create Event" })).toHaveCount(0);
+  });
+}
+
+test("an admin's ?tab= opens that tab", async ({ page, asAdmin }) => {
+  await asAdmin("/admin?tab=admins");
+  await expect(page.getByRole("heading", { name: "Admins" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Admins" })).toHaveAttribute("aria-current", "page");
+});
+
+test("a disabled admin is refused and told why", async ({ page }) => {
   const disabled = await createAdmin({ disabled: true });
   await page.goto(`/admin${await sessionHashFor(disabled)}`);
   await expect(page.getByText(`Your admin account (${disabled.email}) has been disabled.`)).toBeVisible();
-  await page.goto("/queue");
-  await expect(page.getByRole("heading", { name: "Volunteer Access" })).toBeVisible();
+  // The volunteer password is still right there, so the front desk isn't stuck.
+  await expect(page.getByLabel("Volunteer password")).toBeVisible();
 });
 
 test("a signed-in non-admin is told to ask for an invite", async ({ page }) => {
@@ -58,7 +74,7 @@ test("a signed-in non-admin is told to ask for an invite", async ({ page }) => {
   await page.goto(`/admin${await sessionHashFor(stray)}`);
   await expect(page.getByText(`${stray.email} isn't an admin account.`)).toBeVisible();
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByText("Sign in with the Google account an admin approved.")).toBeVisible();
+  await expect(page.getByText("Volunteers use the shared password.")).toBeVisible();
 });
 
 test("a rejected sign-in redirect shows its reason and cleans the URL", async ({ page }) => {
@@ -70,10 +86,10 @@ test("a rejected sign-in redirect shows its reason and cleans the URL", async ({
   await expect(page).not.toHaveURL(/error=/);
 });
 
-test("logout from /admin signs out of both portals", async ({ page, asAdmin }) => {
+test("logout returns to the gate and survives a reload", async ({ page, asAdmin }) => {
   await asAdmin("/admin");
   await page.getByRole("button", { name: /Logout/ }).click();
-  await expect(adminGate(page)).toBeVisible();
-  await page.goto("/queue");
-  await expect(page.getByRole("heading", { name: "Volunteer Access" })).toBeVisible();
+  await expect(gate(page)).toBeVisible();
+  await page.reload();
+  await expect(gate(page)).toBeVisible();
 });

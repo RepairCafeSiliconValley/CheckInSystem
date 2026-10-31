@@ -144,8 +144,7 @@ async function passwordGrant(email, password) {
 }
 
 // The URL hash Supabase Auth redirects back with after a sign-in. Opening a
-// page with it signs that browser in through the app's real redirect path
-// (and, on /admin, counts as "just signed in", which unlocks the portal).
+// page with it signs that browser in through the app's real redirect path.
 function sessionHash(s) {
   const params = new URLSearchParams({
     access_token: s.access_token,

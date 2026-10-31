@@ -1,4 +1,5 @@
-// Playbook §2 (event setup and controls) plus the admin Allowlist and Users tabs.
+// Playbook §2 (event setup and controls) plus the portal's Admins tab.
+// Both are admin-only tabs, so these open the portal with ?tab= already set.
 
 import { test, expect } from "./support/fixtures.js";
 import { allowlistHas, createAdmin, getAppUser, getEvent, tag, today } from "./support/stack.js";
@@ -9,7 +10,7 @@ const eventCard = (page, name) =>
 // ── Events ──
 
 test("create an event: required fields, defaults reset, listed open", async ({ page, asAdmin }) => {
-  await asAdmin("/admin");
+  await asAdmin("/admin?tab=events");
   const name = `E2E Created ${tag()}`;
   const create = page.getByRole("button", { name: "Create Event" });
   await expect(create).toBeDisabled();
@@ -30,7 +31,7 @@ test("create an event: required fields, defaults reset, listed open", async ({ p
 });
 
 test("the QR modal shows the check-in link and copies it", async ({ page, event, asAdmin }) => {
-  await asAdmin("/admin");
+  await asAdmin("/admin?tab=events");
   await eventCard(page, event.name).getByRole("button", { name: "Show check-in QR code" }).click();
   const url = `http://localhost:5175/checkin?event=${event.id}`;
   await expect(page.getByRole("heading", { name: `Check-In QR code — ${event.name}` })).toBeVisible();
@@ -43,7 +44,7 @@ test("the QR modal shows the check-in link and copies it", async ({ page, event,
 });
 
 test("configure: max items clamps to 1-10, cancel discards, save persists", async ({ page, event, asAdmin }) => {
-  await asAdmin("/admin");
+  await asAdmin("/admin?tab=events");
   const configure = () => eventCard(page, event.name).getByRole("button", { name: "Configure Event" }).click();
   const max = () => page.getByLabel("Max Items per Visitor").last();
 
@@ -73,7 +74,7 @@ test("configure: max items clamps to 1-10, cancel discards, save persists", asyn
 });
 
 test("close and reopen check-in", async ({ page, event, asAdmin }) => {
-  await asAdmin("/admin");
+  await asAdmin("/admin?tab=events");
   const card = eventCard(page, event.name);
   await card.getByRole("button", { name: "Close Check-In" }).click();
   await expect(card.getByText("Closed", { exact: true })).toBeVisible();
@@ -83,21 +84,24 @@ test("close and reopen check-in", async ({ page, event, asAdmin }) => {
   expect((await getEvent(event.id)).is_open).toBe(true);
 });
 
-test("View metrics opens the queue's Metrics tab on that event", async ({ page, event, asAdmin }) => {
-  await asAdmin("/admin");
+test("View metrics switches to the Metrics tab on that event", async ({ page, event, asAdmin }) => {
+  await asAdmin("/admin?tab=events");
   await eventCard(page, event.name).getByRole("button", { name: "View metrics →" }).click();
-  await expect(page).toHaveURL(new RegExp(`/queue\\?tab=metrics&event=${event.id}`));
+  // A tab switch inside the one portal now, not a trip to another URL.
+  await expect(page).not.toHaveURL(/queue/);
   await expect(page.getByRole("heading", { name: "Metrics" })).toBeVisible();
   await expect(page.getByRole("button", { name: event.name })).toBeVisible(); // the event picker
 });
 
-// ── Allowlist ──
+// ── Admins tab: invites ──
 
-test("allowlist: validation, duplicates, add and remove", async ({ page, admin, asAdmin }) => {
-  await asAdmin("/admin");
-  await page.getByRole("button", { name: "Allowlist" }).click();
+test("invites: validation, duplicates, add and remove", async ({ page, admin, asAdmin }) => {
+  await asAdmin("/admin?tab=admins");
   const email = page.getByLabel("Email");
   const add = page.getByRole("button", { name: "Add to allowlist" });
+  // Invites and the admins table share one page now, so the row buttons are
+  // looked up inside the invites section.
+  const invites = page.getByRole("region", { name: "Pending invites" });
 
   await email.fill("not-an-email");
   await add.click();
@@ -110,34 +114,33 @@ test("allowlist: validation, duplicates, add and remove", async ({ page, admin, 
   const invite = `invite-${tag()}@e2e.example.com`;
   await email.fill(`  ${invite.toUpperCase()} `);
   await add.click();
-  await expect(page.getByText(invite, { exact: true })).toBeVisible();
-  await expect(page.getByText(`by ${admin.name}`)).toBeVisible();
+  await expect(invites.getByText(invite, { exact: true })).toBeVisible();
+  await expect(invites.getByText(`by ${admin.name}`)).toBeVisible();
   expect(await allowlistHas(invite)).toBe(true);
 
   await email.fill(invite);
   await add.click();
   await expect(page.getByText(`${invite} is already on the allowlist.`)).toBeVisible();
 
-  await page.getByRole("button", { name: "Remove" }).first().click();
+  // The invite list is newest first, so ours is the first row.
+  await invites.getByRole("button", { name: "Remove" }).first().click();
   await expect(page.getByRole("heading", { name: "Remove invite?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   expect(await allowlistHas(invite)).toBe(true);
 
-  // The invite list is newest first, so ours is the first row; the modal's
-  // confirm button renders after every row button.
-  await page.getByRole("button", { name: "Remove", exact: true }).first().click();
+  await invites.getByRole("button", { name: "Remove" }).first().click();
   await expect(page.getByText(`${invite} won't be able to sign in`)).toBeVisible();
+  // The modal's confirm button is outside the invites section.
   await page.getByRole("button", { name: "Remove", exact: true }).last().click();
-  await expect(page.getByText(invite, { exact: true })).toHaveCount(0);
+  await expect(invites.getByText(invite, { exact: true })).toHaveCount(0);
   expect(await allowlistHas(invite)).toBe(false);
 });
 
-// ── Users ──
+// ── Admins tab: accounts ──
 
-test("users: rename, disable, enable and delete another admin; never yourself", async ({ page, admin, asAdmin }) => {
+test("admins: rename, disable, enable and delete another admin; never yourself", async ({ page, admin, asAdmin }) => {
   const other = await createAdmin({ name: `E2E Other ${tag()}` });
-  await asAdmin("/admin");
-  await page.getByRole("button", { name: "Users" }).click();
+  await asAdmin("/admin?tab=admins");
 
   // Yourself: can't disable or delete.
   await expect(page.getByLabel(`Disabled: ${admin.email}`)).toBeDisabled();

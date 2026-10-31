@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import PasswordGate from "../components/PasswordGate";
+import SignInGate from "../components/SignInGate";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import PortalShell, { PortalLoading } from "../components/PortalShell";
@@ -8,26 +8,36 @@ import PrintTickets from "../components/PrintTickets";
 import CoordinatorQueue from "./CoordinatorQueue";
 import CoordinatorVisitorDetail from "./CoordinatorVisitorDetail";
 import Metrics from "./Metrics";
-import { ClipboardIcon, ChartIcon } from "../components/TabIcons";
+import Events from "./Events";
+import AdminAccounts from "./AdminAccounts";
+import {
+  ClipboardIcon,
+  ChartIcon,
+  CalendarIcon,
+  PeopleIcon,
+} from "../components/TabIcons";
 import {
   getAccess,
+  getAuthRedirectError,
+  clearAuthRedirectParams,
   signOut,
   fetchEvents,
   fetchVisitorDetail,
 } from "../lib/store";
 import { submittedStamp } from "../lib/metrics";
-import { lockAdmin } from "../lib/adminUnlock";
 
+// Every tab the portal has. The volunteer account gets the two that aren't
+// adminOnly; an admin gets all four, in one bar, with no sign-in between them.
 const TABS = [
-  { key: "queue", label: "Queue", Icon: ClipboardIcon },
-  { key: "metrics", label: "Metrics", Icon: ChartIcon },
+  { key: "queue", label: "Queue", Icon: ClipboardIcon, adminOnly: false },
+  { key: "metrics", label: "Metrics", Icon: ChartIcon, adminOnly: false },
+  { key: "events", label: "Events", Icon: CalendarIcon, adminOnly: true },
+  { key: "admins", label: "Admins", Icon: PeopleIcon, adminOnly: true },
 ];
-
-const ADMIN_LINK = { to: "/admin", label: "Admin →" };
 
 // Shown on the Queue tab when no event could be chosen: the events fetch
 // failed (error is its message) or there are no events yet (error is null).
-function EventsUnavailable({ error, onRetry }) {
+function EventsUnavailable({ error, onRetry, isAdmin }) {
   return (
     <Card style={{ textAlign: "center" }}>
       <p
@@ -52,7 +62,9 @@ function EventsUnavailable({ error, onRetry }) {
       >
         {error
           ? "Check your connection, then please try again."
-          : "An admin can create one in the Admin portal."}
+          : isAdmin
+            ? "Create one on the Events tab."
+            : "An admin can create one on the Events tab."}
       </p>
       {error && (
         <div
@@ -77,17 +89,19 @@ function EventsUnavailable({ error, onRetry }) {
   );
 }
 
-// /queue: the volunteer portal (Queue and Metrics), for the shared volunteer
-// account or an enabled admin. An admin session opening /queue re-locks
-// /admin (lib/adminUnlock), so a device left on the queue doesn't leave the
-// admin pages open. Admin's "View metrics" deep-links here as
-// /queue?tab=metrics&event=<id>; both params only seed the initial state.
-export default function QueuePortal() {
+// /admin: the one portal. The shared volunteer account and an enabled admin
+// both sign in here (SignInGate offers both); which tabs exist is decided by
+// the session, and RLS enforces the same split on the data. `?tab=` and
+// `?event=` only seed the initial state, so the old
+// /queue?tab=metrics&event=<id> deep link still works through the redirect.
+export default function Portal() {
   const [searchParams] = useSearchParams();
   const [access, setAccess] = useState(null); // null while checking
-  const authed = access?.level === "volunteer" || access?.level === "admin";
-  const [activeTab, setActiveTab] = useState(
-    searchParams.get("tab") === "metrics" ? "metrics" : "queue",
+  const isAdmin = access?.level === "admin";
+  const authed = isAdmin || access?.level === "volunteer";
+  // The tab asked for, which isn't necessarily one this session may have.
+  const [requestedTab, setRequestedTab] = useState(
+    searchParams.get("tab") || "queue",
   );
   const [selectedVisitorId, setSelectedVisitorId] = useState(null);
   const [printingVisitorId, setPrintingVisitorId] = useState(null);
@@ -98,15 +112,22 @@ export default function QueuePortal() {
   const [eventsError, setEventsError] = useState(null);
   const [noEvents, setNoEvents] = useState(false);
   const [eventsAttempt, setEventsAttempt] = useState(0);
+  const redirectError = getAuthRedirectError();
+
+  // Hiding a tab isn't enough — a volunteer typing ?tab=admins must land on
+  // the Queue. Resolving it on every render also re-clamps if the session
+  // changes under us, and needs no effect to keep in step.
+  const visibleTabs = isAdmin ? TABS : TABS.filter((t) => !t.adminOnly);
+  const activeTab = visibleTabs.some((t) => t.key === requestedTab)
+    ? requestedTab
+    : "queue";
 
   // Check the existing session on mount. Any other signed-in session (a
-  // disabled admin, a non-admin login) gets the password gate.
+  // disabled admin, a non-admin login) gets the sign-in gate.
   useEffect(() => {
+    clearAuthRedirectParams();
     getAccess()
-      .then((a) => {
-        if (a.level === "admin") lockAdmin();
-        setAccess(a);
-      })
+      .then(setAccess)
       .catch((err) => {
         console.error("Failed to check access:", err);
         setAccess({ level: "signed-out" });
@@ -149,7 +170,13 @@ export default function QueuePortal() {
     setEventsAttempt((n) => n + 1);
   };
 
-  const handleLock = async () => {
+  const openTab = (key, eventId) => {
+    if (eventId) setSelectedEventId(eventId);
+    setSelectedVisitorId(null);
+    setRequestedTab(key);
+  };
+
+  const handleLogout = async () => {
     await signOut();
     setAccess({ level: "signed-out" });
     setSelectedVisitorId(null);
@@ -186,10 +213,11 @@ export default function QueuePortal() {
 
   if (!authed) {
     return (
-      <PasswordGate
-        title="Volunteer Access"
-        crossLink={ADMIN_LINK}
+      <SignInGate
+        access={access}
+        error={redirectError}
         onUnlock={() => setAccess({ level: "volunteer" })}
+        onSignOut={handleLogout}
       />
     );
   }
@@ -225,18 +253,18 @@ export default function QueuePortal() {
 
   return (
     <PortalShell
-      tabs={TABS}
+      tabs={visibleTabs}
       activeTab={activeTab}
-      onTabChange={(key) => {
-        setActiveTab(key);
-        setSelectedVisitorId(null);
-      }}
-      identity={access.level === "admin" ? `${access.name} (admin)` : "Volunteer account"}
-      crossLink={ADMIN_LINK}
-      onLogout={handleLock}
+      onTabChange={(key) => openTab(key)}
+      identity={isAdmin ? `${access.name} (admin)` : "Volunteer account"}
+      onLogout={handleLogout}
     >
       {activeTab === "queue" && !selectedVisitorId && eventsUnavailable && (
-        <EventsUnavailable error={eventsError} onRetry={retryEvents} />
+        <EventsUnavailable
+          error={eventsError}
+          onRetry={retryEvents}
+          isAdmin={isAdmin}
+        />
       )}
       {activeTab === "queue" && !selectedVisitorId && !eventsUnavailable && (
         <CoordinatorQueue
@@ -262,13 +290,14 @@ export default function QueuePortal() {
         // queue can't represent) and only seeds from selectedEventId.
         <Metrics
           initialEventId={selectedEventId}
-          onOpenQueueForEvent={(id) => {
-            setSelectedEventId(id);
-            setSelectedVisitorId(null);
-            setActiveTab("queue");
-          }}
+          onOpenQueueForEvent={(id) => openTab("queue", id)}
         />
       )}
+      {activeTab === "events" && (
+        // "View metrics" is now a tab switch, not a trip to another URL.
+        <Events onViewMetrics={(id) => openTab("metrics", id)} />
+      )}
+      {activeTab === "admins" && <AdminAccounts currentUserId={access.id} />}
     </PortalShell>
   );
 }

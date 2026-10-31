@@ -1,7 +1,7 @@
 // The fixer page (/fix/:id) remembers the last fixer name submitted on this
 // device, so a fixer closing out several tickets on their own phone types it
 // once. Saved only after a successful submit, and only on the fixer page:
-// /queue runs on a shared device, where a remembered name would land on the
+// the portal runs on a shared device, where a remembered name would land on the
 // next person's ticket.
 //
 // Kept in localStorage (the name is never needed server-side, so a cookie would

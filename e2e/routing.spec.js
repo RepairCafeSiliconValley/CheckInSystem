@@ -31,19 +31,24 @@ for (const [name, id] of [
   });
 }
 
-test("/queue signed out shows the volunteer password gate", async ({ page }) => {
-  await page.goto("/queue");
-  await expect(page.getByRole("heading", { name: "Volunteer Access" })).toBeVisible();
+test("/admin signed out offers both sign-ins on one card", async ({ page }) => {
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
+  await expect(page.getByLabel("Volunteer password")).toBeVisible();
   await expect(page.getByRole("button", { name: "Unlock" })).toBeDisabled();
-  await expect(page.getByRole("link", { name: "Admin →" })).toHaveAttribute("href", "/admin");
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
+  // Nothing to sign out of, and nowhere else to go: one portal, one route.
+  await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /→/ })).toHaveCount(0);
 });
 
-test("/admin signed out shows the Google sign-in gate", async ({ page }) => {
-  await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "Admin Access" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Queue →" })).toHaveAttribute("href", "/queue");
+test("/queue redirects to the portal, keeping its query string", async ({ page }) => {
+  await page.goto("/queue");
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
+
+  await page.goto("/queue?tab=metrics&event=abc");
+  await expect(page).toHaveURL(/\/admin\?tab=metrics&event=abc$/);
 });
 
 test("deep links survive a full reload", async ({ page }) => {

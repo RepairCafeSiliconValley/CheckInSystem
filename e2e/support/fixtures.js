@@ -6,7 +6,9 @@
 //   asAdmin(path)     opens `path` signed in as a fresh admin (created per test)
 //
 // Sign-ins go through the same URL-hash redirect Supabase Auth uses after a
-// real login, so the app's own session handling runs.
+// real login, so the app's own session handling runs. Both default to /admin,
+// the portal's one route: the session rides in on the URL hash, which would
+// not survive the /queue redirect, so specs must target /admin directly.
 
 import { test as base, expect } from "@playwright/test";
 import { createAdmin, createEvent, sessionHashFor, volunteerSessionHash } from "./stack.js";
@@ -17,7 +19,7 @@ export const test = base.extend({
   },
 
   asVolunteer: async ({ page }, use) => {
-    await use(async (path = "/queue") => {
+    await use(async (path = "/admin") => {
       await page.goto(`${path}${await volunteerSessionHash()}`);
     });
   },

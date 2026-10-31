@@ -20,7 +20,9 @@ import { computeByEvent, formatKg, plural } from "../lib/metrics";
 // Clamp to the CHECK constraint on events.max_items (1–10).
 const clampMaxItems = (v) => Math.min(10, Math.max(1, Number(v) || 2));
 
-export default function Admin({ onViewMetrics }) {
+// The Events tab: create events, configure them, open and close them, show a
+// check-in QR, export attendees, and hop to an event's metrics.
+export default function Events({ onViewMetrics }) {
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventLocation, setEventLocation] = useState("");

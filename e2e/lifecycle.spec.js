@@ -5,7 +5,7 @@ import { test, expect } from "./support/fixtures.js";
 import { checkIn, getWorkOrder, markPrinted, updateWorkOrder } from "./support/stack.js";
 
 async function openVisitor(page, asVolunteer, eventId, name) {
-  await asVolunteer(`/queue?event=${eventId}`);
+  await asVolunteer(`/admin?event=${eventId}`);
   await page.getByText(name).click();
   await expect(page.getByRole("button", { name: "← Queue" })).toBeVisible();
 }

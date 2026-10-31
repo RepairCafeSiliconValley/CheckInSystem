@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import Logo from "./Logo";
 import { useNarrow } from "../lib/useNarrow";
 
@@ -21,18 +20,17 @@ export function PortalLoading() {
   );
 }
 
-// Shared frame for the signed-in portals (/queue and /admin): a header with
-// the logo, who is signed in, a link across to the other portal and Logout,
-// an optional banner under it, the page content, and a bottom tab bar
-// (zIndex 100) when there is more than one tab.
+// Frame for the signed-in portal: a header with the logo, who is signed in
+// and Logout, the page content, and a bottom tab bar (zIndex 100) when there
+// is more than one tab.
+//
+// A `tabs` entry is { key, label, Icon }, `Icon` being a TabIcons component.
 export default function PortalShell({
   tabs = [],
   activeTab,
   onTabChange,
   identity,
-  crossLink,
   onLogout,
-  banner,
   children,
 }) {
   // On phones the identity gets its own line under the header row, so the
@@ -83,24 +81,9 @@ export default function PortalShell({
           <Logo size="tiny" />
           <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
             {!narrow && identityText}
-            {crossLink && (
-              <Link
-                to={crossLink.to}
-                style={{
-                  fontFamily: "'Outfit', sans-serif",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: "#1e3a6e",
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {crossLink.label}
-              </Link>
-            )}
             <button
               onClick={onLogout}
-              title="Signs out of both /queue and /admin on this device. On a shared device, also sign out of Google in this browser."
+              title="Signs out of the portal on this device, and is the only way to lock it. On a shared device, also sign out of Google in this browser."
               style={{
                 background: "none",
                 border: "none",
@@ -120,8 +103,6 @@ export default function PortalShell({
         )}
       </div>
 
-      {banner}
-
       <div
         style={{ maxWidth: 640, margin: "0 auto", padding: "16px 16px 100px" }}
       >
@@ -135,13 +116,11 @@ export default function PortalShell({
             bottom: 0,
             left: 0,
             right: 0,
-            // Repair Café navy bar (the primary button colour).
-            background: "#1e3a6e",
+            background: "#fff",
+            borderTop: "1px solid #e8ebf0",
             display: "flex",
             justifyContent: "center",
-            // Equal top/bottom padding centres the tabs; on phones with a home
-            // indicator the safe-area inset is added below that.
-            padding: "8px 0 calc(8px + env(safe-area-inset-bottom, 0px))",
+            padding: "8px 0 env(safe-area-inset-bottom, 12px)",
             zIndex: 100,
           }}
         >
@@ -154,9 +133,12 @@ export default function PortalShell({
             }}
           >
             {tabs.map((t) => {
-              // On the navy bar: the active tab is a white pill with a navy
-              // icon and dark bold text; inactive tabs are light neutral grey.
-              // Icons are line drawings coloured via CSS `color` (TabIcons).
+              // The bar stays the header's white so the page reads as one
+              // frame; the contrast lives in the selected tab, a navy filled
+              // pill. Same colours as the queue's filter chips
+              // (CoordinatorQueue), which are the other tabs on that screen.
+              // Icons are line drawings taking CSS `color`, so they go white
+              // on the pill and grey beside it (TabIcons).
               const active = activeTab === t.key;
               return (
                 <button
@@ -164,21 +146,22 @@ export default function PortalShell({
                   onClick={() => onTabChange(t.key)}
                   aria-current={active ? "page" : undefined}
                   style={{
-                    background: active ? "#fff" : "none",
+                    background: active ? "#1e3a6e" : "none",
                     border: "none",
-                    borderRadius: 12,
+                    borderRadius: 10,
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     gap: 2,
-                    padding: "6px 18px",
+                    padding: "6px 14px",
                     cursor: "pointer",
+                    transition: "all 0.15s",
                   }}
                 >
                   <span
                     style={{
                       display: "flex",
-                      color: active ? "#1e3a6e" : "#d0d5dd",
+                      color: active ? "#fff" : "#667085",
                     }}
                   >
                     <t.Icon />
@@ -188,7 +171,7 @@ export default function PortalShell({
                       fontFamily: "'Outfit', sans-serif",
                       fontSize: "11px",
                       fontWeight: active ? 700 : 500,
-                      color: active ? "#1d2939" : "#d0d5dd",
+                      color: active ? "#fff" : "#667085",
                       letterSpacing: "0.3px",
                     }}
                   >
