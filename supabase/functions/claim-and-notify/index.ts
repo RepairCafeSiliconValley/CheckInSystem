@@ -135,13 +135,17 @@ Deno.serve(async (req) => {
   if (!to) return done(false, "no_phone");
   if (!textMessageOptIn) return done(false, "no_consent");
 
-  // Once-only: a prior non-failed 'summon' row blocks a second send.
+  // Once-only: a prior non-failed 'summon' row blocks a second send. Rows
+  // superseded by unclaim_work_order() (migration v12) don't count — putting an
+  // item back on the board is what lets the next fixer summon the client again.
+  // Mirrors the sms_notifications_sent_once index condition.
   const { data: prior } = await supabase
     .from("sms_notifications")
     .select("id")
     .eq("work_order_id", workOrderId)
     .eq("message_type", "summon")
     .neq("status", "failed")
+    .is("superseded_at", null)
     .limit(1);
   if (prior && prior.length > 0) return done(false, "already_sent");
 

@@ -229,6 +229,22 @@ export async function claimAndNotify(workOrderId, fixerName) {
   return data;
 }
 
+// ─── Unclaim (volunteers and admins, via RPC) ───
+// The client was summoned but never came to the desk: put the item back on the
+// board. Returns it to 'pending_assignment' (Checked-In) and clears the fixer,
+// so the next fixer can claim it — and supersedes the prior summons so that
+// claim texts the client again.
+//
+// An RPC rather than updateWorkOrder because the two halves need different
+// privileges: a volunteer may update work_orders under RLS, but
+// sms_notifications is service-role-write-only. See migration v12.
+export async function unclaimWorkOrder(workOrderId) {
+  const { error } = await supabase.rpc("unclaim_work_order", {
+    p_work_order_id: workOrderId,
+  });
+  if (error) throw error;
+}
+
 // ─── Updates ───
 
 export async function updateAttendee(id, updates) {

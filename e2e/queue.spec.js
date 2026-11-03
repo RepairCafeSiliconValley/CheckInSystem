@@ -213,7 +213,11 @@ test("approve & print needs every category, then prints and marks items Checked-
 
   await page.getByRole("button", { name: "← Back" }).click();
   await expect(page.getByRole("button", { name: /Reprint Tickets/ })).toBeVisible();
-  await expect(page.getByText("Record Outcome:").first()).toBeVisible();
+  // Printing moved the items to Checked-In, which is what offers the outcome
+  // action. The panel itself is collapsed behind this button.
+  await expect(
+    page.getByRole("button", { name: "✅ Record Outcome" }).first(),
+  ).toBeVisible();
   await page.getByRole("button", { name: "← Queue" }).click();
   await expect(chip(page, "Checked-In")).toHaveText("Checked-In (2)");
   await expect(page.getByText("(1 waiting)")).toBeVisible();

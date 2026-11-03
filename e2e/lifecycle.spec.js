@@ -12,6 +12,12 @@ async function openVisitor(page, asVolunteer, eventId, name) {
 
 const submit = (page) => page.getByRole("button", { name: "Submit Outcome" });
 
+// The volunteer card collapses its actions to a button stack, so the outcome
+// panel has to be opened before anything inside it can be driven. Distinct from
+// "Submit Outcome" above, which is the panel's own commit button.
+const openOutcome = (page) =>
+  page.getByRole("button", { name: "✅ Record Outcome" }).click();
+
 test("record Fixed with a saved fixer name, then edit it back to Checked-In", async ({ page, event, asVolunteer }) => {
   const v = await checkIn(event.id, { firstName: "E2E Outcome" });
   const id = v.orders[0].id;
@@ -19,6 +25,7 @@ test("record Fixed with a saved fixer name, then edit it back to Checked-In", as
   await updateWorkOrder(id, { fixer_name: "E2E Staff Fixer" });
   await openVisitor(page, asVolunteer, event.id, "E2E Outcome Tester");
 
+  await openOutcome(page);
   await expect(page.getByLabel("Fixer Name (optional)")).toHaveValue("E2E Staff Fixer");
   await expect(submit(page)).toBeDisabled();
   await expect(page.getByText("Select an outcome to submit.")).toBeVisible();
@@ -32,6 +39,7 @@ test("record Fixed with a saved fixer name, then edit it back to Checked-In", as
 
   await page.getByRole("button", { name: /Edit Outcome/ }).click();
   await expect(page.getByText("Checked-In", { exact: true })).toBeVisible();
+  await openOutcome(page);
   await expect(page.getByText("Record Outcome:")).toBeVisible();
   await expect(page.getByLabel("Fixer Name (optional)")).toHaveValue("E2E Staff Fixer");
   expect(await getWorkOrder(id)).toMatchObject({
@@ -44,6 +52,7 @@ test("Not Fixed from the volunteer side needs a reason and shows it, with the no
   await markPrinted(v.orders[0].id);
   await openVisitor(page, asVolunteer, event.id, "E2E NotFixed Tester");
 
+  await openOutcome(page);
   await page.getByRole("button", { name: "❌ Not Fixed" }).click();
   await expect(submit(page)).toBeDisabled();
   await expect(page.getByText("Select a reason it wasn't fixed to submit.")).toBeVisible();
@@ -68,6 +77,7 @@ test("the fixer page follows a volunteer's edit of the outcome", async ({ page, 
 
   await openVisitor(page, asVolunteer, event.id, "E2E Follow Tester");
   await page.getByRole("button", { name: /Edit Outcome/ }).click();
+  await openOutcome(page);
   await expect(page.getByText("Record Outcome:")).toBeVisible();
 
   await page.goto(`/fix/${id}`);
@@ -118,6 +128,7 @@ test("cancel a printed item with Other and a note; undo returns it to Checked-In
 
   await page.getByRole("button", { name: /Undo Cancel/ }).click();
   await expect(page.getByText("Checked-In", { exact: true })).toBeVisible();
+  await openOutcome(page);
   await expect(page.getByLabel("Fixer Name (optional)")).toHaveValue("E2E Cancel Fixer");
   expect(await getWorkOrder(id)).toMatchObject({
     status: "pending_assignment", cancel_reason: null, cancel_note: null, fixer_name: "E2E Cancel Fixer",
