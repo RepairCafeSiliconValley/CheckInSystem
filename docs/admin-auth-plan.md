@@ -481,8 +481,10 @@ project** with **one OAuth client per environment**:
 A single client listing every redirect URI also works, but then all environments share one
 secret.
 
-**Steps in the Google Cloud Console** (Google Auth Platform):
-1. **Branding.**
+**Steps in the Google Cloud Console** (Google Auth Platform, Google Cloud project
+`repair-cafe-check-in`):
+1. **Branding** ([open the Branding page](https://console.cloud.google.com/auth/branding?project=repair-cafe-check-in)).
+   Its **Verification status** panel shows whether step 3 is done.
    - App name: "Repair Café Silicon Valley".
    - Support email and developer contact email, preferably organization addresses. The
      **User support email** dropdown only offers the email of the account signed in to the
@@ -493,17 +495,27 @@ secret.
      `<project ref>.supabase.co` (the host part of its callback URL), once for DEV and once
      for PROD. **Not** `supabase.co` on its own: Google rejects it as "not a top private
      domain", because `supabase.co` is a shared public suffix. Also add the site's own domain
-     (e.g. `repaircafesv.org`) if you fill in the Application home page with it.
-   - **Don't upload a logo.** A logo triggers Google's brand verification review; without one,
-     no review is needed.
+     (e.g. `repaircafesv.org`), which the home page and privacy policy links below use.
+   - **App home page** and **privacy policy** links, on a domain the organization owns.
+     Brand verification (step 3) needs them. `vercel.app` and `supabase.co` can't be used,
+     because nobody can prove they own those shared domains.
+   - A logo is optional. Uploading or changing one starts a new verification review.
 2. **Audience.**
    - User type **External**.
    - Set the publishing status to **In production**. In *Testing*, only listed test users can
      sign in, so every new admin would also have to be added there.
    - Publishing doesn't need a review, because the app only uses the basic scopes.
-3. **Data access.** Keep the default scopes, `openid`, `email` and `profile`. Supabase asks for
+3. **Brand verification.** Without it, Google's account chooser says "to continue to
+   `<project ref>.supabase.co`" instead of the app name. Under **Verification Center**, submit
+   the branding for verification. Google asks you to prove you own the home page's domain
+   through Google Search Console first. With only the basic scopes the review is light,
+   usually a few days. Once it's verified, the Branding page says "Your branding has been
+   verified and is being shown to users", and the chooser says "to continue to Repair Café
+   Silicon Valley". Branding is per Google Cloud project, so with one project for DEV and PROD
+   (see above) this is done once.
+4. **Data access.** Keep the default scopes, `openid`, `email` and `profile`. Supabase asks for
    nothing more.
-4. **Clients → Create client**, type **Web application**, once per environment:
+5. **Clients → Create client**, type **Web application**, once per environment:
    - **"Supabase DEV":** authorized redirect URI
      `https://<DEV project ref>.supabase.co/auth/v1/callback`.
    - **"Supabase PROD":** authorized redirect URI
