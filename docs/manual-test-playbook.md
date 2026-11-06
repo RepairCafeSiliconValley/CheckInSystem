@@ -53,8 +53,11 @@ The tests check the print preview and stub out the browser's print call. They ca
 | 2.1 | Admin → the QA event's QR badge. Scan the code with each phone's camera | Each phone opens the QA event's check-in form on the preview URL |
 | 2.2 | On the iPhone, check in visitor `QA Alice` with two items. On the Android phone, `QA Bob` with one | Both reach the confirmation screen with a letter-digit-letter ID and one code per item |
 | 2.3 | Laptop, Queue tab: open Alice, set both categories, Approve & Print All Tickets, then Print | The print dialog shows 2 pages, one ticket per page, nothing cut off at the edges. On the thermal printer each ticket fits one label |
-| 2.4 | Read a printed ticket | Submitted time, priority badge, category, item, issue and "QA Alice T." are legible at arm's length. The QR is sharp |
-| 2.5 | Scan each ticket's QR with a phone | It opens `/fix/<id>` on the preview URL and shows the right item |
+| 2.4 | Read a printed ticket | Submitted time, priority badge, category, item, issue and "QA Alice T." are legible at arm's length. The QR is sharp. On a two-item visit, check the code badge between the two squares is not clipped — the QR squares are 88 px and leave it about 75 px, against roughly 62 px needed |
+| 2.5 | Scan each ticket's QR with a phone | It opens `/FIX/<id>` on the preview URL and shows the right item. The URL is uppercase with no hyphens in the id — that is deliberate, see `src/lib/qrUrl.js` |
+| 2.5a | Scan the same ticket with **iOS Camera, Android Camera and Google Lens** in turn | All three offer the link and open it. The payload uses an uppercase `HTTPS://` scheme to keep the QR small; a scanner that refuses to linkify it would fail only here, not in the automated tests |
+| 2.5b | Look at the QR itself on the printed ticket | A clear white border runs around all four sides, and the SUBMIT / RESOLUTION caption does not touch the modules |
+| 2.5c | Scan a ticket printed **before** this change, if one is to hand | The older long `/fix/<hyphenated-uuid>` form still opens the right item — both forms stay supported |
 | 2.6 | On the phone, record Fixed for item 1 | The laptop's Queue shows Completed for that item within a few seconds |
 | 2.6a | On the same phone, scan item 2's QR with the camera app | Fixer Name is already filled with the name from 2.6. A QR-scanner app that opens links in its own built-in browser keeps separate storage, so there the name may need typing once |
 | 2.7 | Mark Bob as a volunteer, then print his ticket | The priority badge carries the volunteer marker |

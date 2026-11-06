@@ -13,6 +13,10 @@ async function printedItem(event, overrides = {}) {
 const submit = (page) => page.getByRole("button", { name: "Submit Outcome" });
 const hint = (page, text) => page.getByText(text, { exact: true });
 
+// What a ticket's QR code actually encodes: uppercase, hyphens stripped, so the
+// printed symbol stays small enough for a thermal printer. See src/lib/qrUrl.js.
+const printedUrl = (id) => `/FIX/${id.replace(/-/g, "").toUpperCase()}`;
+
 test("shows the item with an abbreviated client name", async ({ page, event }) => {
   const { order } = await printedItem(event);
   await page.goto(`/fix/${order.id}`);
@@ -24,6 +28,28 @@ test("shows the item with an abbreviated client name", async ({ page, event }) =
   await expect(page.getByText("E2E Lamp")).toBeVisible();
   await expect(page.getByText("Electronics")).toBeVisible();
   await expect(page.getByText("Flickers")).toBeVisible();
+});
+
+// The path a fixer actually takes: scan the ticket, land on the uppercase
+// hyphen-less URL, record the outcome. Proves the route matches
+// case-insensitively and that the id survives back to the RPC.
+test("the printed QR URL loads the item and submits an outcome", async ({ page, event }) => {
+  const { order } = await printedItem(event);
+  await page.goto(printedUrl(order.id));
+  await expect(page.getByRole("heading", { name: "Submit Repair Outcome" })).toBeVisible();
+  await expect(page.getByText(order.code)).toBeVisible();
+  await expect(page.getByText("E2E Lamp")).toBeVisible();
+
+  await page.getByLabel("Fixer Name").fill("E2E Scanner");
+  await page.getByRole("button", { name: "✅ Fixed" }).click();
+  await submit(page).click();
+  await expect(page.getByRole("heading", { name: "Outcome Submitted" })).toBeVisible();
+
+  expect(await getWorkOrder(order.id)).toMatchObject({
+    status: "completed",
+    outcome: "Fixed",
+    fixer_name: "E2E Scanner",
+  });
 });
 
 test("submit stays disabled with a hint until name and outcome are set", async ({ page, event }) => {

@@ -3,6 +3,22 @@ import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
 import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
 import { formatClockTime } from "../lib/metrics";
+import { fixerQrValue } from "../lib/qrUrl";
+
+// Side of the QR square and of the stamp placeholder that mirrors it.
+//
+// 88px is 23.3mm, which on a 203 dpi head is 186 dots across — about 5 dots per
+// module once the quiet zone is counted, up from 4.35 at the old 76px. Module
+// edges snap to whole dots (qrcode.react sets shape-rendering: crispEdges), so
+// a fractional dots-per-module is what printed as an uneven, pixelated symbol.
+//
+// Don't raise this past 88 without re-measuring the code badge between the two
+// squares. 72mm less 2mm padding each side is ~257px, less this row's 6px
+// paddingRight leaves ~251px, so two squares at 88px leave the badge ~75px. A
+// 3-character code needs ~62px (3 chars x 10.8px Courier New at 18px, plus 2px
+// letter-spacing each, plus 24px padding) — about 13px of slack. At 95px the
+// badge would get ~61px and clip, which is why this is 88 and not 95.
+const QR_SIZE_PX = 88;
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -36,7 +52,6 @@ export default function PrintTickets({
   submittedAt,
   onClose,
 }) {
-  const baseUrl = window.location.origin;
   const divider = { borderTop: "1px solid #000", margin: "10px 0" };
   // One time for the whole visit, matching the queue card — an item added
   // later at the desk still belongs to the same submission.
@@ -181,7 +196,7 @@ export default function PrintTickets({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "76px 1fr 76px",
+              gridTemplateColumns: `${QR_SIZE_PX}px 1fr ${QR_SIZE_PX}px`,
               alignItems: "center",
               padding: "8px 0 8px 0",
               paddingRight: 6,
@@ -196,8 +211,8 @@ export default function PrintTickets({
             >
               <div
                 style={{
-                  width: 76,
-                  height: 76,
+                  width: QR_SIZE_PX,
+                  height: QR_SIZE_PX,
                   border: "1px dashed #000",
                   boxSizing: "border-box",
                 }}
@@ -242,16 +257,25 @@ export default function PrintTickets({
             >
               <div
                 style={{
-                  width: 76,
-                  height: 76,
+                  width: QR_SIZE_PX,
+                  height: QR_SIZE_PX,
                   overflow: "hidden",
                 }}
               >
+                {/* marginSize is the quiet zone, in modules. qrcode.react
+                    defaults it to 0, which printed the symbol flush to the box
+                    edge with the caption below touching its bottom row — out of
+                    spec, and a common reason a scanner can't find the code. */}
                 <QRCodeSVG
-                  value={`${baseUrl}/fix/${wo.id}`}
-                  size={76}
+                  value={fixerQrValue(wo.id)}
+                  size={QR_SIZE_PX}
                   level="M"
-                  style={{ width: "76px", height: "76px", display: "block" }}
+                  marginSize={2}
+                  style={{
+                    width: `${QR_SIZE_PX}px`,
+                    height: `${QR_SIZE_PX}px`,
+                    display: "block",
+                  }}
                 />
               </div>
               <div style={qrCaptionStyle}>

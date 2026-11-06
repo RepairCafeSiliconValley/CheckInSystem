@@ -24,6 +24,8 @@ for (const [name, path] of [
 for (const [name, id] of [
   ["an unknown id", NO_EVENT],
   ["a malformed id", "not-a-uuid"],
+  // The form a ticket QR carries (see src/lib/qrUrl.js), still unknown here.
+  ["an unknown id in the printed form", NO_EVENT.replace(/-/g, "").toUpperCase()],
 ]) {
   test(`/fix with ${name} shows Item Not Found`, async ({ page }) => {
     await page.goto(`/fix/${id}`);

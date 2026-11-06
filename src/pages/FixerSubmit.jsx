@@ -8,6 +8,7 @@ import Button from "../components/Button";
 import TextArea from "../components/TextArea";
 import { fetchWorkOrderById, submitFixerOutcome } from "../lib/store";
 import { getSavedFixerName, saveFixerName } from "../lib/fixerName";
+import { normalizeWorkOrderId } from "../lib/qrUrl";
 import { OUTCOMES, NOT_FIXED_REASONS, OTHER_REASON, NOTE_HINT } from "../lib/constants";
 
 const OUTCOME_EMOJI = {
@@ -66,7 +67,9 @@ function SuccessScreen({ outcome, itemName }) {
 }
 
 export default function FixerSubmit() {
-  const { id } = useParams();
+  // A ticket QR carries the id uppercase and without hyphens, to keep the
+  // printed code small; typed and older links carry a normal uuid.
+  const id = normalizeWorkOrderId(useParams().id);
   const [workOrder, setWorkOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fixerName, setFixerName] = useState("");
