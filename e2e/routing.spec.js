@@ -31,6 +31,17 @@ for (const [name, id] of [
   });
 }
 
+for (const [name, code] of [
+  ["an unknown code", "0000000000004000"],
+  ["a too-short code", "ABC123"],
+  ["a non-hex code", "NOTAHEXCODE12345"],
+]) {
+  test(`/T with ${name} shows Item Not Found`, async ({ page }) => {
+    await page.goto(`/T/${code}`);
+    await expect(page.getByRole("heading", { name: "Item Not Found" })).toBeVisible();
+  });
+}
+
 // Claiming and submitting an outcome used to be /claim/:id and /fix/:id, one
 // QR code each. Tickets printed before they merged are paper and stay in
 // circulation, so these redirects can never be removed — this is the test that

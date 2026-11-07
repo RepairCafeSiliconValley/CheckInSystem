@@ -95,6 +95,33 @@ test("the claim banner is for the fixer who claimed, not the next scanner", asyn
   await expect(page.getByText("Claimed.")).toHaveCount(0);
 });
 
+// ─── The short /T/ link printed on tickets ───
+// Tickets carry /T/<first 16 hex of the id> in upper case (ticketLink.js) so
+// the QR is smaller. It must land on the same page as /ticket/<id> and keep
+// working through a claim, which refetches.
+
+test("the short /T/ code opens the ticket, and claiming works through it", async ({ page, event }) => {
+  const { order } = await printedItem(event);
+  const code = order.id.replace(/-/g, "").slice(0, 16).toUpperCase();
+  await page.goto(`/T/${code}`);
+  await expect(page.getByRole("heading", { name: "Start Working on This Item" })).toBeVisible();
+  await expect(page.getByText(order.code)).toBeVisible();
+  await expect(page.getByText("E2E Fixee M.")).toBeVisible();
+
+  await page.getByLabel("Your Name").fill("E2E Short Code");
+  await page.getByRole("button", { name: "Claim this item" }).click();
+  await expect(page.getByRole("heading", { name: "Submit Repair Outcome" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/T/${code}$`));
+  expect(await getWorkOrder(order.id)).toMatchObject({ status: "assigned", fixer_name: "E2E Short Code" });
+});
+
+test("the short code works in lower case too", async ({ page, event }) => {
+  const { order } = await printedItem(event);
+  await page.goto(`/t/${order.id.replace(/-/g, "").slice(0, 16).toLowerCase()}`);
+  await expect(page.getByRole("heading", { name: "Start Working on This Item" })).toBeVisible();
+  await expect(page.getByText(order.code)).toBeVisible();
+});
+
 // ─── Submitting an outcome ───
 
 test("shows the item with an abbreviated client name", async ({ page, event }) => {

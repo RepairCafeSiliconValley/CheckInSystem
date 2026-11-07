@@ -18,10 +18,12 @@ insert into events (id, name, date, is_open, max_items) values
   ('e0000000-0000-0000-0000-000000000002', 'Open Event',   '2030-01-02', true,  1);
 insert into attendees (id, event_id, first_name, last_name)
 values ('e0000000-0000-0000-0000-0000000000a1', 'e0000000-0000-0000-0000-000000000002', 'Gap', 'Tester');
+-- Work-order ids differ in the third group: the first three groups are the
+-- ticket code, and work_orders_ticket_code_key makes them unique.
 insert into work_orders (id, code, attendee_id, event_id, item_name, description, priority, status, cancel_reason) values
-  ('e0000000-0000-0000-0000-0000000000c1', 'G2G-1', 'e0000000-0000-0000-0000-0000000000a1',
+  ('e0000000-0000-00c1-0000-0000000000c1', 'G2G-1', 'e0000000-0000-0000-0000-0000000000a1',
    'e0000000-0000-0000-0000-000000000002', 'Lamp', 'Flickers', 1, 'canceled', 'Mistake'),
-  ('e0000000-0000-0000-0000-0000000000c2', 'G2G-2', 'e0000000-0000-0000-0000-0000000000a1',
+  ('e0000000-0000-00c2-0000-0000000000c2', 'G2G-2', 'e0000000-0000-0000-0000-0000000000a1',
    'e0000000-0000-0000-0000-000000000002', 'Kettle', 'Leaks', 2, 'pending', null);
 
 set local role anon;
@@ -56,14 +58,14 @@ select todo_end();
 -- ── submit_fixer_outcome ──
 select todo_start('submit_fixer_outcome only refuses completed items');
 select throws_ok(
-  $$ select submit_fixer_outcome('e0000000-0000-0000-0000-0000000000c1', 'Pat Fixer', 'Fixed') $$,
+  $$ select submit_fixer_outcome('e0000000-0000-00c1-0000-0000000000c1', 'Pat Fixer', 'Fixed') $$,
   null::char(5), null::text,
   'submit_fixer_outcome refuses a cancelled work order');
 select todo_end();
 
 select todo_start('submit_fixer_outcome only refuses completed items');
 select throws_ok(
-  $$ select submit_fixer_outcome('e0000000-0000-0000-0000-0000000000c2', 'Pat Fixer', 'Fixed') $$,
+  $$ select submit_fixer_outcome('e0000000-0000-00c2-0000-0000000000c2', 'Pat Fixer', 'Fixed') $$,
   null::char(5), null::text,
   'submit_fixer_outcome refuses a work order whose ticket was never printed');
 select todo_end();
@@ -74,7 +76,7 @@ reset role;
 select todo_start('submit_fixer_outcome only refuses completed items');
 select results_eq(
   $$ select status, outcome, cancel_reason from work_orders
-     where id = 'e0000000-0000-0000-0000-0000000000c1' $$,
+     where id = 'e0000000-0000-00c1-0000-0000000000c1' $$,
   $$ values ('canceled'::text, null::text, 'Mistake'::text) $$,
   'a fixer submission leaves a cancelled work order cancelled');
 select todo_end();

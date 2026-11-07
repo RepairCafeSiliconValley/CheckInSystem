@@ -34,6 +34,10 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/checkin" element={<CheckIn />} />
+      {/* /T/:code is what tickets print now: a short upper-case code so the
+          QR can be smaller (see src/lib/ticketLink.js). /ticket/:id stays for
+          tickets printed before that. Routes match either case. */}
+      <Route path="/T/:code" element={<Ticket />} />
       <Route path="/ticket/:id" element={<Ticket />} />
       <Route path="/claim/:id" element={<TicketRedirect />} />
       <Route path="/fix/:id" element={<TicketRedirect />} />

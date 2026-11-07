@@ -3,6 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
 import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
 import { formatClockTime } from "../lib/metrics";
+import { ticketUrl } from "../lib/ticketLink";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -185,7 +186,11 @@ export default function PrintTickets({
               at /ticket/:id, which decides what to show from the item's status,
               so a single code can take the full ticket width. At 140px the
               modules are nearly twice as wide, which is what makes this scan
-              reliably off thermal paper. */}
+              reliably off thermal paper.
+
+              The link is the short upper-case /T/<code> form (ticketLink.js),
+              not /ticket/<uuid>: it drops the QR from 37×37 to 29×29, so each
+              module is about a quarter wider again. */}
           <div
             style={{
               display: "flex",
@@ -208,7 +213,7 @@ export default function PrintTickets({
               }}
             >
               <QRCodeSVG
-                value={`${baseUrl}/ticket/${wo.id}`}
+                value={ticketUrl(baseUrl, wo.id)}
                 size={140}
                 level="M"
                 style={{ width: "140px", height: "140px", display: "block" }}
