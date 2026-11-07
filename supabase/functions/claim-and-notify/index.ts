@@ -70,10 +70,15 @@ Deno.serve(async (req) => {
 
   let workOrderId: string | undefined;
   let fixerName: string | undefined;
+  // The ticket page offers "Claim & text client" and "Claim without texting".
+  // Absent means text — a caller that predates the two buttons behaves exactly
+  // as it did before.
+  let sendText = true;
   try {
     const body = await req.json();
     workOrderId = body.work_order_id;
     fixerName = (body.fixer_name ?? "").trim();
+    sendText = body.send_text !== false;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
@@ -127,7 +132,11 @@ Deno.serve(async (req) => {
   // succeeded, and a fixer who scanned the QR must be able to start work even
   // when the message can't go out.
 
-  // collect_phone is the master switch for texting. Checked first so the
+  // The fixer's own choice comes first: when they picked "Claim without
+  // texting", that's the reason, not whatever the configuration happens to be.
+  if (!sendText) return done(false, "not_requested");
+
+  // collect_phone is the master switch for texting. Checked next so the
   // reason names the real cause, and deliberately skipping the send even if a
   // stale number survives from before the setting was turned off.
   if (!event?.collect_phone) return done(false, "messaging_off");

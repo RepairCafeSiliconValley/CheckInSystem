@@ -221,9 +221,16 @@ export async function submitFixerOutcome(workOrderId, fixerName, outcome, notFix
 // (With Fixer), records the fixer name, and best-effort texts the client via
 // Twilio. The Edge Function holds the Twilio secret and reads the phone
 // server-side — the browser never sees it. Returns { ok, status, texted, reason }.
-export async function claimAndNotify(workOrderId, fixerName) {
+// sendText is the fixer's explicit choice between the ticket page's two claim
+// buttons. The Edge Function defaults it to true when absent, so the claim
+// still texts for any caller that doesn't pass it.
+export async function claimAndNotify(workOrderId, fixerName, { sendText = true } = {}) {
   const { data, error } = await supabase.functions.invoke("claim-and-notify", {
-    body: { work_order_id: workOrderId, fixer_name: fixerName.trim() },
+    body: {
+      work_order_id: workOrderId,
+      fixer_name: fixerName.trim(),
+      send_text: sendText,
+    },
   });
   if (error) throw error;
   return data;

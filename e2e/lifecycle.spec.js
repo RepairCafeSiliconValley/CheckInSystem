@@ -71,7 +71,7 @@ test("the fixer page follows a volunteer's edit of the outcome", async ({ page, 
   await markPrinted(id);
   await updateWorkOrder(id, { status: "completed", outcome: "Not Fixed", not_fixed_reason: "Item too worn out", completed_at: new Date().toISOString() });
 
-  await page.goto(`/fix/${id}`);
+  await page.goto(`/ticket/${id}`);
   await expect(page.getByRole("heading", { name: "Already Completed" })).toBeVisible();
   await expect(page.getByText("Reason: Item too worn out")).toBeVisible();
 
@@ -80,8 +80,11 @@ test("the fixer page follows a volunteer's edit of the outcome", async ({ page, 
   await openOutcome(page);
   await expect(page.getByText("Record Outcome:")).toBeVisible();
 
-  await page.goto(`/fix/${id}`);
-  await expect(page.getByRole("heading", { name: "Submit Repair Outcome" })).toBeVisible();
+  // Reopening sends the item back to pending_assignment — it is on the board
+  // again, so the ticket asks to be claimed rather than jumping to an outcome.
+  // Whoever picks it up next gets recorded, same as the first time.
+  await page.goto(`/ticket/${id}`);
+  await expect(page.getByRole("heading", { name: "Start Working on This Item" })).toBeVisible();
 });
 
 test("cancel an unprinted item, then undo returns it to Submitted", async ({ page, event, asVolunteer }) => {
@@ -144,7 +147,9 @@ test("a fixer page left open cannot overwrite a cancel", async ({ page, event })
   const v = await checkIn(event.id, { firstName: "E2E Race" });
   const id = v.orders[0].id;
   await markPrinted(id);
-  await page.goto(`/fix/${id}`);
+  // Claimed, so the outcome form is what's open when the cancel lands.
+  await updateWorkOrder(id, { status: "assigned", assigned_at: new Date().toISOString() });
+  await page.goto(`/ticket/${id}`);
   await expect(page.getByRole("heading", { name: "Submit Repair Outcome" })).toBeVisible();
   await updateWorkOrder(id, { status: "canceled", cancel_reason: "Mistake", completed_at: new Date().toISOString() });
 

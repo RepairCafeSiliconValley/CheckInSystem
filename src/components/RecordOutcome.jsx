@@ -12,7 +12,7 @@ const OUTCOME_EMOJI = {
 };
 
 // Volunteer-side outcome recording for a printed (pending_assignment) work order.
-// Mirrors the fixer page (/fix/:id): pick an outcome (plus a reason for
+// Mirrors the ticket page (/ticket/:id): pick an outcome (plus a reason for
 // "Not Fixed"), then confirm with Submit. Nothing is saved until Submit.
 // Calls onRecord(outcome, notFixedReason, notFixedNote).
 export default function RecordOutcome({

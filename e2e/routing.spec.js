@@ -25,8 +25,21 @@ for (const [name, id] of [
   ["an unknown id", NO_EVENT],
   ["a malformed id", "not-a-uuid"],
 ]) {
-  test(`/fix with ${name} shows Item Not Found`, async ({ page }) => {
-    await page.goto(`/fix/${id}`);
+  test(`/ticket with ${name} shows Item Not Found`, async ({ page }) => {
+    await page.goto(`/ticket/${id}`);
+    await expect(page.getByRole("heading", { name: "Item Not Found" })).toBeVisible();
+  });
+}
+
+// Claiming and submitting an outcome used to be /claim/:id and /fix/:id, one
+// QR code each. Tickets printed before they merged are paper and stay in
+// circulation, so these redirects can never be removed — this is the test that
+// says so.
+for (const legacy of ["claim", "fix"]) {
+  test(`/${legacy}/:id redirects to /ticket/:id`, async ({ page }) => {
+    await page.goto(`/${legacy}/${NO_EVENT}`);
+    await expect(page).toHaveURL(new RegExp(`/ticket/${NO_EVENT}$`));
+    // Followed through to the real page, not just a URL rewrite.
     await expect(page.getByRole("heading", { name: "Item Not Found" })).toBeVisible();
   });
 }
@@ -52,7 +65,7 @@ test("/queue redirects to the portal, keeping its query string", async ({ page }
 });
 
 test("deep links survive a full reload", async ({ page }) => {
-  for (const path of ["/checkin", "/fix/x", "/queue", "/admin"]) {
+  for (const path of ["/checkin", "/ticket/x", "/fix/x", "/queue", "/admin"]) {
     await page.goto(path);
     await page.reload();
     await expect(page.locator("body")).not.toContainText("404");
