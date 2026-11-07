@@ -1,8 +1,8 @@
-// The fixer page (/fix/:id) remembers the last fixer name submitted on this
-// device, so a fixer closing out several tickets on their own phone types it
-// once. Saved only after a successful submit, and only on the fixer page:
-// the portal runs on a shared device, where a remembered name would land on the
-// next person's ticket.
+// The ticket page (/ticket/:id) remembers the last fixer name used on this
+// device, so a fixer working through several tickets on their own phone types
+// it once. Saved after a successful claim or outcome submit, and only on the
+// ticket page: the portal runs on a shared device, where a remembered name
+// would land on the next person's ticket.
 //
 // Kept in localStorage (the name is never needed server-side, so a cookie would
 // only add it to every request). Storage can be unavailable (private mode,

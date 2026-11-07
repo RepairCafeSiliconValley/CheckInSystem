@@ -33,6 +33,12 @@ export default function PrintTickets({
   workOrders,
   attendeeName,
   isVolunteer,
+  // Will this client actually receive a text when the item is claimed? Needs
+  // all three gates: the event collects phone numbers, a usable number is on
+  // file, and they consented. Shown as a pill beside the priority number; the
+  // claim QR and its caption are the same either way. Defaults to false so a
+  // caller that hasn't been updated makes no promise it can't keep.
+  canTextClient = false,
   submittedAt,
   onClose,
 }) {
@@ -127,6 +133,7 @@ export default function PrintTickets({
             <TicketCodeBadge
               code={wo.priority}
               isVolunteer={isVolunteer}
+              canTextClient={canTextClient}
               mode={TICKET_CODE_BADGE_MODE.PRIORITY}
             />
           </div>
@@ -171,94 +178,48 @@ export default function PrintTickets({
 
           <div style={divider} />
 
-          {/* Stamp placeholder, ticket code, and QR code in one vertically centered row.
-              Uses CSS Grid with fixed-width outer columns (not flexbox
-              space-between) so the placeholder and QR are pinned to fixed
-              positions relative to the row's own width. The code badge's
-              rendered width — which can vary with font metrics between
-              environments — lives entirely inside the middle column and
-              can never push the QR out of place. */}
+          {/* Ticket code above one centred QR.
+              There used to be two codes side by side — claim on the left,
+              submit-outcome on the right — which made volunteers choose
+              between them and squeezed each into a 76px column. Both now point
+              at /ticket/:id, which decides what to show from the item's status,
+              so a single code can take the full ticket width. At 140px the
+              modules are nearly twice as wide, which is what makes this scan
+              reliably off thermal paper. */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "76px 1fr 76px",
+              display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              padding: "8px 0 8px 0",
-              paddingRight: 6,
+              padding: "8px 0",
             }}
           >
+            <TicketCodeBadge
+              code={wo.code?.split("-")[0]}
+              isVolunteer={isVolunteer}
+              mode={TICKET_CODE_BADGE_MODE.COMPACT}
+            />
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: 76,
-                  height: 76,
-                  border: "1px dashed #000",
-                  boxSizing: "border-box",
-                }}
-              />
-              {/* invisible spacer matching the QR caption so both squares stay aligned */}
-              <div style={{ ...qrCaptionStyle, visibility: "hidden" }}>
-                SUBMIT
-                <br />
-                RESOLUTION
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifySelf: "center",
-                maxWidth: "100%",
+                width: 140,
+                height: 140,
                 overflow: "hidden",
+                marginTop: 6,
               }}
             >
-              <TicketCodeBadge
-                code={wo.code?.split("-")[0]}
-                isVolunteer={isVolunteer}
-                mode={TICKET_CODE_BADGE_MODE.COMPACT}
+              <QRCodeSVG
+                value={`${baseUrl}/ticket/${wo.id}`}
+                size={140}
+                level="M"
+                style={{ width: "140px", height: "140px", display: "block" }}
               />
-              {/* invisible spacer matching the QR caption so the code stays level with the boxes */}
-              <div style={{ ...qrCaptionStyle, visibility: "hidden" }}>
-                SUBMIT
-                <br />
-                RESOLUTION
-              </div>
             </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: 76,
-                  height: 76,
-                  overflow: "hidden",
-                }}
-              >
-                <QRCodeSVG
-                  value={`${baseUrl}/fix/${wo.id}`}
-                  size={76}
-                  level="M"
-                  style={{ width: "76px", height: "76px", display: "block" }}
-                />
-              </div>
-              <div style={qrCaptionStyle}>
-                SUBMIT
-                <br />
-                RESOLUTION
-              </div>
+            {/* Whether this client gets a text is shown by the badge next to
+                the priority number at the top, not here. */}
+            <div style={qrCaptionStyle}>
+              SCAN TO CLAIM OR
+              <br />
+              SUBMIT OUTCOME
             </div>
           </div>
         </div>

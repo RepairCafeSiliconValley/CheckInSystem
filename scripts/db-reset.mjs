@@ -41,6 +41,15 @@ const MIGRATIONS = [
   "supabase-reason-notes-migration.sql",
   "supabase-admin-auth-migration.sql",
   "supabase-admin-auth-lockdown.sql",
+  // ─── SMS / claim flow (twilio-integration) ───
+  // The vN numbering collides with the names above (supabase-status-overhaul
+  // is also "V7"); dependency order is what matters, not the number.
+  "supabase-migration-v7.sql", // drops v6's 11-arg checkin_visitor for a 12-arg one
+  "supabase-migration-v9.sql", // events.text_message_template
+  "supabase-migration-v10.sql", // get_fixer_work_order gains can_text_client; needs v7's column
+  "supabase-sms-notifications-migration.sql",
+  "supabase-migration-v11.sql", // sms_notifications reads → can_access_queue()
+  "supabase-migration-v12.sql", // unclaim_work_order(); needs can_access_queue()
 ];
 
 const SEED = "supabase-seed.sql";

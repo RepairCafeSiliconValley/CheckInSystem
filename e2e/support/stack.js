@@ -79,6 +79,9 @@ export async function checkIn(eventId, visitor = {}) {
     zip: "95035",
     items: [{ name: "E2E Lamp", description: "Flickers" }],
     newsletter: false,
+    // Drives can_text_client, which decides whether the ticket page offers
+    // "Claim & text client" alongside the plain claim button.
+    textMessage: false,
     ...visitor,
   };
   const result = await request("/rest/v1/rpc/checkin_visitor", {
@@ -96,6 +99,7 @@ export async function checkIn(eventId, visitor = {}) {
       p_waiver_text: "e2e waiver",
       p_waiver_hash: "e2e",
       p_newsletter_opt_in: v.newsletter,
+      p_text_message_opt_in: v.textMessage,
     },
   });
   const orders = await workOrdersFor(eventId, result.baseCode);

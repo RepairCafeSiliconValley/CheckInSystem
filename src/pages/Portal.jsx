@@ -25,6 +25,7 @@ import {
   fetchVisitorDetail,
 } from "../lib/store";
 import { submittedStamp } from "../lib/metrics";
+import { isTextablePhone } from "../lib/textMessage";
 
 // Every tab the portal has. The volunteer account gets the two that aren't
 // adminOnly; an admin gets all four, in one bar, with no sign-in between them.
@@ -186,7 +187,7 @@ export default function Portal() {
 
   const handlePrint = async (attId) => {
     try {
-      const { attendee, orders } = await fetchVisitorDetail(attId);
+      const { attendee, orders, event } = await fetchVisitorDetail(attId);
       const printableOrders = orders.filter(
         (w) =>
           w.status === "pending_assignment" ||
@@ -202,6 +203,18 @@ export default function Portal() {
         // Resolved from the whole visit, not per item, so every ticket carries
         // the same time the queue card shows.
         submittedAt: submittedStamp(attendee, orders),
+        // Whether the ticket's text pill promises a text. Same three gates the
+        // Edge Function applies at claim time, in the same order. Drawn from the
+        // visitor's own event rather than the selected tab, so a reprint for
+        // someone from another event still gets it right.
+        //
+        // This is a snapshot: the ticket is printed at check-in but the text is
+        // sent at claim time, so editing the phone or flipping the event setting
+        // in between leaves the printed pill stale.
+        canTextClient:
+          Boolean(event?.collect_phone) &&
+          Boolean(attendee.text_message_opt_in) &&
+          isTextablePhone(attendee.phone),
       });
       setPrintingVisitorId(attId);
     } catch (err) {
@@ -237,6 +250,7 @@ export default function Portal() {
             workOrders={printData.orders}
             attendeeName={printData.attendeeName}
             isVolunteer={printData.isVolunteer}
+            canTextClient={printData.canTextClient}
             submittedAt={printData.submittedAt}
             onClose={() => {
               setPrintingVisitorId(null);

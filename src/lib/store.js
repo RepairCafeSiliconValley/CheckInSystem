@@ -1,5 +1,6 @@
 import { supabase, authRedirectError } from "./supabase";
 import { STATUSES, VOLUNTEER_ACCOUNT_EMAIL } from "./constants";
+import { DEFAULT_TEXT_MESSAGE } from "./textMessage";
 
 // ─── Paging ───
 
@@ -75,6 +76,7 @@ export async function createEvent({
   collectEmail = true,
   collectPhone = true,
   collectWeight = false,
+  textMessageTemplate = DEFAULT_TEXT_MESSAGE,
 }) {
   const { data, error } = await supabase
     .from("events")
@@ -86,6 +88,7 @@ export async function createEvent({
       collect_email: collectEmail,
       collect_phone: collectPhone,
       collect_weight: collectWeight,
+      text_message_template: textMessageTemplate,
     })
     .select()
     .single();
@@ -106,7 +109,7 @@ export async function toggleEventOpen(id, isOpen) {
 
 // ─── Check-in (atomic via RPC) ───
 
-export async function checkinVisitor(eventId, firstName, lastName, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash, newsletterOptIn) {
+export async function checkinVisitor(eventId, firstName, lastName, email, phone, zipCode, items, waiverVersion, waiverText, waiverHash, newsletterOptIn, textMessageOptIn) {
   const rpcItems = items.map((item, idx) => ({
     item_name: item.name.trim(),
     description: item.description.trim(),
@@ -125,6 +128,7 @@ export async function checkinVisitor(eventId, firstName, lastName, email, phone,
     p_waiver_text: waiverText || null,
     p_waiver_hash: waiverHash || null,
     p_newsletter_opt_in: !!newsletterOptIn,
+    p_text_message_opt_in: !!textMessageOptIn,
   });
 
   if (error) throw error;
@@ -208,6 +212,42 @@ export async function submitFixerOutcome(workOrderId, fixerName, outcome, notFix
     p_outcome: outcome,
     p_not_fixed_reason: notFixedReason || null,
     p_not_fixed_note: notFixedNote?.trim() || null,
+  });
+  if (error) throw error;
+}
+
+// ─── Claim + notify (public, via Edge Function) ───
+// A fixer takes the ticket off the board: sets the work order to 'assigned'
+// (With Fixer), records the fixer name, and best-effort texts the client via
+// Twilio. The Edge Function holds the Twilio secret and reads the phone
+// server-side — the browser never sees it. Returns { ok, status, texted, reason }.
+// sendText is the fixer's explicit choice between the ticket page's two claim
+// buttons. The Edge Function defaults it to true when absent, so the claim
+// still texts for any caller that doesn't pass it.
+export async function claimAndNotify(workOrderId, fixerName, { sendText = true } = {}) {
+  const { data, error } = await supabase.functions.invoke("claim-and-notify", {
+    body: {
+      work_order_id: workOrderId,
+      fixer_name: fixerName.trim(),
+      send_text: sendText,
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+// ─── Unclaim (volunteers and admins, via RPC) ───
+// The client was summoned but never came to the desk: put the item back on the
+// board. Returns it to 'pending_assignment' (Checked-In) and clears the fixer,
+// so the next fixer can claim it — and supersedes the prior summons so that
+// claim texts the client again.
+//
+// An RPC rather than updateWorkOrder because the two halves need different
+// privileges: a volunteer may update work_orders under RLS, but
+// sms_notifications is service-role-write-only. See migration v12.
+export async function unclaimWorkOrder(workOrderId) {
+  const { error } = await supabase.rpc("unclaim_work_order", {
+    p_work_order_id: workOrderId,
   });
   if (error) throw error;
 }
@@ -368,7 +408,7 @@ export async function exportAttendeesCSV(eventId, eventName) {
   const data = await fetchAllPages(() =>
     supabase
       .from("attendees")
-      .select("first_name, last_name, email, phone, zip_code, is_volunteer, newsletter_opt_in, created_at")
+      .select("first_name, last_name, email, phone, zip_code, is_volunteer, newsletter_opt_in, text_message_opt_in, created_at")
       .eq("event_id", eventId)
       .order("created_at", { ascending: true })
   );
@@ -381,7 +421,7 @@ export async function exportAttendeesCSV(eventId, eventName) {
       : s;
   };
 
-  const header = "First Name,Last Name,Email,Phone,Zip Code,Volunteer,Newsletter,Checked In";
+  const header = "First Name,Last Name,Email,Phone,Zip Code,Volunteer,Newsletter,Text Message Consent,Checked In";
   const rows = data.map((a) =>
     [
       esc(a.first_name),
@@ -391,6 +431,7 @@ export async function exportAttendeesCSV(eventId, eventName) {
       esc(a.zip_code),
       a.is_volunteer ? "Yes" : "No",
       a.newsletter_opt_in ? "Yes" : "No",
+      a.text_message_opt_in ? "Yes" : "No",
       new Date(a.created_at).toLocaleString(),
     ].join(",")
   );

@@ -109,8 +109,10 @@ select is(
      and p.parameter_name in ('email', 'phone', 'last_name', 'zip_code')),
   0, 'get_fixer_work_order returns no email, phone, last name or zip code');
 
+-- 12 args since migration v7 appended p_text_message_opt_in, which dropped the
+-- 11-arg overload this used to name.
 select function_privs_are('public', 'checkin_visitor',
-  array['uuid','text','text','text','jsonb','text','text','text','text','text','boolean'],
+  array['uuid','text','text','text','jsonb','text','text','text','text','text','boolean','boolean'],
   'anon', array['EXECUTE'], 'anon can execute checkin_visitor');
 
 select * from finish();
