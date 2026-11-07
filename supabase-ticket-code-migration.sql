@@ -33,8 +33,11 @@
 --     function holds a transaction lock on the prefix it chose until the insert
 --     commits, so a racing draw waits, then sees the committed row and draws
 --     again.
--- Only callers that supply their own id (test fixtures) can hit the index, and
--- that error is correct for them. A single multi-row INSERT is the one case
+-- Only callers that supply their own id (test fixtures) skip the default and
+-- can hit the index, and that error is correct for them. The two layers are
+-- deliberate: the index is the guarantee, the default keeps it from ever
+-- surfacing as a check-in error. The default's cost is one index lookup and
+-- one advisory lock per new work order. A single multi-row INSERT is the one case
 -- where two rows can't see each other's prefix; nothing in the app does that,
 -- and the seed's few dozen rows would need a roughly 1-in-10^15 draw.
 --
@@ -92,9 +95,15 @@ begin
 end;
 $function$;
 
--- The default runs with the inserting role's privileges, so every role that
--- inserts work orders needs EXECUTE.
-grant execute on function public.new_work_order_id(uuid) to anon, authenticated, service_role;
+-- The default runs with the inserting role's privileges. Visitors never insert
+-- work orders directly: check-in goes through checkin_visitor(), a SECURITY
+-- DEFINER function owned by postgres, so the default runs as postgres there.
+-- The seed runs as postgres and the e2e helpers use the service role. So
+-- browser roles get no EXECUTE at all, which also keeps p_first from being
+-- used to probe which prefixes exist. A future direct insert as anon or
+-- authenticated would fail loudly with "permission denied" — grant it then.
+revoke execute on function public.new_work_order_id(uuid) from public, anon, authenticated;
+grant execute on function public.new_work_order_id(uuid) to service_role;
 
 
 -- ─── 2. The guarantee ───

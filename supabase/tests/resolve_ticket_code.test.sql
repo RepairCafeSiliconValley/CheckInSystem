@@ -12,7 +12,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(20);
+select plan(23);
 
 -- ── Fixtures (as postgres, bypassing RLS) ──
 insert into events (id, name, date, is_open)
@@ -78,8 +78,26 @@ select is(
   200, 'and every one gets its own prefix');
 
 
+-- Browser roles can't call the id generator: check-in reaches it through
+-- checkin_visitor(), which runs as postgres.
+select ok(not has_function_privilege('anon', 'public.new_work_order_id(uuid)', 'execute'),
+  'anon cannot call new_work_order_id()');
+select ok(not has_function_privilege('authenticated', 'public.new_work_order_id(uuid)', 'execute'),
+  'authenticated cannot call new_work_order_id()');
+
+
 -- ════ resolve_ticket_code(): anon, because the ticket page has no login ════
 set local role anon;
+
+-- Check-in, the real insert path, still works for a visitor with no login.
+select ok(
+  (select checkin_visitor(
+     p_event_id => 'f1c0de00-0000-4000-8000-0000000000e1',
+     p_first_name => 'Vic', p_last_name => 'Visitor', p_email => null, p_phone => null,
+     p_zip_code => '95035', p_items => '[{"item_name":"Clock","description":"Stopped","priority":1}]'::jsonb,
+     p_waiver_version => 'test', p_waiver_text => 'test', p_waiver_hash => 'test',
+     p_newsletter_opt_in => false, p_text_message_opt_in => false)) is not null,
+  'anon check-in still creates work orders through the new default');
 
 select is(public.resolve_ticket_code('F1C0DE0000004ABC'),
   'f1c0de00-0000-4abc-8000-000000000001'::uuid,

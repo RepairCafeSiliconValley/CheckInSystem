@@ -21,9 +21,9 @@ import { fetchWorkOrderById, resolveTicketCode } from "../lib/store";
 // outcome form appears in place, with the text result as a banner above it.
 //
 // Two routes land here: /T/:code, the short code printed on tickets since the
-// QR was shrunk (see ticketLink.js), and /ticket/:id with the full UUID, which
-// tickets printed before that still carry. A code is turned into the id first;
-// everything after that works on the id.
+// QR was shrunk (see ticketLink.js), and /ticket/:id with the full UUID, where
+// the /fix/:id and /claim/:id links on older tickets redirect. A code is turned
+// into the id first; everything after that works on the id.
 
 const wrap = {
   minHeight: "100vh",
