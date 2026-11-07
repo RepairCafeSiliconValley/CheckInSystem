@@ -36,9 +36,15 @@ export default function App() {
       <Route path="/checkin" element={<CheckIn />} />
       {/* /T/:code is what tickets print now: a short upper-case code so the
           QR can be smaller (see src/lib/ticketLink.js). Routes match either
-          case. /ticket/:id is not on any paper — it was only printed by
-          pre-release code — and stays because /claim/:id and /fix/:id
-          redirect to it. */}
+          case.
+
+          /ticket/:id is not on any paper — it was only printed by pre-release
+          code — but keep it for two reasons. It is where /claim/:id and
+          /fix/:id redirect, and it is how you open a ticket from a full id you
+          already have in hand (the queue, a CSV export, a log), which /T/:code
+          cannot do: resolve_ticket_code() wants exactly 16 hex digits and
+          rejects a 32-digit UUID. Postgres takes the id dashed or not, in
+          either case, so an id can be pasted in whatever shape it arrives. */}
       <Route path="/T/:code" element={<Ticket />} />
       <Route path="/ticket/:id" element={<Ticket />} />
       <Route path="/claim/:id" element={<TicketRedirect />} />
