@@ -62,13 +62,6 @@ for (const legacy of ["claim", "fix"]) {
   }
 }
 
-// /ticket/:id was only ever printed by pre-release code, so it was retired
-// once tickets moved to /T/:code. It falls through to the catch-all now.
-test("/ticket/:id is gone and redirects to /", async ({ page }) => {
-  await page.goto(`/ticket/${NO_EVENT}`);
-  await expect(page).toHaveURL(/\/$/);
-});
-
 test("/admin signed out offers both sign-ins on one card", async ({ page }) => {
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();

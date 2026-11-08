@@ -7,8 +7,8 @@
 -- column default and a unique index on work_orders. No new columns, no policy
 -- changes.
 --
--- Why: the ticket QR used to carry the whole work-order UUID
--- (/ticket/<36 chars>), which made a dense 37×37 code that some phones
+-- Why: the ticket QR used to carry the whole 36-character work-order UUID,
+-- which made a dense 37×37 code that some phones
 -- struggled to read off wrinkled thermal paper. Tickets now print
 --
 --   HTTPS://<domain>/T/<first 16 hex digits of the UUID>
