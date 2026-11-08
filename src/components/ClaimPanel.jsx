@@ -6,7 +6,7 @@ import ItemDetailsCard from "./ItemDetailsCard";
 import { claimAndNotify } from "../lib/store";
 import { getSavedFixerName, saveFixerName } from "../lib/fixerName";
 
-// Shown by /ticket/:id while an item is still waiting for a fixer. Claiming is
+// Shown by the ticket page while an item is still waiting for a fixer. Claiming is
 // what moves it to With Fixer, records who took it, and (optionally) texts the
 // client — so it comes before the outcome form rather than being skippable.
 

@@ -1,4 +1,4 @@
-// The ticket page (/ticket/:id) remembers the last fixer name used on this
+// The ticket page (/T/:code) remembers the last fixer name used on this
 // device, so a fixer working through several tickets on their own phone types
 // it once. Saved after a successful claim or outcome submit, and only on the
 // ticket page: the portal runs on a shared device, where a remembered name

@@ -1,10 +1,4 @@
-import {
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-  useParams,
-} from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import CheckIn from "./pages/CheckIn";
 import Portal from "./pages/Portal";
 import Ticket from "./pages/Ticket";
@@ -18,17 +12,6 @@ function QueueRedirect() {
   return <Navigate to={`/admin${search}`} replace />;
 }
 
-// Claiming and submitting an outcome used to be two pages with a QR code each.
-// They are now both /ticket/:id.
-//
-// KEEP THESE FOREVER. Every ticket printed before the merge carries /claim/:id
-// and /fix/:id in a QR code, on paper that stays in circulation. Deleting
-// either path bricks those slips with no way to reprint them.
-function TicketRedirect() {
-  const { id } = useParams();
-  return <Navigate to={`/ticket/${id}`} replace />;
-}
-
 export default function App() {
   return (
     <Routes>
@@ -38,17 +21,20 @@ export default function App() {
           QR can be smaller (see src/lib/ticketLink.js). Routes match either
           case.
 
-          /ticket/:id is not on any paper — it was only printed by pre-release
-          code — but keep it for two reasons. It is where /claim/:id and
-          /fix/:id redirect, and it is how you open a ticket from a full id you
-          already have in hand (the queue, a CSV export, a log), which /T/:code
-          cannot do: resolve_ticket_code() wants exactly 16 hex digits and
-          rejects a 32-digit UUID. Postgres takes the id dashed or not, in
-          either case, so an id can be pasted in whatever shape it arrives. */}
+          /fix/:id and /claim/:id take the full work-order UUID. KEEP THESE
+          FOREVER: tickets printed by PROD before the short code carry
+          /fix/<uuid> (and older ones /claim/<uuid>) in a QR code, on paper
+          that stays in circulation, and deleting either path bricks those
+          slips. They are also how you open a ticket from a full id you
+          already have in hand (the queue, a CSV export, a log), which
+          /T/:code cannot do: resolve_ticket_code() wants exactly 16 hex
+          digits. Postgres takes the id dashed or not, in either case, so it
+          can be pasted in whatever shape it arrives. They render the ticket
+          page directly rather than redirecting, so the URL a fixer scanned
+          stays in the address bar. */}
       <Route path="/T/:code" element={<Ticket />} />
-      <Route path="/ticket/:id" element={<Ticket />} />
-      <Route path="/claim/:id" element={<TicketRedirect />} />
-      <Route path="/fix/:id" element={<TicketRedirect />} />
+      <Route path="/fix/:id" element={<Ticket />} />
+      <Route path="/claim/:id" element={<Ticket />} />
       {/* One portal for volunteers and admins. /admin is the canonical path
           because signInWithGoogle() redirects back to it. */}
       <Route path="/admin" element={<Portal />} />

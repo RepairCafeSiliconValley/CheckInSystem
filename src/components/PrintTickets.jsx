@@ -183,13 +183,13 @@ export default function PrintTickets({
               There used to be two codes side by side — claim on the left,
               submit-outcome on the right — which made volunteers choose
               between them and squeezed each into a 76px column. Both now point
-              at /ticket/:id, which decides what to show from the item's status,
+              at the one ticket page, which decides what to show from the item's status,
               so a single code can take the full ticket width. At 140px the
               modules are nearly twice as wide, which is what makes this scan
               reliably off thermal paper.
 
               The link is the short upper-case /T/<code> form (ticketLink.js),
-              not /ticket/<uuid>: it drops the QR from 37×37 to 29×29, so each
+              not the full UUID: that made a 37×37 QR, and this one is 29×29, so each
               module is about a quarter wider again. */}
           <div
             style={{

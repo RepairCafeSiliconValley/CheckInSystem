@@ -13,7 +13,7 @@ import {
   NOTE_HINT,
 } from "../lib/constants";
 
-// Shown by /ticket/:id once an item is With Fixer. Lifted from the old
+// Shown by the ticket page once an item is With Fixer. Lifted from the old
 // /fix/:id page unchanged apart from the shared item card.
 
 const OUTCOME_EMOJI = {

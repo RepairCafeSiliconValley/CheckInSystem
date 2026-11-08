@@ -207,7 +207,7 @@ export async function fetchWorkOrderById(id) {
 // The ticket QR carries /T/<16 hex digits>, the start of the work order's UUID
 // (see ticketLink.js), which the database keeps unique. Returns the full id, or
 // null when the code is malformed or matches nothing; the ticket page shows
-// "Item Not Found" for both, as it does for a bad /ticket/<uuid>.
+// "Item Not Found" for both, as it does for a bad /fix/<uuid>.
 
 export async function resolveTicketCode(code) {
   const { data, error } = await supabase.rpc("resolve_ticket_code", { p_code: code });
