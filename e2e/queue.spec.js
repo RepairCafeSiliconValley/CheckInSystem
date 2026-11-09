@@ -215,7 +215,7 @@ test("approve & print needs every category, then prints and marks items Checked-
     expect(row.printed_at).not.toBeNull();
   }
 
-  await page.getByRole("button", { name: "← Back" }).click();
+  await page.getByRole("button", { name: "← Client" }).click();
   await expect(page.getByRole("button", { name: /Reprint Tickets/ })).toBeVisible();
   // Printing moved the items to Checked-In, which is what offers the outcome
   // action. The panel itself is collapsed behind this button.
@@ -234,4 +234,21 @@ test("reprint shows the printed items' tickets again", async ({ page, event, asV
   await page.getByRole("button", { name: /Reprint Ticket/ }).click();
   await expect(page.locator(".print-ticket")).toHaveCount(1);
   await expect(page.getByText("E2E Reprint T.").first()).toBeVisible();
+});
+
+test("Back to Queue on the print preview goes straight to the queue", async ({ page, event, asVolunteer }) => {
+  const v = await checkIn(event.id, { firstName: "E2E Done" });
+  await markPrinted(v.orders[0].id);
+  await openVisitor(page, asVolunteer, event.id, "E2E Done Tester");
+  await page.getByRole("button", { name: /Reprint Ticket/ }).click();
+  await expect(page.locator(".print-ticket")).toHaveCount(1);
+
+  await page.getByRole("button", { name: /Print/ }).click();
+  await expect.poll(() => page.evaluate(() => window.__printCalls)).toBe(1);
+
+  await page.getByRole("button", { name: "Back to Queue" }).click();
+  // Lands on the queue for the same event, not on the visitor detail.
+  await expect(page.locator(".print-ticket")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Reprint Ticket/ })).toHaveCount(0);
+  await expect(chip(page, "Checked-In")).toHaveText("Checked-In (1)");
 });

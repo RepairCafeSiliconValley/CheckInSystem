@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
 import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
@@ -42,6 +42,10 @@ export default function PrintTickets({
   canTextClient = false,
   submittedAt,
   onClose,
+  // Optional: straight back to the queue, skipping the visitor detail. The
+  // front desk's next step after printing is the next visitor, and "← Back"
+  // then "← Queue" was two clicks for it.
+  onDone,
 }) {
   const baseUrl = window.location.origin;
   const divider = { borderTop: "1px solid #000", margin: "10px 0" };
@@ -49,7 +53,13 @@ export default function PrintTickets({
   // later at the desk still belongs to the same submission.
   const submittedLabel = formatClockTime(submittedAt);
 
+  // Once Print has been pressed, Back to Queue becomes the primary button.
+  // Not an automatic return on afterprint: that also fires when the dialog is
+  // cancelled, and a jammed ticket needs the preview to print again.
+  const [printed, setPrinted] = useState(false);
+
   const handlePrint = useCallback(() => {
+    setPrinted(true);
     setTimeout(() => window.print(), 50);
   }, []);
 
@@ -64,20 +74,31 @@ export default function PrintTickets({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
             marginBottom: 20,
           }}
         >
           <Button variant="ghost" onClick={onClose} style={{ width: "auto" }}>
-            ← Back
+            ← Client
           </Button>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <Button
-              variant="primary"
+              variant={onDone && printed ? "outline" : "primary"}
               onClick={handlePrint}
               style={{ width: "auto", padding: "10px 24px" }}
             >
               🖨️ Print
             </Button>
+            {onDone && (
+              <Button
+                variant={printed ? "primary" : "outline"}
+                onClick={onDone}
+                style={{ width: "auto", padding: "10px 24px" }}
+              >
+                Back to Queue
+              </Button>
+            )}
           </div>
         </div>
         <p

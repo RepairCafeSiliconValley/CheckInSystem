@@ -256,6 +256,11 @@ export default function Portal() {
               setPrintingVisitorId(null);
               setPrintData(null);
             }}
+            onDone={() => {
+              setPrintingVisitorId(null);
+              setPrintData(null);
+              setSelectedVisitorId(null);
+            }}
           />
         </div>
       </div>
