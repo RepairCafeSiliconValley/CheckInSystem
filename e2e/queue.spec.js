@@ -201,6 +201,10 @@ test("approve & print needs every category, then prints and marks items Checked-
   await expect(page.getByText("E2E Print Tester")).toHaveCount(0);
   await expect(page.locator(".print-ticket")).toHaveCount(2);
   await expect(page.locator(".print-ticket svg")).toHaveCount(2); // one QR per ticket
+  // The short upper-case /T/ link makes a 29×29 code; a link carrying the full
+  // UUID made 37×37 at this origin. qrcode.react draws one viewBox unit per
+  // module, with no margin.
+  await expect(page.locator(".print-ticket svg").first()).toHaveAttribute("viewBox", "0 0 29 29");
 
   await page.getByRole("button", { name: /Print/ }).click();
   await expect.poll(() => page.evaluate(() => window.__printCalls)).toBe(1);

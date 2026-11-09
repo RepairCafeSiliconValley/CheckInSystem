@@ -54,7 +54,9 @@ The tests check the print preview and stub out the browser's print call. They ca
 | 2.2 | On the iPhone, check in visitor `QA Alice` with two items. On the Android phone, `QA Bob` with one | Both reach the confirmation screen with a letter-digit-letter ID and one code per item |
 | 2.3 | Laptop, Queue tab: open Alice, set both categories, Approve & Print All Tickets, then Print | The print dialog shows 2 pages, one ticket per page, nothing cut off at the edges. On the thermal printer each ticket fits one label |
 | 2.4 | Read a printed ticket | Submitted time, priority badge, category, item, issue and "QA Alice T." are legible at arm's length. The QR is sharp |
-| 2.5 | Scan each ticket's QR with a phone | It opens `/fix/<id>` on the preview URL and shows the right item |
+| 2.5 | Scan each ticket's QR with a phone | It opens `/T/<16-character code>` on the preview URL and shows the right item. The link is all upper case: check both the iPhone and the Android camera offer to open it as a link, not as plain text |
+| 2.5a | Crumple one printed ticket, flatten it roughly, and scan it with both phones and any QR-scanner app the fixers use | Each one opens the right item. This is what the short code is for: the QR is 29×29 now, down from 37×37 |
+| 2.5b | Scan a ticket printed by PROD before the short code (its QR carries `/fix/<id>`) | It still opens the right item |
 | 2.6 | On the phone, record Fixed for item 1 | The laptop's Queue shows Completed for that item within a few seconds |
 | 2.6a | On the same phone, scan item 2's QR with the camera app | Fixer Name is already filled with the name from 2.6. A QR-scanner app that opens links in its own built-in browser keeps separate storage, so there the name may need typing once |
 | 2.7 | Mark Bob as a volunteer, then print his ticket | The priority badge carries the volunteer marker |

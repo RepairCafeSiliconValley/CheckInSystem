@@ -5,7 +5,7 @@ import Card from "../components/Card";
 import ClaimPanel from "../components/ClaimPanel";
 import OutcomePanel from "../components/OutcomePanel";
 import ClaimResultBanner from "../components/ClaimResultBanner";
-import { fetchWorkOrderById } from "../lib/store";
+import { fetchWorkOrderById, resolveTicketCode } from "../lib/store";
 
 // The one thing a ticket's QR points at. Claiming and submitting an outcome
 // used to be /claim/:id and /fix/:id with a QR each, which made volunteers
@@ -19,6 +19,11 @@ import { fetchWorkOrderById } from "../lib/store";
 //
 // Claiming doesn't navigate: the refetch flips status to 'assigned' and the
 // outcome form appears in place, with the text result as a banner above it.
+//
+// Three routes land here: /T/:code, the short code printed on tickets since the
+// QR was shrunk (see ticketLink.js), and /fix/:id and /claim/:id with the full
+// UUID, which older tickets carry on paper. A code is turned into the id first;
+// everything after that works on the id.
 
 const wrap = {
   minHeight: "100vh",
@@ -114,7 +119,7 @@ function SubmittedScreen({ outcome, itemName }) {
 }
 
 export default function Ticket() {
-  const { id } = useParams();
+  const { id, code } = useParams();
   const [workOrder, setWorkOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   // Set once an item is claimed on this visit, so the banner only appears to
@@ -122,9 +127,14 @@ export default function Ticket() {
   const [claimResult, setClaimResult] = useState(null);
   const [submittedOutcome, setSubmittedOutcome] = useState(null);
 
+  // Re-resolving the code on the refetch after a claim costs one small RPC and
+  // keeps this a single path.
   const load = useCallback(
-    () => fetchWorkOrderById(id).then(setWorkOrder),
-    [id],
+    () =>
+      (code ? resolveTicketCode(code) : Promise.resolve(id))
+        .then((workOrderId) => (workOrderId ? fetchWorkOrderById(workOrderId) : null))
+        .then(setWorkOrder),
+    [id, code],
   );
 
   useEffect(() => {

@@ -2,7 +2,7 @@ import Card from "./Card";
 import Badge from "./Badge";
 
 // Code, client, item and issue — the context a fixer needs to confirm they
-// scanned the right ticket. Both halves of /ticket/:id show it, and before the
+// scanned the right ticket. Both halves of the ticket page show it, and before the
 // two pages merged each carried its own near-identical copy.
 
 const fieldLabel = {

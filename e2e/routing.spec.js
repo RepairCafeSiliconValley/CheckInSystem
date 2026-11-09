@@ -1,6 +1,8 @@
-// Playbook §1: routes, dead ends and redirects. Needs no data.
+// Playbook §1: routes, dead ends and redirects. Mostly needs no data; the
+// legacy ticket links check-in one item to open.
 
 import { test, expect } from "./support/fixtures.js";
+import { checkIn, markPrinted } from "./support/stack.js";
 
 const NO_EVENT = "00000000-0000-0000-0000-000000000000";
 
@@ -21,27 +23,43 @@ for (const [name, path] of [
   });
 }
 
-for (const [name, id] of [
-  ["an unknown id", NO_EVENT],
-  ["a malformed id", "not-a-uuid"],
+for (const [name, code] of [
+  ["an unknown code", "0000000000004000"],
+  ["a too-short code", "ABC123"],
+  ["a non-hex code", "NOTAHEXCODE12345"],
 ]) {
-  test(`/ticket with ${name} shows Item Not Found`, async ({ page }) => {
-    await page.goto(`/ticket/${id}`);
+  test(`/T with ${name} shows Item Not Found`, async ({ page }) => {
+    await page.goto(`/T/${code}`);
     await expect(page.getByRole("heading", { name: "Item Not Found" })).toBeVisible();
   });
 }
 
 // Claiming and submitting an outcome used to be /claim/:id and /fix/:id, one
-// QR code each. Tickets printed before they merged are paper and stay in
-// circulation, so these redirects can never be removed — this is the test that
-// says so.
+// QR code each, and PROD printed /fix/<uuid> until the short /T/ code. Those
+// tickets are paper and stay in circulation, so these routes can never be
+// removed — these are the tests that say so. They open the ticket page in
+// place from the full id; there is no redirect.
 for (const legacy of ["claim", "fix"]) {
-  test(`/${legacy}/:id redirects to /ticket/:id`, async ({ page }) => {
-    await page.goto(`/${legacy}/${NO_EVENT}`);
-    await expect(page).toHaveURL(new RegExp(`/ticket/${NO_EVENT}$`));
-    // Followed through to the real page, not just a URL rewrite.
-    await expect(page.getByRole("heading", { name: "Item Not Found" })).toBeVisible();
+  test(`/${legacy}/:id with a real id opens that item`, async ({ page, event }) => {
+    const v = await checkIn(event.id, { firstName: "E2E Legacy", lastName: "Link" });
+    const order = v.orders[0];
+    await markPrinted(order.id, "Electronics");
+    await page.goto(`/${legacy}/${order.id}`);
+    await expect(page.getByRole("heading", { name: "Start Working on This Item" })).toBeVisible();
+    await expect(page.getByText(order.code)).toBeVisible();
+    await expect(page.getByText("E2E Legacy L.")).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/${legacy}/${order.id}$`));
   });
+
+  for (const [name, id] of [
+    ["an unknown id", NO_EVENT],
+    ["a malformed id", "not-a-uuid"],
+  ]) {
+    test(`/${legacy} with ${name} shows Item Not Found`, async ({ page }) => {
+      await page.goto(`/${legacy}/${id}`);
+      await expect(page.getByRole("heading", { name: "Item Not Found" })).toBeVisible();
+    });
+  }
 }
 
 test("/admin signed out offers both sign-ins on one card", async ({ page }) => {
@@ -65,7 +83,7 @@ test("/queue redirects to the portal, keeping its query string", async ({ page }
 });
 
 test("deep links survive a full reload", async ({ page }) => {
-  for (const path of ["/checkin", "/ticket/x", "/fix/x", "/queue", "/admin"]) {
+  for (const path of ["/checkin", "/T/x", "/fix/x", "/queue", "/admin"]) {
     await page.goto(path);
     await page.reload();
     await expect(page.locator("body")).not.toContainText("404");
