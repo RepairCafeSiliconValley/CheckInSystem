@@ -1,17 +1,44 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Card from "../components/Card";
 import Input from "../components/Input";
+import Checkbox from "../components/Checkbox";
 import Select from "../components/Select";
 import TextArea from "../components/TextArea";
 import Button from "../components/Button";
 import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
-import { CATEGORIES, OUTCOMES, CANCEL_REASONS, NOT_FIXED_REASONS } from "../lib/constants";
+import RecordOutcome from "../components/RecordOutcome";
+import ReasonPicker from "../components/ReasonPicker";
+import { CATEGORIES, CANCEL_REASONS } from "../lib/constants";
+import { isTextablePhone } from "../lib/textMessage";
 import {
   fetchVisitorDetail,
   updateAttendee,
   updateWorkOrder,
+  unclaimWorkOrder,
 } from "../lib/store";
+
+// Collapses an open action panel back to the button stack. Same de-emphasised
+// link the cancel picker has always used, shared by all three panels.
+function NeverMind({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        marginTop: 8,
+        background: "none",
+        border: "none",
+        fontFamily: "'Outfit', sans-serif",
+        fontSize: "12px",
+        color: "#98a2b3",
+        cursor: "pointer",
+        padding: 0,
+      }}
+    >
+      Never mind
+    </button>
+  );
+}
 
 export default function CoordinatorVisitorDetail({
   attendeeId,
@@ -34,9 +61,25 @@ export default function CoordinatorVisitorDetail({
   // Editable item fields — keyed by work order id
   const [itemEdits, setItemEdits] = useState({});
 
-  // Which work order (if any) is showing the cancel-reason / not-fixed-reason picker
-  const [cancelingId, setCancelingId] = useState(null);
-  const [notFixingId, setNotFixingId] = useState(null);
+  // Which work order has an action panel open, and which one: "outcome",
+  // "cancel" or "unclaim". One at a time across the whole page — each item's
+  // actions collapse to a button stack until one is chosen, so the card stays
+  // short for the common case where nothing is recorded at the desk.
+  const [action, setAction] = useState(null); // { id, mode } | null
+  const actionFor = (id) => (action?.id === id ? action.mode : null);
+
+  // Set to a work order id when its unclaim fails, so the message lands on the
+  // right card. Cleared whenever a panel opens or closes, so reopening one
+  // never shows a stale failure.
+  const [unclaimError, setUnclaimError] = useState(null);
+  const openAction = (id, mode) => {
+    setUnclaimError(null);
+    setAction({ id, mode });
+  };
+  const closeAction = () => {
+    setUnclaimError(null);
+    setAction(null);
+  };
 
   // Refs to always have latest values in async callbacks without stale closures
   const attFirstNameRef = useRef("");
@@ -47,50 +90,59 @@ export default function CoordinatorVisitorDetail({
   const itemEditsRef = useRef({});
   const ordersRef = useRef([]);
 
-  attFirstNameRef.current = attFirstName;
-  attLastNameRef.current = attLastName;
-  attEmailRef.current = attEmail;
-  attPhoneRef.current = attPhone;
-  attZipCodeRef.current = attZipCode;
-  itemEditsRef.current = itemEdits;
-  ordersRef.current = orders;
+  // Synced after every commit, before the browser can fire the next blur.
+  useLayoutEffect(() => {
+    attFirstNameRef.current = attFirstName;
+    attLastNameRef.current = attLastName;
+    attEmailRef.current = attEmail;
+    attPhoneRef.current = attPhone;
+    attZipCodeRef.current = attZipCode;
+    itemEditsRef.current = itemEdits;
+    ordersRef.current = orders;
+  });
 
   const showSaved = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const applyVisitor = ({ attendee: att, orders: wo, event: ev }) => {
+    setAttendee(att);
+    setOrders(wo);
+    setEvent(ev);
+    setAttFirstName(att.first_name);
+    setAttLastName(att.last_name);
+    setAttEmail(att.email || "");
+    setAttPhone(att.phone || "");
+    setAttZipCode(att.zip_code || "");
+    const edits = {};
+    wo.forEach((w) => {
+      edits[w.id] = {
+        item_name: w.item_name,
+        category: w.category,
+        description: w.description,
+        fixer_name: w.fixer_name || "",
+        weight_kg: w.weight_kg ?? "",
+      };
+    });
+    setItemEdits(edits);
+  };
+
   const loadData = async () => {
     try {
-      const { attendee: att, orders: wo, event: ev } =
-        await fetchVisitorDetail(attendeeId);
-      setAttendee(att);
-      setOrders(wo);
-      setEvent(ev);
-      setAttFirstName(att.first_name);
-      setAttLastName(att.last_name);
-      setAttEmail(att.email || "");
-      setAttPhone(att.phone || "");
-      setAttZipCode(att.zip_code || "");
-      const edits = {};
-      wo.forEach((w) => {
-        edits[w.id] = {
-          item_name: w.item_name,
-          category: w.category,
-          description: w.description,
-          fixer_name: w.fixer_name || "",
-          weight_kg: w.weight_kg ?? "",
-        };
-      });
-      setItemEdits(edits);
+      applyVisitor(await fetchVisitorDetail(attendeeId));
     } catch (err) {
       console.error("Failed to load visitor:", err);
     }
     setLoading(false);
   };
 
+  // State is set from the promise callbacks, not in the effect body.
   useEffect(() => {
-    loadData();
+    fetchVisitorDetail(attendeeId)
+      .then(applyVisitor)
+      .catch((err) => console.error("Failed to load visitor:", err))
+      .finally(() => setLoading(false));
   }, [attendeeId]);
 
   if (loading) {
@@ -124,6 +176,17 @@ export default function CoordinatorVisitorDetail({
   const collectEmail = event?.collect_email !== false;
   const collectPhone = event?.collect_phone !== false;
   const collectWeight = event?.collect_weight === true;
+
+  // Whether putting an item back on the board will actually summon this client
+  // again. The same three gates claim-and-notify applies, in the same order, so
+  // the confirm never promises a text that can't be sent. Note this tests
+  // collect_phone strictly rather than reusing collectPhone above: that one
+  // defaults a legacy null to true for field display, while the claim flow
+  // treats a null as messaging off.
+  const clientCanBeTexted =
+    Boolean(event?.collect_phone) &&
+    Boolean(attendee.text_message_opt_in) &&
+    isTextablePhone(attendee.phone);
 
   const updateItem = (woId, field, value) => {
     setItemEdits((prev) => ({
@@ -236,43 +299,63 @@ export default function CoordinatorVisitorDetail({
     onPrint(attendeeId);
   };
 
-  const setOrderOutcome = async (woId, outcome, notFixedReason = null) => {
+  const setOrderOutcome = async (woId, outcome, notFixedReason = null, notFixedNote = null) => {
     const e = itemEdits[woId];
     const updates = {
       outcome,
       not_fixed_reason: notFixedReason,
+      not_fixed_note: notFixedNote?.trim() || null,
       status: "completed",
       completed_at: new Date().toISOString(),
     };
     if (e?.fixer_name?.trim()) updates.fixer_name = e.fixer_name.trim();
     await updateWorkOrder(woId, updates);
-    setNotFixingId(null);
+    closeAction();
     await loadData();
   };
 
-  // Cancel is available at any point before an outcome is recorded (pending or
-  // pending_assignment). Canceled rows keep outcome=null; the why lives in cancel_reason.
-  const cancelOrder = async (woId, reason) => {
+  // Cancel is available at any point before an outcome is recorded (pending,
+  // pending_assignment or assigned). Canceled rows keep outcome=null; the why
+  // lives in cancel_reason.
+  const cancelOrder = async (woId, reason, note = null) => {
     await updateWorkOrder(woId, {
       status: "canceled",
       outcome: null,
       cancel_reason: reason,
+      cancel_note: note?.trim() || null,
       completed_at: new Date().toISOString(),
     });
-    setCancelingId(null);
+    closeAction();
     await loadData();
+  };
+
+  // The client was summoned but never came to the desk: put the item back on
+  // the board. Clears the fixer and returns it to Checked-In, and supersedes
+  // the prior summons so whoever claims it next texts the client again.
+  const unclaimOrder = async (woId) => {
+    setUnclaimError(null);
+    try {
+      await unclaimWorkOrder(woId);
+      closeAction();
+      await loadData();
+    } catch (err) {
+      console.error("Failed to put item back on the board:", err);
+      setUnclaimError(woId);
+    }
   };
 
   // Revert a completed OR canceled item back into the active flow. Items canceled
   // before their ticket was printed (no printed_at) go back to 'pending'.
+  // fixer_name is kept so re-recording the outcome doesn't lose who worked on it.
   const editOutcome = async (woId) => {
     const wo = orders.find((o) => o.id === woId);
     await updateWorkOrder(woId, {
       status: wo?.printed_at ? "pending_assignment" : "pending",
-      fixer_name: "",
       outcome: null,
       cancel_reason: null,
+      cancel_note: null,
       not_fixed_reason: null,
+      not_fixed_note: null,
       completed_at: null,
     });
     await loadData();
@@ -372,31 +455,23 @@ export default function CoordinatorVisitorDetail({
             gap: 10,
           }}
         >
-          <label
+          <Checkbox
+            checked={attendee.is_volunteer || false}
+            onChange={async (checked) => {
+              await updateAttendee(attendeeId, { is_volunteer: checked });
+              await loadData();
+            }}
+            align="center"
+            gap={8}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
               fontFamily: "'Outfit', sans-serif",
               fontSize: "14px",
               fontWeight: 500,
               color: "#344054",
-              cursor: "pointer",
             }}
           >
-            <input
-              type="checkbox"
-              checked={attendee.is_volunteer || false}
-              onChange={async (e) => {
-                await updateAttendee(attendeeId, {
-                  is_volunteer: e.target.checked,
-                });
-                await loadData();
-              }}
-              style={{ width: 18, height: 18, cursor: "pointer" }}
-            />
             Volunteer
-          </label>
+          </Checkbox>
           {attendee.is_volunteer && (
             <span
               style={{
@@ -503,8 +578,12 @@ export default function CoordinatorVisitorDetail({
               </>
             )}
 
-            {/* Read-only summary for completed / canceled */}
-            {(wo.status === "completed" || wo.status === "canceled") && (
+            {/* Read-only summary for assigned / completed / canceled.
+                'assigned' is read-only on purpose: a fixer physically has the
+                item, so the coordinator shouldn't edit its details mid-repair. */}
+            {(wo.status === "assigned" ||
+              wo.status === "completed" ||
+              wo.status === "canceled") && (
               <div style={{ marginBottom: 12 }}>
                 <div
                   style={{
@@ -532,127 +611,32 @@ export default function CoordinatorVisitorDetail({
                 >
                   {wo.description}
                 </p>
-              </div>
-            )}
-
-            {/* Outcome recording for pending_assignment */}
-            {wo.status === "pending_assignment" && (
-              <div style={{ marginTop: 8 }}>
-                <Input
-                  label="Fixer Name (optional)"
-                  value={e.fixer_name || ""}
-                  onChange={(v) => updateItem(wo.id, "fixer_name", v)}
-                  onBlur={() => saveWorkOrder(wo.id)}
-                  placeholder="Who worked on this?"
-                />
-                <p
-                  style={{
-                    fontFamily: "'Outfit', sans-serif",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#344054",
-                    margin: "0 0 8px 0",
-                  }}
-                >
-                  Record Outcome:
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                  }}
-                >
-                  {OUTCOMES.map((o) => {
-                    const isNotFixedOpen =
-                      o === "Not Fixed" && notFixingId === wo.id;
-                    return (
-                      <button
-                        key={o}
-                        onClick={() =>
-                          o === "Not Fixed"
-                            ? setNotFixingId(
-                                notFixingId === wo.id ? null : wo.id,
-                              )
-                            : setOrderOutcome(wo.id, o)
-                        }
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: "8px",
-                          border: isNotFixedOpen
-                            ? "1.5px solid #1e3a6e"
-                            : "1.5px solid #d0d5dd",
-                          background: isNotFixedOpen ? "#eef2f9" : "#fff",
-                          fontFamily: "'Outfit', sans-serif",
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          color: "#475467",
-                          cursor: "pointer",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {o === "Fixed" && "✅ "}
-                        {o === "Diagnosed" && "🔍 "}
-                        {o === "Not Fixed" && "❌ "}
-                        {o === "Taken Home" && "🥡 "}
-                        {o}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Not-Fixed reason picker — appears when "Not Fixed" is chosen */}
-                {notFixingId === wo.id && (
-                  <div style={{ marginTop: 8 }}>
-                    <p
-                      style={{
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#344054",
-                        margin: "0 0 6px 0",
-                      }}
-                    >
-                      Why wasn't it fixed?
-                    </p>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 8,
-                      }}
-                    >
-                      {NOT_FIXED_REASONS.map((r) => (
-                        <button
-                          key={r}
-                          onClick={() =>
-                            setOrderOutcome(wo.id, "Not Fixed", r)
-                          }
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: "8px",
-                            border: "1.5px solid #d0d5dd",
-                            background: "#fff",
-                            fontFamily: "'Outfit', sans-serif",
-                            fontSize: "12px",
-                            fontWeight: 500,
-                            color: "#475467",
-                            cursor: "pointer",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                {/* Who has the item. For 'assigned' this is the only place it
+                    shows — the outcome panel that used to carry it is collapsed
+                    behind a button now. */}
+                {wo.status === "assigned" && wo.fixer_name && (
+                  <p
+                    style={{
+                      fontFamily: "'Outfit', sans-serif",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "#6941c6",
+                      margin: "8px 0 0 0",
+                    }}
+                  >
+                    Claimed by {wo.fixer_name}
+                  </p>
                 )}
               </div>
             )}
 
-            {/* Cancel — available at any point before an outcome is recorded */}
+            {/* Per-item actions. Collapsed to a button stack by default: the
+                outcome panel used to sit open on every Checked-In and With
+                Fixer card, and it is rarely filled in at the desk. Each button
+                swaps the stack for its own panel; "Never mind" brings it back. */}
             {(wo.status === "pending" ||
-              wo.status === "pending_assignment") && (
+              wo.status === "pending_assignment" ||
+              wo.status === "assigned") && (
               <div
                 style={{
                   marginTop: 12,
@@ -660,78 +644,117 @@ export default function CoordinatorVisitorDetail({
                   paddingTop: 12,
                 }}
               >
-                {cancelingId === wo.id ? (
+                {actionFor(wo.id) === "outcome" && (
+                  <>
+                    <RecordOutcome
+                      fixerName={e.fixer_name || ""}
+                      onFixerNameChange={(v) => updateItem(wo.id, "fixer_name", v)}
+                      onFixerNameBlur={() => saveWorkOrder(wo.id)}
+                      onRecord={(outcome, reason, note) =>
+                        setOrderOutcome(wo.id, outcome, reason, note)
+                      }
+                    />
+                    <NeverMind onClick={closeAction} />
+                  </>
+                )}
+
+                {actionFor(wo.id) === "cancel" && (
+                  <>
+                    <ReasonPicker
+                      label="Cancel reason:"
+                      reasons={CANCEL_REASONS}
+                      onPick={(reason, note) => cancelOrder(wo.id, reason, note)}
+                    />
+                    <NeverMind onClick={closeAction} />
+                  </>
+                )}
+
+                {/* Unclaim asks first: it discards the fixer's name and means
+                    the client gets a second text later, which the desk will be
+                    asked about. Both consequences are spelled out here — and
+                    the text is only promised when it can actually be sent. */}
+                {actionFor(wo.id) === "unclaim" && (
                   <>
                     <p
                       style={{
                         fontFamily: "'Outfit', sans-serif",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#344054",
-                        margin: "0 0 6px 0",
+                        fontSize: "13px",
+                        color: "#475467",
+                        margin: "0 0 10px 0",
+                        lineHeight: 1.5,
                       }}
                     >
-                      Cancel reason:
+                      Put this item back on the board?{" "}
+                      {wo.fixer_name ? (
+                        <>
+                          <strong>{wo.fixer_name}</strong> won't be listed as its
+                          fixer any more
+                        </>
+                      ) : (
+                        "The fixer's name will be removed"
+                      )}
+                      {clientCanBeTexted ? (
+                        <>
+                          , and {attFirstName || "the client"} will get another
+                          text when the next fixer claims it.
+                        </>
+                      ) : (
+                        ", and it'll be waiting for the next fixer."
+                      )}
                     </p>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 8,
-                      }}
+                    <Button
+                      variant="primary"
+                      onClick={() => unclaimOrder(wo.id)}
+                      style={{ fontSize: "14px", padding: "11px 14px" }}
                     >
-                      {CANCEL_REASONS.map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => cancelOrder(wo.id, r)}
-                          style={{
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            border: "1.5px solid #d0d5dd",
-                            background: "#fff",
-                            fontFamily: "'Outfit', sans-serif",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            color: "#475467",
-                            cursor: "pointer",
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => setCancelingId(null)}
-                      style={{
-                        marginTop: 8,
-                        background: "none",
-                        border: "none",
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "12px",
-                        color: "#98a2b3",
-                        cursor: "pointer",
-                        padding: 0,
-                      }}
-                    >
-                      Never mind
-                    </button>
+                      Yes, add back to board
+                    </Button>
+                    {unclaimError === wo.id && (
+                      <p
+                        style={{
+                          fontFamily: "'Outfit', sans-serif",
+                          fontSize: "12px",
+                          color: "#b42318",
+                          textAlign: "center",
+                          margin: "8px 0 0 0",
+                        }}
+                      >
+                        Couldn't put it back. Please refresh and try again.
+                      </p>
+                    )}
+                    <NeverMind onClick={closeAction} />
                   </>
-                ) : (
-                  <button
-                    onClick={() => setCancelingId(wo.id)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      fontFamily: "'Outfit', sans-serif",
-                      fontSize: "13px",
-                      color: "#b42318",
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                  >
-                    ✕ Cancel item
-                  </button>
+                )}
+
+                {actionFor(wo.id) === null && (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {(wo.status === "pending_assignment" ||
+                      wo.status === "assigned") && (
+                      <Button
+                        variant="outline"
+                        onClick={() => openAction(wo.id, "outcome")}
+                        style={{ fontSize: "14px", padding: "11px 14px" }}
+                      >
+                        ✅ Record Outcome
+                      </Button>
+                    )}
+                    {wo.status === "assigned" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => openAction(wo.id, "unclaim")}
+                        style={{ fontSize: "14px", padding: "11px 14px" }}
+                      >
+                        ↩️ Add Back to Board
+                      </Button>
+                    )}
+                    <Button
+                      variant="danger"
+                      onClick={() => openAction(wo.id, "cancel")}
+                      style={{ fontSize: "14px", padding: "11px 14px" }}
+                    >
+                      ✕ Cancel item
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
@@ -785,6 +808,19 @@ export default function CoordinatorVisitorDetail({
                           }}
                         >
                           Reason: {wo.not_fixed_reason}
+                        </div>
+                      )}
+                      {(isCanceled ? wo.cancel_note : wo.not_fixed_note) && (
+                        <div
+                          style={{
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "12px",
+                            color: "#667085",
+                            marginTop: 4,
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          Note: {isCanceled ? wo.cancel_note : wo.not_fixed_note}
                         </div>
                       )}
                     </div>

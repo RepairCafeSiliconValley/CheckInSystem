@@ -6,6 +6,7 @@ import Button from "../components/Button";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import Checkbox from "../components/Checkbox";
+import TextMessageField from "../components/TextMessageField";
 import QrIcon from "../components/QrIcon";
 import {
   fetchEvents,
@@ -16,11 +17,14 @@ import {
   exportAttendeesCSV,
 } from "../lib/store";
 import { computeByEvent, formatKg, plural } from "../lib/metrics";
+import { DEFAULT_TEXT_MESSAGE } from "../lib/textMessage";
 
 // Clamp to the CHECK constraint on events.max_items (1–10).
 const clampMaxItems = (v) => Math.min(10, Math.max(1, Number(v) || 2));
 
-export default function Admin({ onViewMetrics }) {
+// The Events tab: create events, configure them, open and close them, show a
+// check-in QR, export attendees, and hop to an event's metrics.
+export default function Events({ onViewMetrics }) {
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventLocation, setEventLocation] = useState("");
@@ -28,6 +32,7 @@ export default function Admin({ onViewMetrics }) {
   const [collectEmail, setCollectEmail] = useState(true);
   const [collectPhone, setCollectPhone] = useState(true);
   const [collectWeight, setCollectWeight] = useState(false);
+  const [textMessage, setTextMessage] = useState(DEFAULT_TEXT_MESSAGE);
   const [events, setEvents] = useState([]);
   const [stats, setStats] = useState({});
   const [creating, setCreating] = useState(false);
@@ -39,20 +44,27 @@ export default function Admin({ onViewMetrics }) {
   const [qrEvent, setQrEvent] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const loadEvents = async () => {
+  const fetchEventsWithStats = async () => {
     // One read of every event's rows, grouped in JS. This used to be a
     // sequential fetch per event — O(events) round trips on every render.
     const [evs, rows] = await Promise.all([fetchEvents(), fetchMetricsRows(null)]);
-    setEvents(evs);
     const statsMap = {};
     computeByEvent(rows, evs).forEach(({ event, metrics }) => {
       statsMap[event.id] = metrics;
     });
+    return { evs, statsMap };
+  };
+
+  const applyEvents = ({ evs, statsMap }) => {
+    setEvents(evs);
     setStats(statsMap);
   };
 
+  const loadEvents = async () => applyEvents(await fetchEventsWithStats());
+
+  // State is set from the promise callback, not in the effect body.
   useEffect(() => {
-    loadEvents();
+    fetchEventsWithStats().then(applyEvents);
   }, []);
 
   const handleCreate = async () => {
@@ -67,6 +79,7 @@ export default function Admin({ onViewMetrics }) {
         collectEmail,
         collectPhone,
         collectWeight,
+        textMessageTemplate: textMessage.trim(),
       });
       setEventName("");
       setEventDate("");
@@ -75,6 +88,7 @@ export default function Admin({ onViewMetrics }) {
       setCollectEmail(true);
       setCollectPhone(true);
       setCollectWeight(false);
+      setTextMessage(DEFAULT_TEXT_MESSAGE);
       await loadEvents();
     } catch (err) {
       console.error("Failed to create event:", err);
@@ -89,6 +103,7 @@ export default function Admin({ onViewMetrics }) {
       collectEmail: ev.collect_email !== false,
       collectPhone: ev.collect_phone !== false,
       collectWeight: ev.collect_weight === true,
+      textMessage: ev.text_message_template ?? DEFAULT_TEXT_MESSAGE,
     });
   };
 
@@ -105,6 +120,10 @@ export default function Admin({ onViewMetrics }) {
         collect_email: draft.collectEmail,
         collect_phone: draft.collectPhone,
         collect_weight: draft.collectWeight,
+        // The DB CHECK rejects a blank template; fall back to the default
+        // rather than letting Save fail on an empty box.
+        text_message_template:
+          draft.textMessage.trim() || DEFAULT_TEXT_MESSAGE,
       });
       closeSettings();
       await loadEvents();
@@ -203,6 +222,12 @@ export default function Admin({ onViewMetrics }) {
             onChange={setCollectWeight}
           />
         </div>
+        <TextMessageField
+          value={textMessage}
+          onChange={setTextMessage}
+          disabled={!collectPhone}
+          disabledNote="Texting is off because this event isn't collecting phone numbers. Tickets still print the claim QR, so fixers can claim items — no text is sent."
+        />
         <Button
           onClick={handleCreate}
           disabled={!eventName.trim() || !eventDate || creating}
@@ -390,6 +415,12 @@ export default function Admin({ onViewMetrics }) {
             label="Record item weight (kg)"
             checked={draft.collectWeight}
             onChange={(v) => setDraft({ ...draft, collectWeight: v })}
+          />
+          <TextMessageField
+            value={draft.textMessage}
+            onChange={(v) => setDraft({ ...draft, textMessage: v })}
+            disabled={!draft.collectPhone}
+            disabledNote="Texting is off because this event isn't collecting phone numbers. Tickets still print the claim QR, so fixers can claim items — no text is sent."
           />
           <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
             <Button onClick={handleSaveSettings} disabled={savingSettings}>

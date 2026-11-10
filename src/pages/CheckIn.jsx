@@ -4,6 +4,7 @@ import Logo from "../components/Logo";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import Input from "../components/Input";
+import Checkbox from "../components/Checkbox";
 import ItemForm from "../components/ItemForm";
 import WaiverStep from "../components/WaiverStep";
 import { fetchEventById, checkinVisitor } from "../lib/store";
@@ -137,13 +138,18 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [firstName, setFirstName] = useState(initialValues?.firstName || "");
   const [lastName, setLastName] = useState(initialValues?.lastName || "");
   const [email, setEmail] = useState(initialValues?.email || "");
-  const [phone, setPhone] = useState(formatPhone((initialValues?.phone || "").replace(/\D/g, "")));
+  const [phone, setPhone] = useState(
+    formatPhone((initialValues?.phone || "").replace(/\D/g, "")),
+  );
   const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
   const [newsletterOptIn, setNewsletterOptIn] = useState(
-    initialValues?.newsletterOptIn ?? true
+    initialValues?.newsletterOptIn ?? true,
+  );
+  const [textMessageOptIn, setTextMessageOptIn] = useState(
+    initialValues?.textMessageOptIn ?? false,
   );
   const [items, setItems] = useState(
-    initialValues?.items || [{ name: "", description: "" }]
+    initialValues?.items || [{ name: "", description: "" }],
   );
   const [emailTouched, setEmailTouched] = useState(false);
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -202,6 +208,7 @@ function CheckInForm({ event, onProceed, initialValues }) {
       zipCode,
       items,
       newsletterOptIn: hasUsableEmail && newsletterOptIn,
+      textMessageOptIn: phoneValid && phoneDigits && textMessageOptIn,
     });
   };
 
@@ -284,31 +291,12 @@ function CheckInForm({ event, onProceed, initialValues }) {
               </span>
             </div>
           )}
-          <label
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-              marginTop: -8,
-              marginBottom: 16,
-              cursor: hasUsableEmail ? "pointer" : "not-allowed",
-              opacity: hasUsableEmail ? 1 : 0.5,
-            }}
+          <Checkbox
+            checked={newsletterOptIn}
+            disabled={!hasUsableEmail}
+            onChange={setNewsletterOptIn}
+            style={{ marginTop: -8, marginBottom: 16 }}
           >
-            <input
-              type="checkbox"
-              checked={newsletterOptIn}
-              disabled={!hasUsableEmail}
-              onChange={(e) => setNewsletterOptIn(e.target.checked)}
-              style={{
-                marginTop: 2,
-                width: 18,
-                height: 18,
-                accentColor: "#1e3a6e",
-                cursor: hasUsableEmail ? "pointer" : "not-allowed",
-                flexShrink: 0,
-              }}
-            />
             <span
               style={{
                 fontFamily: "'Outfit', sans-serif",
@@ -319,7 +307,7 @@ function CheckInForm({ event, onProceed, initialValues }) {
             >
               Subscribe to Repair Café Silicon Valley's newsletter.
             </span>
-          </label>
+          </Checkbox>
         </>
       )}
       {collectPhone && (
@@ -341,6 +329,29 @@ function CheckInForm({ event, onProceed, initialValues }) {
               </span>
             </div>
           )}
+          {/* Inside the collectPhone block on purpose: with no phone field on
+              the form there is nothing to consent to. */}
+          <Checkbox
+            checked={textMessageOptIn}
+            disabled={!phoneValid || !phoneDigits}
+            onChange={setTextMessageOptIn}
+            style={{ marginTop: -8, marginBottom: 16 }}
+          >
+            <span
+              style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "14px",
+                color: "#1d2939",
+                lineHeight: 1.4,
+              }}
+            >
+              By providing your mobile number and selecting this checkbox, you
+              agree to receive text messages. Message frequency varies. Message
+              and data rates may apply. Consent is not required to attend an
+              event or receive repair assistance. Reply STOP to unsubscribe or
+              HELP for assistance.
+            </span>
+          </Checkbox>
         </>
       )}
       <Input
@@ -354,8 +365,22 @@ function CheckInForm({ event, onProceed, initialValues }) {
         maxLength={5}
       />
       {showZipError && (
-        <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
-          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
+        <div
+          style={{
+            padding: "8px 12px",
+            background: "#fef3f2",
+            borderRadius: "8px",
+            marginTop: -8,
+            marginBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "13px",
+              color: "#b42318",
+            }}
+          >
             Please enter a valid 5-digit ZIP code.
           </span>
         </div>
@@ -380,7 +405,8 @@ function CheckInForm({ event, onProceed, initialValues }) {
           margin: "0 0 16px 0",
         }}
       >
-        You may bring up to {maxItems} {maxItems === 1 ? "item" : "items"}. Item #1 is your top priority.
+        You may bring up to {maxItems} {maxItems === 1 ? "item" : "items"}. Item
+        #1 is your top priority.
       </p>
       {items.map((item, idx) => (
         <ItemForm
@@ -485,7 +511,8 @@ export default function CheckIn() {
         WAIVER_VERSION,
         waiverText,
         waiverHash,
-        formData.newsletterOptIn
+        formData.newsletterOptIn,
+        formData.textMessageOptIn,
       );
       setConfirmData({
         firstName: formData.firstName,
@@ -493,24 +520,22 @@ export default function CheckIn() {
         items: result.items,
       });
       setStep("confirm");
-    } catch (err) {
+    } catch {
       setError("Something went wrong. Please try again.");
     }
     setSubmitting(false);
   };
 
   useEffect(() => {
-    if (!eventId) {
-      setLoading(false);
-      return;
-    }
+    if (!eventId) return;
     fetchEventById(eventId).then((ev) => {
       setEvent(ev);
       setLoading(false);
     });
   }, [eventId]);
 
-  if (loading) {
+  // With no ?event= there's nothing to fetch, so never show the spinner.
+  if (eventId && loading) {
     return (
       <div
         style={{
@@ -601,7 +626,7 @@ export default function CheckIn() {
         )}
       </div>
       {/* <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "12px", textAlign: "center", background: "#f5f6f8" }}>
-        <Link to="/admin" style={{ background: "none", border: "none", fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: "#c0c5ce", cursor: "pointer", padding: "4px 8px", textDecoration: "none" }}>Staff Portal →</Link>
+        <Link to="/admin" style={{ background: "none", border: "none", fontFamily: "'Outfit', sans-serif", fontSize: "11px", color: "#c0c5ce", cursor: "pointer", padding: "4px 8px", textDecoration: "none" }}>Volunteer Portal →</Link>
       </div> */}
     </div>
   );

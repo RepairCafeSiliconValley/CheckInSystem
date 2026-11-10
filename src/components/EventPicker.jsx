@@ -130,7 +130,7 @@ export default function EventPicker({ events, selectedIds, onChange }) {
             top: "calc(100% + 4px)",
             left: 0,
             right: 0,
-            // Below the StaffPortal tab bar (100), above page content.
+            // Below the PortalShell tab bar (100), above page content.
             zIndex: 50,
             background: "#fff",
             border: "1px solid #e8ebf0",

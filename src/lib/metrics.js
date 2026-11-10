@@ -209,7 +209,7 @@ export function computeMetrics({ attendees = [], orders = [], events = null } = 
   ).filter((r) => r.known || r.count > 0);
 
   // ── categories ──
-  // Staff assign a category after check-in, so in-flight items legitimately
+  // Volunteers assign a category after check-in, so in-flight items legitimately
   // have none. `categorized` vs `total` makes that gap visible rather than
   // making it look like items went missing.
   const ordersByCategory = new Map();
@@ -488,6 +488,30 @@ export function formatKg(kg, withUnit = true) {
   if (kg === null || kg === undefined || !Number.isFinite(kg)) return "—";
   // One decimal: the column stores 2dp but 10g precision is noise in a total.
   return `${kg.toFixed(1)}${withUnit ? " kg" : ""}`;
+}
+
+// When a visitor submitted their items — the attendee row is inserted by the
+// check-in RPC, so its timestamp is the moment they finished the form. An item
+// added later at the coordinator's desk would read too late, so the earliest
+// order is only a fallback for an attendee row somehow missing a stamp.
+//
+// NOT the same as the "Checked-In" status, which this app uses for
+// `pending_assignment` — approved and ticket printed, stamped in printed_at.
+// See STATUSES in constants.js.
+//
+// The queue card and the printed ticket both resolve the time through here, so
+// they can't show a visitor two different times.
+export function submittedStamp(attendee, orders = []) {
+  if (attendee?.created_at) return attendee.created_at;
+  return orders.map((o) => o.created_at).filter(Boolean).sort()[0] || null;
+}
+
+// "2:15 PM" from a timestamptz.
+export function formatClockTime(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 export function formatDuration(ms) {

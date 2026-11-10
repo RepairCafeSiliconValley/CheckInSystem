@@ -1,7 +1,9 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
 import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
+import { formatClockTime } from "../lib/metrics";
+import { ticketUrl } from "../lib/ticketLink";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -27,24 +29,37 @@ const qrCaptionStyle = {
   textAlign: "center",
   lineHeight: 1.3,
 };
-function formatCheckInTime(dateStr) {
-  if (!dateStr) return null;
-  return new Date(dateStr).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export default function PrintTickets({
   workOrders,
   attendeeName,
   isVolunteer,
+  // Will this client actually receive a text when the item is claimed? Needs
+  // all three gates: the event collects phone numbers, a usable number is on
+  // file, and they consented. Shown as a pill beside the priority number; the
+  // claim QR and its caption are the same either way. Defaults to false so a
+  // caller that hasn't been updated makes no promise it can't keep.
+  canTextClient = false,
+  submittedAt,
   onClose,
+  // Optional: straight back to the queue, skipping the visitor detail. The
+  // front desk's next step after printing is the next visitor, and "← Back"
+  // then "← Queue" was two clicks for it.
+  onDone,
 }) {
   const baseUrl = window.location.origin;
   const divider = { borderTop: "1px solid #000", margin: "10px 0" };
+  // One time for the whole visit, matching the queue card — an item added
+  // later at the desk still belongs to the same submission.
+  const submittedLabel = formatClockTime(submittedAt);
+
+  // Once Print has been pressed, Back to Queue becomes the primary button.
+  // Not an automatic return on afterprint: that also fires when the dialog is
+  // cancelled, and a jammed ticket needs the preview to print again.
+  const [printed, setPrinted] = useState(false);
 
   const handlePrint = useCallback(() => {
+    setPrinted(true);
     setTimeout(() => window.print(), 50);
   }, []);
 
@@ -59,20 +74,31 @@ export default function PrintTickets({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
             marginBottom: 20,
           }}
         >
           <Button variant="ghost" onClick={onClose} style={{ width: "auto" }}>
-            ← Back
+            ← Client
           </Button>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <Button
-              variant="primary"
+              variant={onDone && printed ? "outline" : "primary"}
               onClick={handlePrint}
               style={{ width: "auto", padding: "10px 24px" }}
             >
               🖨️ Print
             </Button>
+            {onDone && (
+              <Button
+                variant={printed ? "primary" : "outline"}
+                onClick={onDone}
+                style={{ width: "auto", padding: "10px 24px" }}
+              >
+                Back to Queue
+              </Button>
+            )}
           </div>
         </div>
         <p
@@ -113,7 +139,7 @@ export default function PrintTickets({
               marginBottom: 8,
             }}
           >
-            {formatCheckInTime(wo.created_at) && (
+            {submittedLabel && (
               <div
                 style={{
                   padding: "4px 10px",
@@ -123,12 +149,13 @@ export default function PrintTickets({
                   color: "#000",
                 }}
               >
-                {formatCheckInTime(wo.created_at)}
+                {submittedLabel}
               </div>
             )}
             <TicketCodeBadge
               code={wo.priority}
               isVolunteer={isVolunteer}
+              canTextClient={canTextClient}
               mode={TICKET_CODE_BADGE_MODE.PRIORITY}
             />
           </div>
@@ -173,94 +200,52 @@ export default function PrintTickets({
 
           <div style={divider} />
 
-          {/* Stamp placeholder, ticket code, and QR code in one vertically centered row.
-              Uses CSS Grid with fixed-width outer columns (not flexbox
-              space-between) so the placeholder and QR are pinned to fixed
-              positions relative to the row's own width. The code badge's
-              rendered width — which can vary with font metrics between
-              environments — lives entirely inside the middle column and
-              can never push the QR out of place. */}
+          {/* Ticket code above one centred QR.
+              There used to be two codes side by side — claim on the left,
+              submit-outcome on the right — which made volunteers choose
+              between them and squeezed each into a 76px column. Both now point
+              at the one ticket page, which decides what to show from the item's status,
+              so a single code can take the full ticket width. At 140px the
+              modules are nearly twice as wide, which is what makes this scan
+              reliably off thermal paper.
+
+              The link is the short upper-case /T/<code> form (ticketLink.js),
+              not the full UUID: that made a 37×37 QR, and this one is 29×29, so each
+              module is about a quarter wider again. */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "76px 1fr 76px",
+              display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              padding: "8px 0 8px 0",
-              paddingRight: 6,
+              padding: "8px 0",
             }}
           >
+            <TicketCodeBadge
+              code={wo.code?.split("-")[0]}
+              isVolunteer={isVolunteer}
+              mode={TICKET_CODE_BADGE_MODE.COMPACT}
+            />
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: 76,
-                  height: 76,
-                  border: "1px dashed #000",
-                  boxSizing: "border-box",
-                }}
-              />
-              {/* invisible spacer matching the QR caption so both squares stay aligned */}
-              <div style={{ ...qrCaptionStyle, visibility: "hidden" }}>
-                SUBMIT
-                <br />
-                RESOLUTION
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifySelf: "center",
-                maxWidth: "100%",
+                width: 140,
+                height: 140,
                 overflow: "hidden",
+                marginTop: 6,
               }}
             >
-              <TicketCodeBadge
-                code={wo.code?.split("-")[0]}
-                isVolunteer={isVolunteer}
-                mode={TICKET_CODE_BADGE_MODE.COMPACT}
+              <QRCodeSVG
+                value={ticketUrl(baseUrl, wo.id)}
+                size={140}
+                level="M"
+                style={{ width: "140px", height: "140px", display: "block" }}
               />
-              {/* invisible spacer matching the QR caption so the code stays level with the boxes */}
-              <div style={{ ...qrCaptionStyle, visibility: "hidden" }}>
-                SUBMIT
-                <br />
-                RESOLUTION
-              </div>
             </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: 76,
-                  height: 76,
-                  overflow: "hidden",
-                }}
-              >
-                <QRCodeSVG
-                  value={`${baseUrl}/fix/${wo.id}`}
-                  size={76}
-                  level="M"
-                  style={{ width: "76px", height: "76px", display: "block" }}
-                />
-              </div>
-              <div style={qrCaptionStyle}>
-                SUBMIT
-                <br />
-                RESOLUTION
-              </div>
+            {/* Whether this client gets a text is shown by the badge next to
+                the priority number at the top, not here. */}
+            <div style={qrCaptionStyle}>
+              SCAN TO CLAIM OR
+              <br />
+              SUBMIT OUTCOME
             </div>
           </div>
         </div>
