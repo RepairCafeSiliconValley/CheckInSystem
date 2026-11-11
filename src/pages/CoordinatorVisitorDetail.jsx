@@ -286,13 +286,13 @@ export default function CoordinatorVisitorDetail({
         (itemEdits[o.id]?.category || o.category) !== "",
     );
 
-  // The desk may add one item over the event's limit. add_extra_work_order()
-  // enforces the count (non-canceled items must equal max_items, so once the
-  // extra exists the button goes away). Offering it only while something is
-  // still unprinted is a UI choice: the extra then prints in the same batch,
+  // Once a visitor reaches the event's limit, the desk may add as many more
+  // items as needed. add_extra_work_order() enforces the count (non-canceled
+  // items must be at least max_items). Offering it only while something is
+  // still unprinted is a UI choice: the extras then print in the same batch,
   // since printing re-prints every Checked-In ticket for the visitor.
   const liveCount = orders.filter((o) => o.status !== "canceled").length;
-  const canAddExtra = hasPending && liveCount === (event?.max_items || 2);
+  const canAddExtra = hasPending && liveCount >= (event?.max_items || 2);
 
   const addExtraItem = async (fields) => {
     // Save typed-but-unsaved edits first; loadData() below replaces them.
@@ -873,7 +873,7 @@ export default function CoordinatorVisitorDetail({
             onClick={() => setAddingExtra(true)}
             style={{ marginBottom: 16 }}
           >
-            + Add one more item (over limit)
+            Add one more item
           </Button>
         ))}
 

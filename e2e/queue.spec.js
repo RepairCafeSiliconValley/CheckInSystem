@@ -229,11 +229,24 @@ test("approve & print needs every category, then prints and marks items Checked-
   await expect(page.getByText("(1 waiting)")).toBeVisible();
 });
 
-// ── One item over the limit ──
+// ── Items over the limit ──
 
-const addExtraButton = (page) => page.getByRole("button", { name: "+ Add one more item (over limit)" });
+const addExtraButton = (page) => page.getByRole("button", { name: "Add one more item", exact: true });
 
-test("at the limit, the desk adds one extra item and it prints with the others", async ({ page, asVolunteer }) => {
+// Fills the Extra item form, whose fields come after every item card's.
+async function addExtra(page, name, category, issue) {
+  await addExtraButton(page).click();
+  const add = page.getByRole("button", { name: "Add item" });
+  await expect(add).toBeDisabled();
+  await page.getByLabel("Item Name").last().fill(name);
+  await page.getByLabel("Category").last().selectOption(category);
+  await expect(add).toBeDisabled();
+  await page.getByLabel("Issue").last().fill(issue);
+  await add.click();
+  await expect(page.getByRole("heading", { name: "Extra item" })).toHaveCount(0);
+}
+
+test("at the limit, the desk adds items over it and they print with the others", async ({ page, asVolunteer }) => {
   const event = await createEvent({ max_items: 2 });
   const v = await checkIn(event.id, {
     firstName: "E2E Extra",
@@ -248,35 +261,30 @@ test("at the limit, the desk adds one extra item and it prints with the others",
   await expect(page.getByRole("heading", { name: "Extra item" })).toHaveCount(0);
   expect(await checkInRows(event.id, v.baseCode)).toHaveLength(2);
 
-  await addExtraButton(page).click();
-  const add = page.getByRole("button", { name: "Add item" });
-  await expect(add).toBeDisabled();
-  // The form's fields come after the two item cards'.
-  await page.getByLabel("Item Name").last().fill("E2E Toaster");
-  await page.getByLabel("Category").last().selectOption("Electronics");
-  await expect(add).toBeDisabled();
-  await page.getByLabel("Issue").last().fill("No heat");
-  await add.click();
-
-  await expect(page.getByRole("heading", { name: "Extra item" })).toHaveCount(0);
+  await addExtra(page, "E2E Toaster", "Electronics", "No heat");
   await expect(page.getByText(`${v.baseCode}-3`)).toBeVisible();
   await expect(page.getByLabel("Category")).toHaveCount(3);
   await expect(page.getByLabel("Category").last()).toHaveValue("Electronics");
-  // The extra is used up.
-  await expect(addExtraButton(page)).toHaveCount(0);
+
+  // There is no cap: the button stays, and a second extra follows the first.
+  await addExtra(page, "E2E Bike", "Bikes", "Flat tire");
+  await expect(page.getByText(`${v.baseCode}-4`)).toBeVisible();
+  await expect(addExtraButton(page)).toBeVisible();
 
   await page.getByLabel("Category").first().selectOption("Basic Appliances / Lamp");
   await page.getByLabel("Category").nth(1).selectOption("Electronics");
   await page.getByRole("button", { name: "Approve & Print All Tickets" }).click();
-  await expect(page.locator(".print-ticket")).toHaveCount(3);
+  await expect(page.locator(".print-ticket")).toHaveCount(4);
 
   const rows = await checkInRows(event.id, v.baseCode);
   expect(rows.map((r) => [r.code, r.priority, r.status])).toEqual([
     [`${v.baseCode}-1`, 1, "pending_assignment"],
     [`${v.baseCode}-2`, 2, "pending_assignment"],
     [`${v.baseCode}-3`, 3, "pending_assignment"],
+    [`${v.baseCode}-4`, 4, "pending_assignment"],
   ]);
   expect(rows[2]).toMatchObject({ item_name: "E2E Toaster", category: "Electronics", description: "No heat" });
+  expect(rows[3]).toMatchObject({ item_name: "E2E Bike", category: "Bikes", description: "Flat tire" });
 });
 
 test("the extra item button is only offered at the limit with something unprinted", async ({ page, asVolunteer }) => {

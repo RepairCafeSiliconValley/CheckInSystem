@@ -1,20 +1,20 @@
--- add_extra_work_order() — the desk adds one item over the event's limit.
+-- add_extra_work_order() — the desk adds items over the event's limit.
 -- Added with supabase-extra-item-migration.sql.
 --
--- Covers who may call it, the limit rule (non-canceled items must equal
--- max_items, so canceled items free a slot), required fields, and what the new
--- row looks like: the visitor's code with the next suffix, the next priority,
--- status 'pending'.
+-- Covers who may call it, the limit rule (non-canceled items must be at least
+-- max_items, with no cap above it; canceled items don't count), required
+-- fields, and what each new row looks like: the visitor's code with the next
+-- suffix, the next priority, status 'pending'.
 --
 -- Runs in a transaction that is rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(21);
+select plan(22);
 
 -- ── Fixtures (as postgres, bypassing RLS) ──
 -- A closed event: is_open only governs public check-in, so the desk can still
--- add an extra after doors close.
+-- add items after doors close.
 insert into events (id, name, date, is_open, max_items)
 values ('f1000000-0000-0000-0000-000000000e01', 'Extra Item Event', '2030-01-01', false, 2);
 
@@ -82,33 +82,32 @@ select throws_ok(
   $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a01', 'Toaster', 'Electronics', 'No heat', -1) $$,
   'P0001', 'Weight cannot be negative', 'a negative weight is refused');
 
--- The limit rule.
+-- Below the limit there is nothing to bend.
 select throws_ok(
   $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a02', 'Toaster', 'Electronics', 'No heat') $$,
-  'P0001', 'An extra item can only be added when the visitor is at the item limit',
+  'P0001', 'Extra items can only be added once the visitor has reached the item limit',
   'refused below the limit');
 select throws_ok(
-  $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a03', 'Toaster', 'Electronics', 'No heat') $$,
-  'P0001', 'An extra item can only be added when the visitor is at the item limit',
-  'refused when already over the limit');
-select throws_ok(
   $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a04', 'Toaster', 'Electronics', 'No heat') $$,
-  'P0001', 'An extra item can only be added when the visitor is at the item limit',
+  'P0001', 'Extra items can only be added once the visitor has reached the item limit',
   'a canceled item does not count toward the limit');
 select throws_ok(
   $$ select public.add_extra_work_order('f1000000-0000-0000-0000-0000000000ff', 'Toaster', 'Electronics', 'No heat') $$,
   'P0001', 'Visitor not found', 'an unknown visitor is refused');
 
--- At the limit, on a closed event: allowed.
+-- At the limit, on a closed event: allowed, and again, with no cap.
 select lives_ok(
   $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a01', '  Toaster ', 'Electronics', ' No heat ', 1.5) $$,
-  'volunteer can add one extra item at the limit, even on a closed event');
-
--- The extra is used up.
-select throws_ok(
+  'volunteer can add an item at the limit, even on a closed event');
+select lives_ok(
   $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a01', 'Blender', 'Electronics', 'Stuck') $$,
-  'P0001', 'An extra item can only be added when the visitor is at the item limit',
-  'a second extra is refused');
+  'a second extra item is allowed');
+select lives_ok(
+  $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a01', 'Mixer', 'Electronics', 'Slow') $$,
+  'and a third');
+select lives_ok(
+  $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a03', 'Toaster', 'Electronics', 'No heat') $$,
+  'a visitor already over the limit can get more');
 
 reset role;
 
@@ -116,25 +115,31 @@ reset role;
 -- ── Back as postgres: check what the RPC wrote ──
 select results_eq(
   $$ select code, item_name, category, description, priority, status, weight_kg, event_id
-     from work_orders where attendee_id = 'f1000000-0000-0000-0000-000000000a01' and code = 'X1X-3' $$,
+     from work_orders where code = 'X1X-3' $$,
   $$ values ('X1X-3'::text, 'Toaster'::text, 'Electronics'::text, 'No heat'::text, 3,
              'pending'::text, 1.50::numeric(6,2), 'f1000000-0000-0000-0000-000000000e01'::uuid) $$,
-  'the extra takes the next code suffix and priority, trimmed, as a pending item');
+  'the first extra takes the next code suffix and priority, trimmed, as a pending item');
+select results_eq(
+  $$ select code, item_name, priority from work_orders
+      where attendee_id = 'f1000000-0000-0000-0000-000000000a01' order by priority $$,
+  $$ values ('X1X-1'::text, 'Lamp'::text, 1), ('X1X-2', 'Radio', 2), ('X1X-3', 'Toaster', 3),
+            ('X1X-4', 'Blender', 4), ('X1X-5', 'Mixer', 5) $$,
+  'each extra takes the next code and priority in turn');
 select is(
-  (select count(*)::int from work_orders where attendee_id = 'f1000000-0000-0000-0000-000000000a01'),
-  3, 'exactly one item was added');
+  (select priority from work_orders where code = 'X3X-4'),
+  4, 'an over-limit visitor''s extra follows their highest priority');
 select is(
   (select printed_at from work_orders where code = 'X1X-3'),
   null::timestamptz, 'the extra is not printed yet');
 select is(
-  (select substr(id::text, 1, 18) from work_orders where code = 'X1X-3')
-    = any (select substr(id::text, 1, 18) from work_orders where code in ('X1X-1', 'X1X-2')),
-  false, 'the extra has its own ticket-code prefix');
+  (select count(distinct substr(id::text, 1, 18))::int from work_orders
+    where attendee_id = 'f1000000-0000-0000-0000-000000000a01'),
+  5, 'every item has its own ticket-code prefix');
 
 
--- ════ Canceling the extra frees the slot; an admin can add a replacement ════
+-- ════ Canceled items: numbers are never reused; dropping below the limit stops it ════
 update work_orders set status = 'canceled', cancel_reason = 'client_left'
- where code = 'X1X-3';
+ where code in ('X1X-5');
 
 set local role authenticated;
 select set_config('request.jwt.claims',
@@ -142,26 +147,27 @@ select set_config('request.jwt.claims',
   true);
 select ok(public.is_admin(), 'Ada is an admin');
 select lives_ok(
-  $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a01', 'Blender', 'Electronics', 'Stuck') $$,
-  'admin can add a replacement once the extra is canceled');
-select throws_ok(
-  $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a01', 'Mixer', 'Electronics', 'Slow') $$,
-  'P0001', 'An extra item can only be added when the visitor is at the item limit',
-  'the replacement uses the slot up again');
+  $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a01', 'Kettle', 'Electronics', 'Leaks') $$,
+  'admin can add an item too');
 reset role;
 
-select results_eq(
-  $$ select code, priority, weight_kg from work_orders where item_name = 'Blender' $$,
-  $$ values ('X1X-4'::text, 4, null::numeric(6,2)) $$,
-  'codes and priorities never reuse a canceled item''s number');
-
--- Not part of this feature: checkin_visitor still accepts more than max_items
--- (rpc_known_gaps.test.sql). The extra rule stays exact so that gap can't be
--- stacked on.
 select is(
-  (select count(*)::int from work_orders
-    where attendee_id = 'f1000000-0000-0000-0000-000000000a01' and status <> 'canceled'),
-  3, 'the visitor ends with max_items + 1 live items');
+  (select code from work_orders where item_name = 'Kettle' and attendee_id = 'f1000000-0000-0000-0000-000000000a01'),
+  'X1X-6', 'a canceled item''s code number is not reused');
+
+-- Cancel down to one live item: now below the limit.
+update work_orders set status = 'canceled', cancel_reason = 'client_left'
+ where attendee_id = 'f1000000-0000-0000-0000-000000000a01' and code <> 'X1X-1';
+
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"role":"authenticated","sub":"f1000000-0000-0000-0000-0000000000ad","email":"ada.extra@example.com"}',
+  true);
+select throws_ok(
+  $$ select public.add_extra_work_order('f1000000-0000-0000-0000-000000000a01', 'Fan', 'Electronics', 'Hums') $$,
+  'P0001', 'Extra items can only be added once the visitor has reached the item limit',
+  'once canceled items take the visitor below the limit, extras are refused');
+reset role;
 
 select * from finish();
 rollback;

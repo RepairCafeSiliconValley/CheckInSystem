@@ -1,5 +1,5 @@
 -- ============================================
--- Migration: the front desk adds one item over the event's limit
+-- Migration: the front desk adds items over the event's limit
 -- ============================================
 -- Run in the Supabase SQL Editor (DEV project first, then prod).
 --
@@ -10,14 +10,13 @@
 --
 -- Why: an event caps how many items a visitor may enter at check-in
 -- (events.max_items). A visitor who filled every slot sometimes turns up at the
--- desk with one more. This lets the volunteer account or an admin add exactly
--- one more item for them, which then prints with the others.
+-- desk with more. This lets the volunteer account or an admin add items for
+-- them, one at a time and as many as needed, which then print with the others.
 --
--- The rule: the visitor's items that aren't canceled must number exactly
--- max_items. Below the limit there is nothing to bend; above it the extra has
--- already been used. A canceled item frees its slot, so canceling the extra
--- lets the desk add a different one. Whether the event is open doesn't matter:
--- is_open only governs public check-in.
+-- The rule: the visitor's items that aren't canceled must number at least
+-- max_items. Below the limit the visitor could have entered the item at
+-- check-in, so there is nothing to bend. Whether the event is open doesn't
+-- matter: is_open only governs public check-in.
 --
 -- Direct inserts on work_orders are blocked by RLS ("No direct work order
 -- inserts"), so this is SECURITY DEFINER with its own can_access_queue() check,
@@ -65,7 +64,7 @@ begin
   end if;
 
   -- Locking the attendee row serializes two desks (or a double tap) adding an
-  -- extra for the same visitor, so the count below can't go stale.
+  -- extra for the same visitor, so the code suffix below can't be taken twice.
   select a.event_id into v_event_id
     from public.attendees a
    where a.id = p_attendee_id
@@ -88,8 +87,8 @@ begin
     from public.work_orders w
    where w.attendee_id = p_attendee_id;
 
-  if v_live <> v_max_items then
-    raise exception 'An extra item can only be added when the visitor is at the item limit'
+  if v_live < v_max_items then
+    raise exception 'Extra items can only be added once the visitor has reached the item limit'
       using errcode = 'P0001';
   end if;
 

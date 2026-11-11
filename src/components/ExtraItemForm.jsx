@@ -6,7 +6,7 @@ import TextArea from "./TextArea";
 import Button from "./Button";
 import { CATEGORIES } from "../lib/constants";
 
-// The desk's form for one item over the event's limit. Nothing is written until
+// The desk's form for an item over the event's limit (one per submit). Nothing is written until
 // every required field is filled and "Add item" is pressed, so an abandoned
 // form never leaves a blank item in the queue. `onAdd` resolves when the item
 // exists; a rejection shows an error and keeps what was typed.
@@ -60,7 +60,7 @@ export default function ExtraItemForm({ collectWeight, onAdd, onCancel }) {
           margin: "0 0 16px 0",
         }}
       >
-        One item over this event's limit. It prints with the others.
+        An item over this event's limit. It prints with the others.
       </p>
       <Input
         label="Item Name"
