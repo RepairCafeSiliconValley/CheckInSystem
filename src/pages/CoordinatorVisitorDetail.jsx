@@ -9,6 +9,7 @@ import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
 import RecordOutcome from "../components/RecordOutcome";
 import ReasonPicker from "../components/ReasonPicker";
+import ExtraItemForm from "../components/ExtraItemForm";
 import { CATEGORIES, CANCEL_REASONS } from "../lib/constants";
 import { isTextablePhone } from "../lib/textMessage";
 import {
@@ -16,6 +17,7 @@ import {
   updateAttendee,
   updateWorkOrder,
   unclaimWorkOrder,
+  addExtraWorkOrder,
 } from "../lib/store";
 
 // Collapses an open action panel back to the button stack. Same de-emphasised
@@ -72,6 +74,9 @@ export default function CoordinatorVisitorDetail({
   // right card. Cleared whenever a panel opens or closes, so reopening one
   // never shows a stale failure.
   const [unclaimError, setUnclaimError] = useState(null);
+
+  // Whether the "Extra item" form is open (see canAddExtra below).
+  const [addingExtra, setAddingExtra] = useState(false);
   const openAction = (id, mode) => {
     setUnclaimError(null);
     setAction({ id, mode });
@@ -280,6 +285,22 @@ export default function CoordinatorVisitorDetail({
         (itemEdits[o.id]?.category || o.category) &&
         (itemEdits[o.id]?.category || o.category) !== "",
     );
+
+  // The desk may add one item over the event's limit. add_extra_work_order()
+  // enforces the count (non-canceled items must equal max_items, so once the
+  // extra exists the button goes away). Offering it only while something is
+  // still unprinted is a UI choice: the extra then prints in the same batch,
+  // since printing re-prints every Checked-In ticket for the visitor.
+  const liveCount = orders.filter((o) => o.status !== "canceled").length;
+  const canAddExtra = hasPending && liveCount === (event?.max_items || 2);
+
+  const addExtraItem = async (fields) => {
+    // Save typed-but-unsaved edits first; loadData() below replaces them.
+    await saveAll();
+    await addExtraWorkOrder(attendeeId, fields);
+    setAddingExtra(false);
+    await loadData();
+  };
 
   const approveAndPrint = async () => {
     await saveAll();
@@ -838,6 +859,23 @@ export default function CoordinatorVisitorDetail({
           </Card>
         );
       })}
+
+      {canAddExtra &&
+        (addingExtra ? (
+          <ExtraItemForm
+            collectWeight={collectWeight}
+            onAdd={addExtraItem}
+            onCancel={() => setAddingExtra(false)}
+          />
+        ) : (
+          <Button
+            variant="outline"
+            onClick={() => setAddingExtra(true)}
+            style={{ marginBottom: 16 }}
+          >
+            + Add one more item (over limit)
+          </Button>
+        ))}
 
       {/* Action bar */}
       <div

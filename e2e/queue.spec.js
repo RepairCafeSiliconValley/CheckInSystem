@@ -3,12 +3,14 @@
 import { test, expect } from "./support/fixtures.js";
 import {
   checkIn,
+  checkInRows,
   createEvent,
   getAttendee,
   getWorkOrder,
   localVolunteerPassword,
   markPrinted,
   updateEvent,
+  updateWorkOrder,
 } from "./support/stack.js";
 
 // ── Volunteer sign-in ──
@@ -225,6 +227,80 @@ test("approve & print needs every category, then prints and marks items Checked-
   await page.getByRole("button", { name: "← Queue" }).click();
   await expect(chip(page, "Checked-In")).toHaveText("Checked-In (2)");
   await expect(page.getByText("(1 waiting)")).toBeVisible();
+});
+
+// ── One item over the limit ──
+
+const addExtraButton = (page) => page.getByRole("button", { name: "+ Add one more item (over limit)" });
+
+test("at the limit, the desk adds one extra item and it prints with the others", async ({ page, asVolunteer }) => {
+  const event = await createEvent({ max_items: 2 });
+  const v = await checkIn(event.id, {
+    firstName: "E2E Extra",
+    items: [{ name: "E2E Lamp", description: "Flickers" }, { name: "E2E Radio", description: "No sound" }],
+  });
+  await openVisitor(page, asVolunteer, event.id, "E2E Extra Tester");
+
+  // Never mind closes the form without writing anything.
+  await addExtraButton(page).click();
+  await expect(page.getByRole("heading", { name: "Extra item" })).toBeVisible();
+  await page.getByRole("button", { name: "Never mind" }).click();
+  await expect(page.getByRole("heading", { name: "Extra item" })).toHaveCount(0);
+  expect(await checkInRows(event.id, v.baseCode)).toHaveLength(2);
+
+  await addExtraButton(page).click();
+  const add = page.getByRole("button", { name: "Add item" });
+  await expect(add).toBeDisabled();
+  // The form's fields come after the two item cards'.
+  await page.getByLabel("Item Name").last().fill("E2E Toaster");
+  await page.getByLabel("Category").last().selectOption("Electronics");
+  await expect(add).toBeDisabled();
+  await page.getByLabel("Issue").last().fill("No heat");
+  await add.click();
+
+  await expect(page.getByRole("heading", { name: "Extra item" })).toHaveCount(0);
+  await expect(page.getByText(`${v.baseCode}-3`)).toBeVisible();
+  await expect(page.getByLabel("Category")).toHaveCount(3);
+  await expect(page.getByLabel("Category").last()).toHaveValue("Electronics");
+  // The extra is used up.
+  await expect(addExtraButton(page)).toHaveCount(0);
+
+  await page.getByLabel("Category").first().selectOption("Basic Appliances / Lamp");
+  await page.getByLabel("Category").nth(1).selectOption("Electronics");
+  await page.getByRole("button", { name: "Approve & Print All Tickets" }).click();
+  await expect(page.locator(".print-ticket")).toHaveCount(3);
+
+  const rows = await checkInRows(event.id, v.baseCode);
+  expect(rows.map((r) => [r.code, r.priority, r.status])).toEqual([
+    [`${v.baseCode}-1`, 1, "pending_assignment"],
+    [`${v.baseCode}-2`, 2, "pending_assignment"],
+    [`${v.baseCode}-3`, 3, "pending_assignment"],
+  ]);
+  expect(rows[2]).toMatchObject({ item_name: "E2E Toaster", category: "Electronics", description: "No heat" });
+});
+
+test("the extra item button is only offered at the limit with something unprinted", async ({ page, asVolunteer }) => {
+  const event = await createEvent({ max_items: 2 });
+  const below = await checkIn(event.id, { firstName: "E2E Below" });
+  const canceled = await checkIn(event.id, {
+    firstName: "E2E Canceled",
+    items: [{ name: "E2E Lamp", description: "x" }, { name: "E2E Fan", description: "y" }],
+  });
+  await updateWorkOrder(canceled.orders[1].id, { status: "canceled", cancel_reason: "client_left" });
+  const printed = await checkIn(event.id, {
+    firstName: "E2E Printed",
+    items: [{ name: "E2E Lamp", description: "x" }, { name: "E2E Fan", description: "y" }],
+  });
+  for (const o of printed.orders) await markPrinted(o.id);
+
+  await asVolunteer(`/admin?event=${event.id}`);
+  for (const name of ["E2E Below Tester", "E2E Canceled Tester", "E2E Printed Tester"]) {
+    await page.getByText(name).click();
+    await expect(page.getByLabel("Item Name").first()).toBeVisible();
+    await expect(addExtraButton(page)).toHaveCount(0);
+    await page.getByRole("button", { name: "← Queue" }).click();
+  }
+  expect(below.orders).toHaveLength(1);
 });
 
 test("reprint shows the printed items' tickets again", async ({ page, event, asVolunteer }) => {

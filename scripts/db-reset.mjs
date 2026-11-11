@@ -51,6 +51,7 @@ const MIGRATIONS = [
   "supabase-migration-v11.sql", // sms_notifications reads → can_access_queue()
   "supabase-migration-v12.sql", // unclaim_work_order(); needs can_access_queue()
   "supabase-ticket-code-migration.sql", // resolve_ticket_code() for the short ticket QR
+  "supabase-extra-item-migration.sql", // add_extra_work_order(); needs can_access_queue()
 ];
 
 const SEED = "supabase-seed.sql";

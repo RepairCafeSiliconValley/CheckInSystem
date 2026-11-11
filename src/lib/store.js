@@ -267,6 +267,21 @@ export async function unclaimWorkOrder(workOrderId) {
   if (error) throw error;
 }
 
+// One item over the event's limit, added at the desk. The RPC enforces the
+// rule (non-canceled items must equal max_items) and assigns the next code and
+// priority. Returns the new work order's id.
+export async function addExtraWorkOrder(attendeeId, { itemName, category, description, weightKg = null }) {
+  const { data, error } = await supabase.rpc("add_extra_work_order", {
+    p_attendee_id: attendeeId,
+    p_item_name: itemName.trim(),
+    p_category: category,
+    p_description: description.trim(),
+    p_weight_kg: weightKg,
+  });
+  if (error) throw error;
+  return data;
+}
+
 // ─── Updates ───
 
 export async function updateAttendee(id, updates) {
