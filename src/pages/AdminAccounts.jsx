@@ -105,7 +105,7 @@ function DisabledToggle({ user, isSelf, onToggle, compact = false }) {
         onChange={(e) => onToggle(e.target.checked)}
         aria-label={`Disabled: ${user.email}`}
       />
-      {!compact && (user.disabled ? "Disabled" : "Enabled")}
+      {!compact && "Disabled"}
     </label>
   );
 }
