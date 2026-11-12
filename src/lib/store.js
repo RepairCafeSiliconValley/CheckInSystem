@@ -267,6 +267,20 @@ export async function unclaimWorkOrder(workOrderId) {
   if (error) throw error;
 }
 
+// An item added at the desk, with no limit (max_items only limits the public
+// check-in form). The RPC assigns the next code and priority. Returns the new work order's id.
+export async function addExtraWorkOrder(attendeeId, { itemName, category, description, weightKg = null }) {
+  const { data, error } = await supabase.rpc("add_extra_work_order", {
+    p_attendee_id: attendeeId,
+    p_item_name: itemName.trim(),
+    p_category: category,
+    p_description: description.trim(),
+    p_weight_kg: weightKg,
+  });
+  if (error) throw error;
+  return data;
+}
+
 // ─── Updates ───
 
 export async function updateAttendee(id, updates) {

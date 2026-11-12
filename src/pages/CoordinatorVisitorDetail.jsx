@@ -9,6 +9,7 @@ import Badge from "../components/Badge";
 import StatusBadge from "../components/StatusBadge";
 import RecordOutcome from "../components/RecordOutcome";
 import ReasonPicker from "../components/ReasonPicker";
+import ExtraItemForm from "../components/ExtraItemForm";
 import { CATEGORIES, CANCEL_REASONS } from "../lib/constants";
 import { isTextablePhone } from "../lib/textMessage";
 import {
@@ -16,6 +17,7 @@ import {
   updateAttendee,
   updateWorkOrder,
   unclaimWorkOrder,
+  addExtraWorkOrder,
 } from "../lib/store";
 
 // Collapses an open action panel back to the button stack. Same de-emphasised
@@ -72,6 +74,9 @@ export default function CoordinatorVisitorDetail({
   // right card. Cleared whenever a panel opens or closes, so reopening one
   // never shows a stale failure.
   const [unclaimError, setUnclaimError] = useState(null);
+
+  // Whether the "Add Item" form is open.
+  const [addingExtra, setAddingExtra] = useState(false);
   const openAction = (id, mode) => {
     setUnclaimError(null);
     setAction({ id, mode });
@@ -281,18 +286,31 @@ export default function CoordinatorVisitorDetail({
         (itemEdits[o.id]?.category || o.category) !== "",
     );
 
+  // The desk may add as many items as needed, before or after printing and
+  // whatever the event's max_items (that only limits the public check-in
+  // form). An item added after printing is approved and printed on its own
+  // (see approveAndPrint).
+  const addExtraItem = async (fields) => {
+    // Save typed-but-unsaved edits first; loadData() below replaces them.
+    await saveAll();
+    await addExtraWorkOrder(attendeeId, fields);
+    setAddingExtra(false);
+    await loadData();
+  };
+
+  // Prints only the items approved here, so tickets already on the board
+  // aren't printed twice when an item is added after the first print.
   const approveAndPrint = async () => {
     await saveAll();
-    for (const wo of orders) {
-      if (wo.status === "pending") {
-        await updateWorkOrder(wo.id, {
-          status: "pending_assignment",
-          printed_at: new Date().toISOString(),
-        });
-      }
+    const approved = orders.filter((wo) => wo.status === "pending").map((wo) => wo.id);
+    for (const id of approved) {
+      await updateWorkOrder(id, {
+        status: "pending_assignment",
+        printed_at: new Date().toISOString(),
+      });
     }
     await loadData();
-    onPrint(attendeeId);
+    onPrint(attendeeId, approved);
   };
 
   const reprintAll = () => {
@@ -838,6 +856,22 @@ export default function CoordinatorVisitorDetail({
           </Card>
         );
       })}
+
+      {addingExtra ? (
+        <ExtraItemForm
+          collectWeight={collectWeight}
+          onAdd={addExtraItem}
+          onCancel={() => setAddingExtra(false)}
+        />
+      ) : (
+        <Button
+          variant="outline"
+          onClick={() => setAddingExtra(true)}
+          style={{ marginBottom: 16 }}
+        >
+          Add one more item
+        </Button>
+      )}
 
       {/* Action bar */}
       <div

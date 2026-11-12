@@ -185,13 +185,17 @@ export default function Portal() {
     setPrintData(null);
   };
 
-  const handlePrint = async (attId) => {
+  // `onlyIds` limits the tickets to those work orders: Approve & Print passes
+  // the items it just approved, so an item added after the first print doesn't
+  // re-print tickets already pinned to the board. Reprint passes nothing and
+  // gets every Checked-In ticket.
+  const handlePrint = async (attId, onlyIds = null) => {
     try {
       const { attendee, orders, event } = await fetchVisitorDetail(attId);
       const printableOrders = orders.filter(
         (w) =>
-          w.status === "pending_assignment" ||
-          w.status === "pending",
+          (w.status === "pending_assignment" || w.status === "pending") &&
+          (!onlyIds || onlyIds.includes(w.id)),
       );
       const abbreviated = attendee.last_name
         ? `${attendee.first_name} ${attendee.last_name.charAt(0).toUpperCase()}.`
