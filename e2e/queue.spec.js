@@ -233,17 +233,19 @@ test("approve & print needs every category, then prints and marks items Checked-
 
 const addExtraButton = (page) => page.getByRole("button", { name: "Add one more item", exact: true });
 
-// Fills the Extra item form, whose fields come after every item card's.
+// Fills the Add Item form, whose fields come after every item card's.
 async function addExtra(page, name, category, issue) {
   await addExtraButton(page).click();
-  const add = page.getByRole("button", { name: "Add item" });
+  const add = page.getByRole("button", { name: "Save item" });
   await expect(add).toBeDisabled();
+  // The form takes the cursor, so the desk can start typing straight away.
+  await expect(page.getByLabel("Item Name").last()).toBeFocused();
   await page.getByLabel("Item Name").last().fill(name);
   await page.getByLabel("Category").last().selectOption(category);
   await expect(add).toBeDisabled();
   await page.getByLabel("Issue").last().fill(issue);
   await add.click();
-  await expect(page.getByRole("heading", { name: "Extra item" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Add Item", exact: true })).toHaveCount(0);
 }
 
 test("at the limit, the desk adds items over it and they print with the others", async ({ page, asVolunteer }) => {
@@ -256,9 +258,9 @@ test("at the limit, the desk adds items over it and they print with the others",
 
   // Never mind closes the form without writing anything.
   await addExtraButton(page).click();
-  await expect(page.getByRole("heading", { name: "Extra item" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add Item", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Never mind" }).click();
-  await expect(page.getByRole("heading", { name: "Extra item" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Add Item", exact: true })).toHaveCount(0);
   expect(await checkInRows(event.id, v.baseCode)).toHaveLength(2);
 
   await addExtra(page, "E2E Toaster", "Electronics", "No heat");

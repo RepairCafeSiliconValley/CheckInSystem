@@ -75,7 +75,7 @@ export default function CoordinatorVisitorDetail({
   // never shows a stale failure.
   const [unclaimError, setUnclaimError] = useState(null);
 
-  // Whether the "Extra item" form is open (see canAddExtra below).
+  // Whether the "Add Item" form is open.
   const [addingExtra, setAddingExtra] = useState(false);
   const openAction = (id, mode) => {
     setUnclaimError(null);
