@@ -287,12 +287,11 @@ export default function CoordinatorVisitorDetail({
     );
 
   // Once a visitor reaches the event's limit, the desk may add as many more
-  // items as needed. add_extra_work_order() enforces the count (non-canceled
-  // items must be at least max_items). Offering it only while something is
-  // still unprinted is a UI choice: the extras then print in the same batch,
-  // since printing re-prints every Checked-In ticket for the visitor.
+  // items as needed, before or after printing. add_extra_work_order() enforces
+  // the count (non-canceled items must be at least max_items). An item added
+  // after printing is approved and printed on its own (see approveAndPrint).
   const liveCount = orders.filter((o) => o.status !== "canceled").length;
-  const canAddExtra = hasPending && liveCount >= (event?.max_items || 2);
+  const canAddExtra = liveCount >= (event?.max_items || 2);
 
   const addExtraItem = async (fields) => {
     // Save typed-but-unsaved edits first; loadData() below replaces them.
@@ -302,18 +301,19 @@ export default function CoordinatorVisitorDetail({
     await loadData();
   };
 
+  // Prints only the items approved here, so tickets already on the board
+  // aren't printed twice when an item is added after the first print.
   const approveAndPrint = async () => {
     await saveAll();
-    for (const wo of orders) {
-      if (wo.status === "pending") {
-        await updateWorkOrder(wo.id, {
-          status: "pending_assignment",
-          printed_at: new Date().toISOString(),
-        });
-      }
+    const approved = orders.filter((wo) => wo.status === "pending").map((wo) => wo.id);
+    for (const id of approved) {
+      await updateWorkOrder(id, {
+        status: "pending_assignment",
+        printed_at: new Date().toISOString(),
+      });
     }
     await loadData();
-    onPrint(attendeeId);
+    onPrint(attendeeId, approved);
   };
 
   const reprintAll = () => {
