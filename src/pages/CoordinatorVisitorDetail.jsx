@@ -286,13 +286,10 @@ export default function CoordinatorVisitorDetail({
         (itemEdits[o.id]?.category || o.category) !== "",
     );
 
-  // Once a visitor reaches the event's limit, the desk may add as many more
-  // items as needed, before or after printing. add_extra_work_order() enforces
-  // the count (non-canceled items must be at least max_items). An item added
-  // after printing is approved and printed on its own (see approveAndPrint).
-  const liveCount = orders.filter((o) => o.status !== "canceled").length;
-  const canAddExtra = liveCount >= (event?.max_items || 2);
-
+  // The desk may add as many items as needed, before or after printing and
+  // whatever the event's max_items (that only limits the public check-in
+  // form). An item added after printing is approved and printed on its own
+  // (see approveAndPrint).
   const addExtraItem = async (fields) => {
     // Save typed-but-unsaved edits first; loadData() below replaces them.
     await saveAll();
@@ -860,22 +857,21 @@ export default function CoordinatorVisitorDetail({
         );
       })}
 
-      {canAddExtra &&
-        (addingExtra ? (
-          <ExtraItemForm
-            collectWeight={collectWeight}
-            onAdd={addExtraItem}
-            onCancel={() => setAddingExtra(false)}
-          />
-        ) : (
-          <Button
-            variant="outline"
-            onClick={() => setAddingExtra(true)}
-            style={{ marginBottom: 16 }}
-          >
-            Add one more item
-          </Button>
-        ))}
+      {addingExtra ? (
+        <ExtraItemForm
+          collectWeight={collectWeight}
+          onAdd={addExtraItem}
+          onCancel={() => setAddingExtra(false)}
+        />
+      ) : (
+        <Button
+          variant="outline"
+          onClick={() => setAddingExtra(true)}
+          style={{ marginBottom: 16 }}
+        >
+          Add one more item
+        </Button>
+      )}
 
       {/* Action bar */}
       <div

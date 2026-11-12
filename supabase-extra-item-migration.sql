@@ -1,22 +1,21 @@
 -- ============================================
--- Migration: the front desk adds items over the event's limit
+-- Migration: the front desk adds items to a visitor's check-in
 -- ============================================
 -- Run in the Supabase SQL Editor (DEV project first, then prod).
 --
 -- Prerequisites: supabase-admin-auth-migration.sql (defines
--- can_access_queue()), supabase-migration-v5.sql (events.max_items) and
--- supabase-migration-v8.sql (work_orders.weight_kg). This MUST run after all
--- three.
+-- can_access_queue()) and supabase-migration-v8.sql (work_orders.weight_kg).
+-- This MUST run after both.
 --
--- Why: an event caps how many items a visitor may enter at check-in
--- (events.max_items). A visitor who filled every slot sometimes turns up at the
--- desk with more. This lets the volunteer account or an admin add items for
--- them, one at a time and as many as needed, which then print with the others.
+-- Why: visitors sometimes turn up at the desk with more items than they
+-- entered at check-in, whether or not they reached the event's max_items. This
+-- lets the volunteer account or an admin add items for them, one at a time
+-- and as many as needed. max_items only limits the public check-in form; the
+-- desk is not bound by it. Whether the event is open doesn't matter either:
+-- is_open only governs public check-in.
 --
--- The rule: the visitor's items that aren't canceled must number at least
--- max_items. Below the limit the visitor could have entered the item at
--- check-in, so there is nothing to bend. Whether the event is open doesn't
--- matter: is_open only governs public check-in.
+-- The visitor must already have a work order (every check-in creates at least
+-- one), because the new item takes their ticket-code base, e.g. M4K-3.
 --
 -- Direct inserts on work_orders are blocked by RLS ("No direct work order
 -- inserts"), so this is SECURITY DEFINER with its own can_access_queue() check,
@@ -39,8 +38,6 @@ set search_path to 'public', 'pg_temp'
 as $function$
 declare
   v_event_id uuid;
-  v_max_items integer;
-  v_live integer;
   v_base_code text;
   v_next_index integer;
   v_next_priority integer;
@@ -64,7 +61,7 @@ begin
   end if;
 
   -- Locking the attendee row serializes two desks (or a double tap) adding an
-  -- extra for the same visitor, so the code suffix below can't be taken twice.
+  -- item for the same visitor, so the code suffix below can't be taken twice.
   select a.event_id into v_event_id
     from public.attendees a
    where a.id = p_attendee_id
@@ -75,20 +72,26 @@ begin
       using errcode = 'P0001';
   end if;
 
-  select e.max_items into v_max_items
-    from public.events e
-   where e.id = v_event_id;
-
-  select count(*) filter (where w.status is distinct from 'canceled'),
-         max(split_part(w.code, '-', 1)),
-         coalesce(max(nullif(split_part(w.code, '-', 2), '')::integer), 0) + 1,
+  -- Codes come in more than one shape: current check-ins make 'M4K-1', the
+  -- first version made 'R-M4K-1', and older seed rows have a bare 'R-F3W'. So
+  -- the item number is only a trailing '-<digits>', and the base is whatever
+  -- comes before it, taken from the visitor's first item. The next number is
+  -- past both the highest suffix and the item count, so a bare code's
+  -- visitor still gets a number no other item of theirs has.
+  select (select regexp_replace(w1.code, '-[0-9]+$', '')
+            from public.work_orders w1
+           where w1.attendee_id = p_attendee_id
+           order by w1.priority nulls last, w1.created_at
+           limit 1),
+         greatest(coalesce(max((substring(w.code from '-([0-9]+)$'))::integer), 0),
+                  count(*)::integer) + 1,
          coalesce(max(w.priority), 0) + 1
-    into v_live, v_base_code, v_next_index, v_next_priority
+    into v_base_code, v_next_index, v_next_priority
     from public.work_orders w
    where w.attendee_id = p_attendee_id;
 
-  if v_live < v_max_items then
-    raise exception 'Extra items can only be added once the visitor has reached the item limit'
+  if v_base_code is null then
+    raise exception 'Visitor has no items to add to'
       using errcode = 'P0001';
   end if;
 

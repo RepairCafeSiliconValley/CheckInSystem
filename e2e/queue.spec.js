@@ -229,7 +229,7 @@ test("approve & print needs every category, then prints and marks items Checked-
   await expect(page.getByText("(1 waiting)")).toBeVisible();
 });
 
-// ── Items over the limit ──
+// ── Items added at the desk ──
 
 const addExtraButton = (page) => page.getByRole("button", { name: "Add one more item", exact: true });
 
@@ -287,10 +287,10 @@ test("at the limit, the desk adds items over it and they print with the others",
   expect(rows[3]).toMatchObject({ item_name: "E2E Bike", category: "Bikes", description: "Flat tire" });
 });
 
-test("the extra item button is not offered below the limit", async ({ page, asVolunteer }) => {
+test("below the limit, even with one item, the desk can add another", async ({ page, asVolunteer }) => {
   const event = await createEvent({ max_items: 2 });
-  await checkIn(event.id, { firstName: "E2E Below" });
-  // Two checked in, one canceled: only one counts.
+  const one = await checkIn(event.id, { firstName: "E2E Below" });
+  // Two checked in, one canceled.
   const canceled = await checkIn(event.id, {
     firstName: "E2E Canceled",
     items: [{ name: "E2E Lamp", description: "x" }, { name: "E2E Fan", description: "y" }],
@@ -298,12 +298,20 @@ test("the extra item button is not offered below the limit", async ({ page, asVo
   await updateWorkOrder(canceled.orders[1].id, { status: "canceled", cancel_reason: "client_left" });
 
   await asVolunteer(`/admin?event=${event.id}`);
-  for (const name of ["E2E Below Tester", "E2E Canceled Tester"]) {
-    await page.getByText(name).click();
-    await expect(page.getByLabel("Item Name").first()).toBeVisible();
-    await expect(addExtraButton(page)).toHaveCount(0);
-    await page.getByRole("button", { name: "← Queue" }).click();
-  }
+  await page.getByText("E2E Below Tester").click();
+  await addExtra(page, "E2E Toaster", "Electronics", "No heat");
+  await expect(page.getByText(`${one.baseCode}-2`)).toBeVisible();
+  await expect(addExtraButton(page)).toBeVisible();
+  await page.getByRole("button", { name: "← Queue" }).click();
+
+  await page.getByText("E2E Canceled Tester").click();
+  await expect(addExtraButton(page)).toBeVisible();
+
+  const rows = await checkInRows(event.id, one.baseCode);
+  expect(rows.map((r) => [r.code, r.item_name, r.status])).toEqual([
+    [`${one.baseCode}-1`, "E2E Lamp", "pending"],
+    [`${one.baseCode}-2`, "E2E Toaster", "pending"],
+  ]);
 });
 
 test("after printing, an extra item can still be added and prints on its own", async ({ page, asVolunteer }) => {
