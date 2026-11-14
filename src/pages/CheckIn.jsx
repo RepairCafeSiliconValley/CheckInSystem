@@ -330,28 +330,52 @@ function CheckInForm({ event, onProceed, initialValues }) {
             </div>
           )}
           {/* Inside the collectPhone block on purpose: with no phone field on
-              the form there is nothing to consent to. */}
-          <Checkbox
-            checked={textMessageOptIn}
-            disabled={!phoneValid || !phoneDigits}
-            onChange={setTextMessageOptIn}
-            style={{ marginTop: -8, marginBottom: 16 }}
+              the form there is nothing to consent to. Boxed in the logo
+              orange as an outline, never a fill: the form's error notes are
+              pale pink boxes, and this is an invitation, not a warning. The
+              box stays put while the checkbox is disabled so the form doesn't
+              shift when a phone number is typed. */}
+          <div
+            style={{
+              marginTop: -4,
+              marginBottom: 16,
+              padding: "12px 14px",
+              background: "#fff8f5",
+              border: "1px solid #f37053",
+              borderLeft: "4px solid #f37053",
+              borderRadius: "10px",
+            }}
           >
-            <span
-              style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "14px",
-                color: "#1d2939",
-                lineHeight: 1.4,
-              }}
+            <Checkbox
+              checked={textMessageOptIn}
+              disabled={!phoneValid || !phoneDigits}
+              onChange={setTextMessageOptIn}
             >
-              By providing your mobile number and selecting this checkbox, you
-              agree to receive text messages. Message frequency varies. Message
-              and data rates may apply. Consent is not required to attend an
-              event or receive repair assistance. Reply STOP to unsubscribe or
-              HELP for assistance.
-            </span>
-          </Checkbox>
+              {/* The benefit leads; the rest is the consent text our Twilio
+                  10DLC registration requires next to the checkbox (brand, what
+                  the texts are for, frequency, rates, STOP, HELP). Keep it in
+                  step with the opt-in flow registered with Twilio. */}
+              <span
+                style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "14px",
+                  color: "#1d2939",
+                  lineHeight: 1.4,
+                }}
+              >
+                <strong style={{ display: "block", fontSize: "15px", marginBottom: 4 }}>
+                  Text me when a volunteer is ready for my item.
+                </strong>
+                <span style={{ fontSize: "12px", color: "#475467" }}>
+                  By checking this box, you agree to receive text messages from
+                  Repair Café Silicon Valley about your repair visit. One message
+                  per item. Message and data rates may apply. Reply STOP to
+                  unsubscribe or HELP for help. Consent is not required to attend
+                  an event or receive repair assistance.
+                </span>
+              </span>
+            </Checkbox>
+          </div>
         </>
       )}
       <Input
