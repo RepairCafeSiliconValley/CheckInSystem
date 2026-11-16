@@ -5,6 +5,10 @@ import { checkInRows, countAttendees, getAttendee, getWorkOrder, updateEvent } f
 
 const field = (page, label) => page.getByLabel(label, { exact: false });
 const continueBtn = (page) => page.getByRole("button", { name: "Continue" });
+const textingHeading = (page) => page.getByRole("heading", { name: "Get a text when it's your turn" });
+const textMeBtn = (page) => page.getByRole("button", { name: "Text me when it's my turn" });
+const skipTextsBtn = (page) => page.getByRole("button", { name: "No thanks, skip" });
+const smsConsent = (page) => page.getByLabel(/you agree to receive text messages/);
 
 async function fillRequired(page, { first = "E2E Alice", last = "Tester", zip = "95035", item = "E2E Lamp", issue = "Flickers" } = {}) {
   await field(page, "First Name").fill(first);
@@ -62,17 +66,56 @@ test("email validation drives the newsletter checkbox", async ({ page, event }) 
   await expect(newsletter).toBeDisabled();
 });
 
-test("phone is formatted and needs 10 digits", async ({ page, event }) => {
+test("phone is asked on its own texting step, not on the form", async ({ page, event }) => {
   await page.goto(`/checkin?event=${event.id}`);
+  await expect(field(page, "Cell Phone")).toHaveCount(0);
+  await fillRequired(page);
+  await continueBtn(page).click();
+  await expect(textingHeading(page)).toBeVisible();
+});
+
+test("texting step: phone is formatted, needs 10 digits, and needs consent to continue", async ({ page, event }) => {
+  await page.goto(`/checkin?event=${event.id}`);
+  await fillRequired(page);
+  await continueBtn(page).click();
+
   const phone = field(page, "Cell Phone");
+  await expect(textMeBtn(page)).toBeDisabled();
+  await expect(smsConsent(page)).toBeDisabled();
+  await expect(skipTextsBtn(page)).toBeEnabled();
+
   await phone.pressSequentially("(408) 555-01");
   await expect(phone).toHaveValue("408-555-01");
   await phone.blur();
-  await expect(page.getByText("Please enter a valid 10-digit phone number, or leave this field blank.")).toBeVisible();
+  await expect(page.getByText("Please enter a valid 10-digit phone number, or tap No thanks.")).toBeVisible();
   // Digits past the tenth are dropped.
   await phone.fill("40855501019999");
   await expect(phone).toHaveValue("408-555-0101");
   await expect(page.getByText("Please enter a valid 10-digit phone number")).toHaveCount(0);
+
+  // A valid number alone isn't enough: consent is never pre-ticked.
+  await expect(smsConsent(page)).toBeEnabled();
+  await expect(smsConsent(page)).not.toBeChecked();
+  await expect(textMeBtn(page)).toBeDisabled();
+  await smsConsent(page).check();
+  await expect(textMeBtn(page)).toBeEnabled();
+});
+
+test("skipping texts stores no phone and no consent, even if a number was typed", async ({ page, event }) => {
+  await page.goto(`/checkin?event=${event.id}`);
+  await fillRequired(page, { first: "E2E Skipper" });
+  await continueBtn(page).click();
+  await field(page, "Cell Phone").fill("4085550101");
+  await skipTextsBtn(page).click();
+  await page.getByLabel("I have read and agree to the above waiver").check();
+  await page.getByRole("button", { name: "Check In" }).click();
+
+  await expect(page.getByText("Hi E2E Skipper, you're almost done!")).toBeVisible();
+  const baseCode = (await page.getByText(/^[A-Z][0-9][A-Z]$/).textContent()).trim();
+  const orders = await checkInRows(event.id, baseCode);
+  const attendee = await getAttendee(orders[0].attendee_id);
+  expect(attendee.phone ?? "").toBe("");
+  expect(attendee.text_message_opt_in).toBe(false);
 });
 
 test("items can be added up to the limit and removed", async ({ page, event }) => {
@@ -94,20 +137,31 @@ test("full check-in: waiver, back keeps the form, confirmation codes, data store
   await page.goto(`/checkin?event=${event.id}`);
   await fillRequired(page, { first: "E2E Alice", item: "E2E Lamp", issue: "Flickers" });
   await field(page, "Email Address").fill("alice@example.com");
-  await field(page, "Cell Phone").fill("4085550101");
   await page.getByRole("button", { name: "+ Add Item #2" }).click();
   await page.getByLabel("Item Name").last().fill("E2E Toaster");
   await page.getByLabel("What's wrong with it?").last().fill("Burns toast");
   await continueBtn(page).click();
 
+  await expect(textingHeading(page)).toBeVisible();
+  await field(page, "Cell Phone").fill("4085550101");
+  await smsConsent(page).check();
+  await textMeBtn(page).click();
+
   await expect(page.getByRole("heading", { name: "Authorization & Waiver" })).toBeVisible();
   const checkInBtn = page.getByRole("button", { name: "Check In" });
   await expect(checkInBtn).toBeDisabled();
 
+  // Back from the waiver lands on the texting step with the answer kept, and
+  // back again on the form with everything kept.
+  await page.getByRole("button", { name: "← Back", exact: true }).click();
+  await expect(field(page, "Cell Phone")).toHaveValue("408-555-0101");
+  await expect(smsConsent(page)).toBeChecked();
   await page.getByRole("button", { name: "← Back to form" }).click();
   await expect(field(page, "First Name")).toHaveValue("E2E Alice");
   await expect(page.getByLabel("Item Name").last()).toHaveValue("E2E Toaster");
   await continueBtn(page).click();
+  await expect(field(page, "Cell Phone")).toHaveValue("408-555-0101");
+  await textMeBtn(page).click();
 
   await page.getByLabel("I have read and agree to the above waiver").check();
   await checkInBtn.click();
@@ -132,6 +186,7 @@ test("full check-in: waiver, back keeps the form, confirmation codes, data store
     phone: "4085550101",
     zip_code: "95035",
     newsletter_opt_in: true,
+    text_message_opt_in: true,
   });
   expect(await getWorkOrder(orders[1].id)).toMatchObject({ description: "Burns toast" });
 
@@ -147,6 +202,15 @@ test("event settings hide email, phone and extra items", async ({ page, event })
   await expect(page.getByLabel(/newsletter/)).toHaveCount(0);
   await expect(field(page, "Cell Phone")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /\+ Add Item/ })).toHaveCount(0);
+
+  // With no phone collected, the texting step is skipped entirely, and the
+  // waiver's back button returns straight to the form.
+  await fillRequired(page);
+  await continueBtn(page).click();
+  await expect(page.getByRole("heading", { name: "Authorization & Waiver" })).toBeVisible();
+  await expect(textingHeading(page)).toHaveCount(0);
+  await page.getByRole("button", { name: "← Back to form" }).click();
+  await expect(field(page, "First Name")).toHaveValue("E2E Alice");
 });
 
 test("a closed event shows the closed card with a way back", async ({ page, event }) => {
@@ -160,6 +224,7 @@ test("a failed submission shows an error and can be retried without duplicates",
   await page.goto(`/checkin?event=${event.id}`);
   await fillRequired(page, { first: "E2E Retry" });
   await continueBtn(page).click();
+  await skipTextsBtn(page).click();
   await page.getByLabel("I have read and agree to the above waiver").check();
 
   await page.route("**/rest/v1/rpc/checkin_visitor", (route) => route.abort());

@@ -7,6 +7,7 @@ import Input from "../components/Input";
 import Checkbox from "../components/Checkbox";
 import ItemForm from "../components/ItemForm";
 import WaiverStep from "../components/WaiverStep";
+import TextOptInStep from "../components/TextOptInStep";
 import { fetchEventById, checkinVisitor } from "../lib/store";
 import {
   WAIVER_VERSION,
@@ -16,13 +17,6 @@ import {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ZIP_REGEX = /^\d{5}$/;
-const PHONE_REGEX = /^\d{10}$/;
-
-function formatPhone(digits) {
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
-}
 
 function ConfirmationScreen({ data, onReset }) {
   return (
@@ -138,35 +132,24 @@ function CheckInForm({ event, onProceed, initialValues }) {
   const [firstName, setFirstName] = useState(initialValues?.firstName || "");
   const [lastName, setLastName] = useState(initialValues?.lastName || "");
   const [email, setEmail] = useState(initialValues?.email || "");
-  const [phone, setPhone] = useState(
-    formatPhone((initialValues?.phone || "").replace(/\D/g, "")),
-  );
   const [zipCode, setZipCode] = useState(initialValues?.zipCode || "");
   const [newsletterOptIn, setNewsletterOptIn] = useState(
     initialValues?.newsletterOptIn ?? true,
-  );
-  const [textMessageOptIn, setTextMessageOptIn] = useState(
-    initialValues?.textMessageOptIn ?? false,
   );
   const [items, setItems] = useState(
     initialValues?.items || [{ name: "", description: "" }],
   );
   const [emailTouched, setEmailTouched] = useState(false);
-  const [phoneTouched, setPhoneTouched] = useState(false);
   const [zipTouched, setZipTouched] = useState(false);
 
-  // Which contact fields this event collects. Default to shown so an event row
-  // predating the migration behaves exactly as before.
+  // Whether this event collects email. Default to shown so an event row
+  // predating the migration behaves exactly as before. The phone number is
+  // asked for on its own step (TextOptInStep), not here.
   const collectEmail = event.collect_email !== false;
-  const collectPhone = event.collect_phone !== false;
 
   const emailValid = !collectEmail || !email.trim() || EMAIL_REGEX.test(email.trim());
   const showEmailError = emailTouched && !emailValid;
   const hasUsableEmail = collectEmail && !!email.trim() && EMAIL_REGEX.test(email.trim());
-
-  const phoneDigits = phone.replace(/\D/g, "");
-  const phoneValid = !collectPhone || !phone.trim() || PHONE_REGEX.test(phoneDigits);
-  const showPhoneError = phoneTouched && !phoneValid;
 
   const zipValid = !zipCode.trim() || ZIP_REGEX.test(zipCode.trim());
   const showZipError = zipTouched && !zipValid;
@@ -177,13 +160,8 @@ function CheckInForm({ event, onProceed, initialValues }) {
     zipCode.trim() &&
     zipValid &&
     emailValid &&
-    phoneValid &&
     items.every((it) => it.name.trim() && it.description.trim());
 
-  const handlePhoneChange = (val) => {
-    const digits = val.replace(/\D/g, "").slice(0, 10);
-    setPhone(formatPhone(digits));
-  };
   const handleZipChange = (val) => {
     setZipCode(val.replace(/\D/g, "").slice(0, 5));
   };
@@ -204,11 +182,9 @@ function CheckInForm({ event, onProceed, initialValues }) {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: collectEmail ? email : "",
-      phone: collectPhone ? phoneDigits : "",
       zipCode,
       items,
       newsletterOptIn: hasUsableEmail && newsletterOptIn,
-      textMessageOptIn: phoneValid && phoneDigits && textMessageOptIn,
     });
   };
 
@@ -306,50 +282,6 @@ function CheckInForm({ event, onProceed, initialValues }) {
               }}
             >
               Subscribe to Repair Café Silicon Valley's newsletter.
-            </span>
-          </Checkbox>
-        </>
-      )}
-      {collectPhone && (
-        <>
-          <Input
-            label="Cell Phone"
-            value={phone}
-            onChange={handlePhoneChange}
-            onBlur={() => setPhoneTouched(true)}
-            placeholder="408-555-0101 (optional)"
-            type="tel"
-            inputMode="numeric"
-            maxLength={12}
-          />
-          {showPhoneError && (
-            <div style={{ padding: "8px 12px", background: "#fef3f2", borderRadius: "8px", marginTop: -8, marginBottom: 16 }}>
-              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", color: "#b42318" }}>
-                Please enter a valid 10-digit phone number, or leave this field blank.
-              </span>
-            </div>
-          )}
-          {/* Inside the collectPhone block on purpose: with no phone field on
-              the form there is nothing to consent to. */}
-          <Checkbox
-            checked={textMessageOptIn}
-            disabled={!phoneValid || !phoneDigits}
-            onChange={setTextMessageOptIn}
-            style={{ marginTop: -8, marginBottom: 16 }}
-          >
-            <span
-              style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "14px",
-                color: "#1d2939",
-                lineHeight: 1.4,
-              }}
-            >
-              By providing your mobile number and selecting this checkbox, you
-              agree to receive text messages. Message frequency varies. Message
-              and data rates may apply. Consent is not required to attend an
-              event or receive repair assistance. Reply STOP to unsubscribe or
-              HELP for assistance.
             </span>
           </Checkbox>
         </>
@@ -488,7 +420,8 @@ export default function CheckIn() {
   const eventId = searchParams.get("event");
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState("form"); // "form" | "waiver" | "confirm"
+  // "form" → "texting" (only when the event collects phones) → "waiver" → "confirm"
+  const [step, setStep] = useState("form");
   const [formData, setFormData] = useState(null);
   const [confirmData, setConfirmData] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -567,6 +500,10 @@ export default function CheckIn() {
     );
   }
 
+  // Default to collecting so an event row predating the setting behaves as
+  // before.
+  const collectPhone = event.collect_phone !== false;
+
   if (!event.is_open) {
     return (
       <DeadEndCard emoji="🔒" title={`${event.name} — Check-In Closed`}>
@@ -608,18 +545,42 @@ export default function CheckIn() {
           <WaiverStep
             onAccept={handleWaiverAccept}
             onBack={() => {
-              setStep("form");
+              setStep(collectPhone ? "texting" : "form");
               setError(null);
             }}
+            backLabel={collectPhone ? "← Back" : "← Back to form"}
             submitting={submitting}
             error={error}
+          />
+        ) : step === "texting" ? (
+          <TextOptInStep
+            initialPhone={formData?.phone || ""}
+            initialOptIn={formData?.textMessageOptIn ?? false}
+            onContinue={({ phone, textMessageOptIn }) => {
+              setFormData((prev) => ({ ...prev, phone, textMessageOptIn }));
+              setStep("waiver");
+            }}
+            onBack={({ phone, textMessageOptIn }) => {
+              setFormData((prev) => ({ ...prev, phone, textMessageOptIn }));
+              setStep("form");
+            }}
           />
         ) : (
           <CheckInForm
             event={event}
             onProceed={(data) => {
-              setFormData(data);
-              setStep("waiver");
+              // Keep any answer already given on the texting step, so going
+              // back to fix a typo doesn't wipe the phone number.
+              setFormData((prev) =>
+                collectPhone
+                  ? {
+                      ...data,
+                      phone: prev?.phone || "",
+                      textMessageOptIn: prev?.textMessageOptIn ?? false,
+                    }
+                  : { ...data, phone: "", textMessageOptIn: false },
+              );
+              setStep(collectPhone ? "texting" : "waiver");
             }}
             initialValues={formData}
           />

@@ -70,7 +70,8 @@ The tests run a desktop-sized Chromium only. Repeat these on the iPhone (Safari)
 
 | # | Page | Check |
 | --- | --- | --- |
-| 3.1 | `/checkin` | No sideways scrolling. Zip opens a number pad; Cell Phone opens a phone keypad; Email offers an `@` key. The keyboard doesn't hide the field you're typing in |
+| 3.1 | `/checkin` | No sideways scrolling. Zip opens a number pad; Email offers an `@` key. The keyboard doesn't hide the field you're typing in |
+| 3.1a | Texting step (after Continue, on an event that collects phones) | The explanation reads well on a phone screen. Cell Phone opens a phone keypad. The consent box, Text me when it's my turn and No thanks, skip are all reachable with the keyboard up, and No thanks is easy to find but doesn't outshine the main button |
 | 3.2 | Waiver | The waiver box scrolls on its own; the agree checkbox and Check In stay reachable |
 | 3.3 | Confirmation | The ID and item codes are large enough to show a volunteer across a table |
 | 3.4 | `/fix/<id>` | The four outcome buttons sit two by two. The reason buttons wrap cleanly; the Submit button isn't hidden behind the keyboard |
