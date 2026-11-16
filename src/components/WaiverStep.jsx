@@ -4,7 +4,13 @@ import Button from "./Button";
 import Checkbox from "./Checkbox";
 import { WAIVER_SECTIONS } from "../lib/constants";
 
-export default function WaiverStep({ onAccept, onBack, submitting, error }) {
+export default function WaiverStep({
+  onAccept,
+  onBack,
+  backLabel = "← Back to form",
+  submitting,
+  error,
+}) {
   const [agreed, setAgreed] = useState(false);
 
   return (
@@ -136,7 +142,7 @@ export default function WaiverStep({ onAccept, onBack, submitting, error }) {
             padding: "4px 8px",
           }}
         >
-          ← Back to form
+          {backLabel}
         </button>
       </div>
     </div>
