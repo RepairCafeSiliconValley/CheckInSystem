@@ -46,6 +46,10 @@ export default function TextOptInStep({
   const phoneValid = PHONE_REGEX.test(digits);
   const showPhoneError = phoneTouched && !!digits && !phoneValid;
   const canContinue = phoneValid && optIn;
+  // The case this screen exists for: a full number typed, box not ticked.
+  // Phones have no hover, so a disabled button alone doesn't say why it won't
+  // respond. Nudge gently (navy, not error red); the tick stays their choice.
+  const showConsentNudge = phoneValid && !optIn;
 
   const handlePhoneChange = (val) => {
     setPhone(formatPhone(val.replace(/\D/g, "").slice(0, 10)));
@@ -74,8 +78,8 @@ export default function TextOptInStep({
         Get a text when it's your turn
       </h2>
       <p style={bodyStyle}>
-        When a volunteer is available to work with you, we can send you a
-        text, so you don't have to keep listening for your name.
+        When a volunteer is available to work with you, we can send you a text,
+        so you don't have to keep listening for your name.
       </p>
       <p style={{ ...bodyStyle, margin: "0 0 20px 0" }}>
         It's optional. If you'd rather not, tap <strong>No Thanks</strong>.
@@ -113,28 +117,51 @@ export default function TextOptInStep({
           </span>
         </div>
       )}
-      <Checkbox
-        checked={optIn}
-        disabled={!phoneValid}
-        onChange={setOptIn}
-        style={{ marginBottom: 20 }}
+      <div aria-live="polite">
+        {showConsentNudge && (
+          <p
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#1e3a6e",
+              margin: "-4px 0 8px 0",
+            }}
+          >
+            Almost done: tick the box below to get texts.
+          </p>
+        )}
+      </div>
+      {/* The border and padding are always there (transparent when idle), so
+          the layout doesn't shift when the nudge turns on. */}
+      <div
+        style={{
+          padding: "10px 12px",
+          margin: "0 0 20px",
+          borderRadius: 10,
+          border: `1.5px solid ${showConsentNudge ? "#b9c7de" : "transparent"}`,
+          background: showConsentNudge ? "#eef2f8" : "transparent",
+          transition: "background 0.2s, border-color 0.2s",
+        }}
       >
-        <span
-          style={{
-            fontFamily: "'Outfit', sans-serif",
-            fontSize: "12px",
-            fontWeight: 300,
-            color: "#1d2939",
-            lineHeight: 1.4,
-          }}
-        >
-          By providing your mobile number and selecting this checkbox, you
-          agree to receive text messages. Message frequency varies. Message
-          and data rates may apply. Consent is not required to attend an
-          event or receive repair assistance. Reply STOP to unsubscribe or
-          HELP for assistance.
-        </span>
-      </Checkbox>
+        <Checkbox checked={optIn} disabled={!phoneValid} onChange={setOptIn}>
+          <span
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "12px",
+              fontWeight: 300,
+              color: "#1d2939",
+              lineHeight: 1.4,
+            }}
+          >
+            By providing your mobile number and selecting this checkbox, you
+            agree to receive text messages. Message frequency varies. Message
+            and data rates may apply. Consent is not required to attend an event
+            or receive repair assistance. Reply STOP to unsubscribe or HELP for
+            assistance.
+          </span>
+        </Checkbox>
+      </div>
 
       <Button
         onClick={() => onContinue({ phone: digits, textMessageOptIn: true })}

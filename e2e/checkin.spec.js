@@ -88,6 +88,8 @@ test("texting step: phone is formatted, needs 10 digits, and needs consent to co
   await expect(phone).toHaveValue("408-555-01");
   await phone.blur();
   await expect(page.getByText("Please enter a valid 10-digit phone number, or tap No thanks.")).toBeVisible();
+  const nudge = page.getByText("Almost done: tick the box below to get texts.");
+  await expect(nudge).toHaveCount(0);
   // Digits past the tenth are dropped.
   await phone.fill("40855501019999");
   await expect(phone).toHaveValue("408-555-0101");
@@ -97,7 +99,9 @@ test("texting step: phone is formatted, needs 10 digits, and needs consent to co
   await expect(smsConsent(page)).toBeEnabled();
   await expect(smsConsent(page)).not.toBeChecked();
   await expect(textMeBtn(page)).toBeDisabled();
+  await expect(nudge).toBeVisible();
   await smsConsent(page).check();
+  await expect(nudge).toHaveCount(0);
   await expect(textMeBtn(page)).toBeEnabled();
 });
 
