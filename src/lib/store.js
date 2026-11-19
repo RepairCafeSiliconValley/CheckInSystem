@@ -84,6 +84,9 @@ export async function createEvent({
       name,
       date,
       location,
+      // New events start closed; an admin opens check-in when it's time. Set
+      // explicitly too, so it holds on a database still on the old default.
+      is_open: false,
       max_items: maxItems,
       collect_email: collectEmail,
       collect_phone: collectPhone,
@@ -350,9 +353,10 @@ export async function fetchMetricsRows(eventIds = null) {
 // fetchMetricsRows deliberately omits code/item_name/priority and runs on every
 // page view, so widening it to serve an occasional export would tax every load.
 //
-// NOTE: do not add `assigned_at` here. It exists on DEV only (via the unmerged
-// twilio-integration migration) and naming a column that's absent on prod fails
-// the whole query.
+// `assigned_at` is exported as "Claimed At": when a fixer claimed the item by
+// scanning its ticket (claim-and-notify), blank if never claimed or unclaimed.
+// It comes from supabase-sms-notifications-migration.sql, which must have run
+// on an environment before this export works there.
 export async function exportWorkOrdersCSV(events, scopeLabel) {
   if (!events?.length) return;
   const byId = new Map(events.map((e) => [e.id, e]));
@@ -365,7 +369,7 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
       supabase
         .from("work_orders")
         .select(
-          "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, cancel_note, not_fixed_reason, not_fixed_note, fixer_name, weight_kg, created_at, printed_at, completed_at"
+          "id, event_id, attendee_id, code, item_name, category, priority, status, outcome, cancel_reason, cancel_note, not_fixed_reason, not_fixed_note, fixer_name, weight_kg, created_at, printed_at, assigned_at, completed_at"
         )
         .in("event_id", eventIds)
         .order("created_at", { ascending: true })
@@ -395,7 +399,7 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
     "Attendee ID", "Zip Code", "Volunteer",
     "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
     "Cancel Reason", "Cancel Note", "Not Fixed Reason", "Not Fixed Note", "Fixer", "Weight (kg)",
-    "Created At", "Printed At", "Completed At",
+    "Created At", "Printed At", "Claimed At", "Completed At",
   ].join(",");
 
   // Event date first so the file groups naturally when opened in a spreadsheet.
@@ -419,7 +423,7 @@ export async function exportWorkOrdersCSV(events, scopeLabel) {
       // commas, quotes or line breaks so each stays in its own cell.
       esc(w.cancel_reason), esc(w.cancel_note), esc(w.not_fixed_reason), esc(w.not_fixed_note),
       esc(w.fixer_name), esc(w.weight_kg),
-      esc(w.created_at), esc(w.printed_at), esc(w.completed_at),
+      esc(w.created_at), esc(w.printed_at), esc(w.assigned_at), esc(w.completed_at),
     ].join(",");
   });
 

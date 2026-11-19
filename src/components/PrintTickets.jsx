@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
-import TicketCodeBadge, { TICKET_CODE_BADGE_MODE } from "./TicketCodeBadge";
+import TicketCodeBadge, { TICKET_CODE_BADGE_MODE, VolunteerPill } from "./TicketCodeBadge";
 import { formatClockTime } from "../lib/metrics";
 import { ticketUrl } from "../lib/ticketLink";
 
@@ -154,7 +154,6 @@ export default function PrintTickets({
             )}
             <TicketCodeBadge
               code={wo.priority}
-              isVolunteer={isVolunteer}
               canTextClient={canTextClient}
               mode={TICKET_CODE_BADGE_MODE.PRIORITY}
             />
@@ -196,6 +195,7 @@ export default function PrintTickets({
           <div style={{ marginBottom: 4 }}>
             <span style={labelStyle}>CLIENT: </span>
             <span style={valueStyle}>{attendeeName}</span>
+            {isVolunteer && <VolunteerPill />}
           </div>
 
           <div style={divider} />
@@ -222,7 +222,6 @@ export default function PrintTickets({
           >
             <TicketCodeBadge
               code={wo.code?.split("-")[0]}
-              isVolunteer={isVolunteer}
               mode={TICKET_CODE_BADGE_MODE.COMPACT}
             />
             <div

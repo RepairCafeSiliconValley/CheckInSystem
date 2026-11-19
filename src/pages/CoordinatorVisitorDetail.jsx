@@ -365,6 +365,9 @@ export default function CoordinatorVisitorDetail({
   // Revert a completed OR canceled item back into the active flow. Items canceled
   // before their ticket was printed (no printed_at) go back to 'pending'.
   // fixer_name is kept so re-recording the outcome doesn't lose who worked on it.
+  // assigned_at is cleared: the item is back to Checked-In (unclaimed), matching
+  // what unclaim_work_order does. A blank assigned_at always means "not claimed
+  // by a QR scan"; recording an outcome never fills it in.
   const editOutcome = async (woId) => {
     const wo = orders.find((o) => o.id === woId);
     await updateWorkOrder(woId, {
@@ -375,6 +378,7 @@ export default function CoordinatorVisitorDetail({
       not_fixed_reason: null,
       not_fixed_note: null,
       completed_at: null,
+      assigned_at: null,
     });
     await loadData();
   };
