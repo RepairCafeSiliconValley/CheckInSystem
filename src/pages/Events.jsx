@@ -356,7 +356,11 @@ export default function Events({ onViewMetrics }) {
                   display: "inline-block",
                 }}
               >
-                {ev.is_open ? "Close Check-In" : "Reopen Check-In"}
+                {ev.is_open
+                  ? "Close Check-In"
+                  : ev.first_opened_at
+                    ? "Reopen Check-In"
+                    : "Open Check-In"}
               </Button>
               <Button
                 variant="outline"

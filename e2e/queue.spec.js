@@ -9,6 +9,7 @@ import {
   getWorkOrder,
   localVolunteerPassword,
   markPrinted,
+  updateAttendee,
   updateEvent,
   updateWorkOrder,
 } from "./support/stack.js";
@@ -227,6 +228,31 @@ test("approve & print needs every category, then prints and marks items Checked-
   await page.getByRole("button", { name: "← Queue" }).click();
   await expect(chip(page, "Checked-In")).toHaveText("Checked-In (2)");
   await expect(page.getByText("(1 waiting)")).toBeVisible();
+});
+
+test("a volunteer's ticket shows the V marker after the client name, not in the top row", async ({ page, event, asVolunteer }) => {
+  const v = await checkIn(event.id, { firstName: "E2E Helper" });
+  await updateAttendee(v.attendee.id, { is_volunteer: true });
+  await markPrinted(v.orders[0].id);
+  const other = await checkIn(event.id, { firstName: "E2E Visitor" });
+  await markPrinted(other.orders[0].id);
+
+  await openVisitor(page, asVolunteer, event.id, "E2E Helper Tester");
+  await page.getByRole("button", { name: /Reprint/ }).click();
+  const ticket = page.locator(".print-ticket");
+  await expect(ticket).toHaveCount(1);
+  const marker = ticket.getByLabel("Volunteer", { exact: true });
+  await expect(marker).toHaveCount(1);
+  // It follows the name inside the client line.
+  await expect(ticket.locator("div", { hasText: "CLIENT:" }).last()).toContainText("E2E Helper T.V");
+  if (process.env.E2E_SCREENSHOT) await ticket.screenshot({ path: process.env.E2E_SCREENSHOT });
+
+  await page.getByRole("button", { name: "← Client" }).click();
+  await page.getByRole("button", { name: "← Queue" }).click();
+  await page.getByText("E2E Visitor Tester").click();
+  await page.getByRole("button", { name: /Reprint/ }).click();
+  await expect(page.locator(".print-ticket")).toHaveCount(1);
+  await expect(page.locator(".print-ticket").getByLabel("Volunteer", { exact: true })).toHaveCount(0);
 });
 
 // ── Items added at the desk ──

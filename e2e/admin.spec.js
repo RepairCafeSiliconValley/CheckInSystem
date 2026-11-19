@@ -9,7 +9,7 @@ const eventCard = (page, name) =>
 
 // ── Events ──
 
-test("create an event: required fields, defaults reset, listed open", async ({ page, asAdmin }) => {
+test("create an event: required fields, defaults reset, listed closed", async ({ page, asAdmin }) => {
   await asAdmin("/admin?tab=events");
   const name = `E2E Created ${tag()}`;
   const create = page.getByRole("button", { name: "Create Event" });
@@ -26,8 +26,15 @@ test("create an event: required fields, defaults reset, listed open", async ({ p
   await expect(page.getByLabel("Max Items per Visitor")).toHaveValue("2");
   await expect(page.getByLabel("Record item weight (kg)")).not.toBeChecked();
   const card = eventCard(page, name);
-  await expect(card.getByText("Open", { exact: true })).toBeVisible();
+  // New events start closed; a never-opened event offers "Open", not "Reopen".
+  await expect(card.getByText("Closed", { exact: true })).toBeVisible();
   await expect(card.getByText("0 clients")).toBeVisible();
+  await expect(card.getByRole("button", { name: "Reopen Check-In" })).toHaveCount(0);
+  await card.getByRole("button", { name: "Open Check-In", exact: true }).click();
+  await expect(card.getByText("Open", { exact: true })).toBeVisible();
+  // Once it has been open, closing it offers "Reopen".
+  await card.getByRole("button", { name: "Close Check-In" }).click();
+  await expect(card.getByRole("button", { name: "Reopen Check-In" })).toBeVisible();
 });
 
 test("the QR modal shows the check-in link and copies it", async ({ page, event, asAdmin }) => {
