@@ -5,15 +5,35 @@ export const TICKET_CODE_BADGE_MODE = Object.freeze({
   PRIORITY: "priority",
 });
 
-// The volunteer pill. Sized to sit level with the bare glyph beside it.
-const pillBase = {
-  display: "inline-block",
-  fontSize: "10pt",
-  lineHeight: "17px",
-  borderRadius: "12px",
-  printColorAdjust: "exact",
-  WebkitPrintColorAdjust: "exact",
-};
+// The volunteer marker: a solid black pill with a white V, printed after the
+// client's name on the ticket (it used to sit beside the priority number).
+// Solid fill for the same reason as the message glyph below: thermal printers
+// are 1-bit and thin outlines drop out.
+export function VolunteerPill() {
+  return (
+    <span
+      title="Volunteer"
+      aria-label="Volunteer"
+      style={{
+        display: "inline-block",
+        marginLeft: "8px",
+        padding: "2px 6px",
+        fontSize: "10pt",
+        lineHeight: "17px",
+        fontWeight: 700,
+        fontFamily: font,
+        borderRadius: "12px",
+        backgroundColor: "#000",
+        color: "#fff",
+        verticalAlign: "middle",
+        printColorAdjust: "exact",
+        WebkitPrintColorAdjust: "exact",
+      }}
+    >
+      V
+    </span>
+  );
+}
 
 // Solid-filled bubble, never stroked — thermal printers are 1-bit and thin
 // outlines drop out. It carries no container of its own, so the filled shape
@@ -36,14 +56,12 @@ function MessageGlyph() {
 
 export default function TicketCodeBadge({
   code,
-  isVolunteer,
   // Will this client get a text when the item is claimed? Only rendered in
-  // PRIORITY mode, alongside the volunteer flag.
+  // PRIORITY mode.
   canTextClient = false,
   mode = TICKET_CODE_BADGE_MODE.COMPACT,
 }) {
   const isPriorityMode = mode === TICKET_CODE_BADGE_MODE.PRIORITY;
-  const showVolunteerFlag = isPriorityMode && isVolunteer;
   const showTextFlag = isPriorityMode && canTextClient;
   const displayCode = isPriorityMode ? `#${code}` : code;
 
@@ -64,46 +82,19 @@ export default function TicketCodeBadge({
       }}
     >
       {displayCode}
-      {(showVolunteerFlag || showTextFlag) && (
-        // Gap lives here rather than on the pills, so one pill or two spaces
-        // identically from the code. Replaces the old hardcoded 20px margin,
-        // which only worked when the volunteer flag was the sole marker.
+      {showTextFlag && (
+        // No pill around it: the filled bubble reads clearly on its own. The
+        // wrapper is aligned explicitly because an inline-flex box with no
+        // text inside has no baseline of its own and would drift from #1.
         <span
           style={{
             display: "inline-flex",
             alignItems: "center",
-            // An inline-flex box inherits its baseline from its FIRST flex
-            // item. With the V pill present that's a text baseline and the row
-            // lines up with #1; with only the glyph there is no text baseline
-            // and it drifts. Aligning the wrapper explicitly makes the result
-            // identical whichever markers are showing.
             verticalAlign: "middle",
-            gap: "10px",
             marginLeft: "20px",
           }}
         >
-          {showVolunteerFlag && (
-            // Padding is lopsided because the parent sets letterSpacing: 2px,
-            // which adds a phantom gap after the V but not before it.
-            <span
-              style={{
-                ...pillBase,
-                padding: "2px 4px 2px 7px",
-                backgroundColor: "#000",
-                color: "#fff",
-              }}
-            >
-              V
-            </span>
-          )}
-          {showTextFlag && (
-            // No pill around it: the filled bubble reads clearly on its own,
-            // and against the solid volunteer pill the two stay easy to tell
-            // apart without a border doing the work.
-            <span style={{ display: "inline-flex" }}>
-              <MessageGlyph />
-            </span>
-          )}
+          <MessageGlyph />
         </span>
       )}
     </div>

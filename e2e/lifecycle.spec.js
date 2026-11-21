@@ -23,7 +23,9 @@ test("record Fixed with a saved fixer name, then edit it back to Checked-In", as
   const v = await checkIn(event.id, { firstName: "E2E Outcome" });
   const id = v.orders[0].id;
   await markPrinted(id);
-  await updateWorkOrder(id, { fixer_name: "E2E Staff Fixer" });
+  // Claimed by a fixer's QR scan, as claim-and-notify would leave it.
+  const claimedAt = "2026-01-01T10:00:00.000Z";
+  await updateWorkOrder(id, { status: "assigned", fixer_name: "E2E Staff Fixer", assigned_at: claimedAt });
   await openVisitor(page, asVolunteer, event.id, "E2E Outcome Tester");
 
   await openOutcome(page);
@@ -36,15 +38,20 @@ test("record Fixed with a saved fixer name, then edit it back to Checked-In", as
   await expect(page.getByText("Completed", { exact: true })).toBeVisible();
   await expect(page.getByText("by E2E Staff Fixer")).toBeVisible();
   await expect(page.getByLabel("Item Name")).toHaveCount(0);
-  expect(await getWorkOrder(id)).toMatchObject({ status: "completed", outcome: "Fixed", fixer_name: "E2E Staff Fixer" });
+  const completed = await getWorkOrder(id);
+  expect(completed).toMatchObject({ status: "completed", outcome: "Fixed", fixer_name: "E2E Staff Fixer" });
+  // Recording the outcome leaves the claim time alone.
+  expect(Date.parse(completed.assigned_at)).toBe(Date.parse(claimedAt));
 
+  // Edit Outcome puts it back on the board unclaimed: the claim time goes,
+  // the fixer's name stays.
   await page.getByRole("button", { name: /Edit Outcome/ }).click();
   await expect(page.getByText("Checked-In", { exact: true })).toBeVisible();
   await openOutcome(page);
   await expect(page.getByText("Record Outcome:")).toBeVisible();
   await expect(page.getByLabel("Fixer Name (optional)")).toHaveValue("E2E Staff Fixer");
   expect(await getWorkOrder(id)).toMatchObject({
-    status: "pending_assignment", outcome: null, fixer_name: "E2E Staff Fixer", completed_at: null,
+    status: "pending_assignment", outcome: null, fixer_name: "E2E Staff Fixer", completed_at: null, assigned_at: null,
   });
 });
 
@@ -129,13 +136,15 @@ test("cancel a printed item with Other and a note; undo returns it to Checked-In
   await page.getByRole("button", { name: 'Confirm "Other"' }).click();
   await expect(page.getByText("Cancelled — Other")).toBeVisible();
   await expect(page.getByText("Note: E2E cancel note")).toBeVisible();
+  // Never claimed by a QR scan, so closing it out leaves no claim time.
+  expect((await getWorkOrder(id)).assigned_at).toBeNull();
 
   await page.getByRole("button", { name: /Undo Cancel/ }).click();
   await expect(page.getByText("Checked-In", { exact: true })).toBeVisible();
   await openOutcome(page);
   await expect(page.getByLabel("Fixer Name (optional)")).toHaveValue("E2E Cancel Fixer");
   expect(await getWorkOrder(id)).toMatchObject({
-    status: "pending_assignment", cancel_reason: null, cancel_note: null, fixer_name: "E2E Cancel Fixer",
+    status: "pending_assignment", cancel_reason: null, cancel_note: null, fixer_name: "E2E Cancel Fixer", assigned_at: null,
   });
 });
 
