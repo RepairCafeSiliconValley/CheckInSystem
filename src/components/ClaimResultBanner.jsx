@@ -80,7 +80,15 @@ function copyFor(result, clientName) {
   }
 }
 
-export default function ClaimResultBanner({ result, clientName, itemName }) {
+// The desk reuses this after assigning an item to a fixer: it passes its own
+// title and drops the thank-you line, which is addressed to the fixer.
+export default function ClaimResultBanner({
+  result,
+  clientName,
+  itemName,
+  title = "Claimed.",
+  showThanks = true,
+}) {
   const copy = copyFor(result, clientName);
   const sent = Boolean(result.texted);
 
@@ -108,20 +116,22 @@ export default function ClaimResultBanner({ result, clientName, itemName }) {
             margin: 0,
           }}
         >
-          <strong>Claimed.</strong> {copy.body}
+          <strong>{title}</strong> {copy.body}
         </p>
-        <p
-          style={{
-            fontFamily: "'Outfit', sans-serif",
-            fontSize: "13px",
-            color: "#667085",
-            lineHeight: 1.5,
-            margin: "4px 0 0 0",
-          }}
-        >
-          Thank you for working on the <strong>{itemName}</strong>. Good luck
-          with the fix!
-        </p>
+        {showThanks && (
+          <p
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "13px",
+              color: "#667085",
+              lineHeight: 1.5,
+              margin: "4px 0 0 0",
+            }}
+          >
+            Thank you for working on the <strong>{itemName}</strong>. Good luck
+            with the fix!
+          </p>
+        )}
       </div>
     </div>
   );

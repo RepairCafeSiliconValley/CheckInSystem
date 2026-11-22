@@ -10,6 +10,8 @@ import StatusBadge from "../components/StatusBadge";
 import RecordOutcome from "../components/RecordOutcome";
 import ReasonPicker from "../components/ReasonPicker";
 import ExtraItemForm from "../components/ExtraItemForm";
+import AssignFixer from "../components/AssignFixer";
+import ClaimResultBanner from "../components/ClaimResultBanner";
 import { CATEGORIES, CANCEL_REASONS } from "../lib/constants";
 import { isTextablePhone } from "../lib/textMessage";
 import {
@@ -18,10 +20,13 @@ import {
   updateWorkOrder,
   unclaimWorkOrder,
   addExtraWorkOrder,
+  claimAndNotify,
+  fetchEventFixerNames,
+  fetchWorkOrderClaim,
 } from "../lib/store";
 
 // Collapses an open action panel back to the button stack. Same de-emphasised
-// link the cancel picker has always used, shared by all three panels.
+// link the cancel picker has always used, shared by all the panels.
 function NeverMind({ onClick }) {
   return (
     <button
@@ -63,8 +68,8 @@ export default function CoordinatorVisitorDetail({
   // Editable item fields — keyed by work order id
   const [itemEdits, setItemEdits] = useState({});
 
-  // Which work order has an action panel open, and which one: "outcome",
-  // "cancel" or "unclaim". One at a time across the whole page — each item's
+  // Which work order has an action panel open, and which one: "assign",
+  // "outcome", "cancel" or "unclaim". One at a time across the whole page — each item's
   // actions collapse to a button stack until one is chosen, so the card stays
   // short for the common case where nothing is recorded at the desk.
   const [action, setAction] = useState(null); // { id, mode } | null
@@ -75,14 +80,29 @@ export default function CoordinatorVisitorDetail({
   // never shows a stale failure.
   const [unclaimError, setUnclaimError] = useState(null);
 
+  // The desk's "Assign to Fixer". assignError is { id, message } when an
+  // assign didn't happen; assignResult is { id, name, result } — what
+  // claim-and-notify said about the text — shown once on that card after a
+  // successful assign. Both clear when any panel opens or closes.
+  const [assignError, setAssignError] = useState(null);
+  const [assignResult, setAssignResult] = useState(null);
+
+  // Fixer names already used at this event, offered by the assign field.
+  const [fixerSuggestions, setFixerSuggestions] = useState([]);
+
   // Whether the "Add Item" form is open.
   const [addingExtra, setAddingExtra] = useState(false);
-  const openAction = (id, mode) => {
+  const clearActionMessages = () => {
     setUnclaimError(null);
+    setAssignError(null);
+    setAssignResult(null);
+  };
+  const openAction = (id, mode) => {
+    clearActionMessages();
     setAction({ id, mode });
   };
   const closeAction = () => {
-    setUnclaimError(null);
+    clearActionMessages();
     setAction(null);
   };
 
@@ -142,10 +162,19 @@ export default function CoordinatorVisitorDetail({
     setLoading(false);
   };
 
+  // Suggestions only: a failure leaves the field without them.
+  const loadFixerSuggestions = (eventId) =>
+    fetchEventFixerNames(eventId)
+      .then(setFixerSuggestions)
+      .catch((err) => console.error("Failed to load fixer names:", err));
+
   // State is set from the promise callbacks, not in the effect body.
   useEffect(() => {
     fetchVisitorDetail(attendeeId)
-      .then(applyVisitor)
+      .then((detail) => {
+        applyVisitor(detail);
+        loadFixerSuggestions(detail.attendee.event_id);
+      })
       .catch((err) => console.error("Failed to load visitor:", err))
       .finally(() => setLoading(false));
   }, [attendeeId]);
@@ -362,12 +391,51 @@ export default function CoordinatorVisitorDetail({
     }
   };
 
+  // The desk claims a printed item for a fixer who took the ticket without
+  // scanning it. Goes through the same Edge Function as the QR claim, so the
+  // item lands in the same state (With Fixer, fixer_name, assigned_at) and the
+  // client is texted under the same rules.
+  //
+  // claim-and-notify only refuses completed or canceled items, so it would
+  // overwrite a fixer who claimed by QR while this screen was open. Re-reading
+  // the row first closes all but a tiny window, without changing the function.
+  const assignOrder = async (woId, fixerName, sendText) => {
+    clearActionMessages();
+    try {
+      await saveAll();
+      const current = await fetchWorkOrderClaim(woId);
+      if (current.status !== "pending_assignment") {
+        closeAction();
+        await loadData();
+        setAssignError({
+          id: woId,
+          message:
+            current.status === "assigned" && current.fixer_name
+              ? `This item was just claimed by ${current.fixer_name}.`
+              : "This item changed in the meantime, so it wasn't assigned.",
+        });
+        return;
+      }
+      const result = await claimAndNotify(woId, fixerName, { sendText });
+      closeAction();
+      await loadData();
+      setAssignResult({ id: woId, name: fixerName, result });
+      loadFixerSuggestions(attendee.event_id);
+    } catch (err) {
+      console.error("Failed to assign item:", err);
+      setAssignError({
+        id: woId,
+        message: "Couldn't assign it. Please refresh and try again.",
+      });
+    }
+  };
+
   // Revert a completed OR canceled item back into the active flow. Items canceled
   // before their ticket was printed (no printed_at) go back to 'pending'.
   // fixer_name is kept so re-recording the outcome doesn't lose who worked on it.
   // assigned_at is cleared: the item is back to Checked-In (unclaimed), matching
-  // what unclaim_work_order does. A blank assigned_at always means "not claimed
-  // by a QR scan"; recording an outcome never fills it in.
+  // what unclaim_work_order does. A blank assigned_at always means "not claimed"
+  // (by a QR scan or a desk assign); recording an outcome never fills it in.
   const editOutcome = async (woId) => {
     const wo = orders.find((o) => o.id === woId);
     await updateWorkOrder(woId, {
@@ -652,6 +720,34 @@ export default function CoordinatorVisitorDetail({
               </div>
             )}
 
+            {/* What happened to the text after the desk assigned this item.
+                Shown once, on the card it was for. */}
+            {assignResult?.id === wo.id && (
+              <div style={{ marginTop: 12 }}>
+                <ClaimResultBanner
+                  result={assignResult.result}
+                  clientName={attFirstName || "the client"}
+                  title={`Assigned to ${assignResult.name}.`}
+                  showThanks={false}
+                />
+              </div>
+            )}
+
+            {/* Why an assign didn't happen. Outside the actions block because
+                a lost race leaves the item With Fixer or finished. */}
+            {assignError?.id === wo.id && (
+              <p
+                style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "13px",
+                  color: "#b42318",
+                  margin: "12px 0 0 0",
+                }}
+              >
+                {assignError.message}
+              </p>
+            )}
+
             {/* Per-item actions. Collapsed to a button stack by default: the
                 outcome panel used to sit open on every Checked-In and With
                 Fixer card, and it is rarely filled in at the desk. Each button
@@ -666,6 +762,19 @@ export default function CoordinatorVisitorDetail({
                   paddingTop: 12,
                 }}
               >
+                {actionFor(wo.id) === "assign" && (
+                  <>
+                    <AssignFixer
+                      suggestions={fixerSuggestions}
+                      canTextClient={clientCanBeTexted}
+                      onAssign={(name, sendText) =>
+                        assignOrder(wo.id, name, sendText)
+                      }
+                    />
+                    <NeverMind onClick={closeAction} />
+                  </>
+                )}
+
                 {actionFor(wo.id) === "outcome" && (
                   <>
                     <RecordOutcome
@@ -750,6 +859,17 @@ export default function CoordinatorVisitorDetail({
 
                 {actionFor(wo.id) === null && (
                   <div style={{ display: "grid", gap: 8 }}>
+                    {/* Printed and waiting on the board: the desk can claim
+                        it for a fixer who took the ticket without scanning. */}
+                    {wo.status === "pending_assignment" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => openAction(wo.id, "assign")}
+                        style={{ fontSize: "14px", padding: "11px 14px" }}
+                      >
+                        👤 Assign to Fixer
+                      </Button>
+                    )}
                     {(wo.status === "pending_assignment" ||
                       wo.status === "assigned") && (
                       <Button

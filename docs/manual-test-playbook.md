@@ -61,6 +61,8 @@ The tests check the print preview and stub out the browser's print call. They ca
 | 2.6a | On the same phone, scan item 2's QR with the camera app | Fixer Name is already filled with the name from 2.6. A QR-scanner app that opens links in its own built-in browser keeps separate storage, so there the name may need typing once |
 | 2.7 | Mark Bob as a volunteer, then print his ticket | The priority badge carries the volunteer marker |
 | 2.8 | Reprint Alice's tickets | The same tickets print again, with the same submitted time |
+| 2.9 | Check in `QA Carol` from a phone that can receive texts, with a phone number and text consent, on an event that collects phones. Print her ticket, then on the laptop open Carol → 👤 Assign to Fixer, type a name and tap Assign & text client | The card says "Assigned to …" and that Carol was texted, and the phone gets the event's message with that fixer's name in it. The Queue shows With Fixer. Scanning the ticket opens the outcome form, not the claim buttons |
+| 2.9a | Add Carol's item back to the board, then assign it again with Assign & text client | A second text arrives: putting the item back supersedes the first one |
 
 Tickets printed from a `localhost` page carry `localhost` in their QR, which no phone can open. Always print from the deployed URL.
 
@@ -77,6 +79,7 @@ The tests run a desktop-sized Chromium only. Repeat these on the iPhone (Safari)
 | 3.4 | `/fix/<id>` | The four outcome buttons sit two by two. The reason buttons wrap cleanly; the Submit button isn't hidden behind the keyboard |
 | 3.5 | Queue tab and visitor detail | The tab bar stays at the bottom, clears the iPhone home bar, and doesn't cover the last card or the Approve & Print button |
 | 3.5a | Visitor detail, extra item | "Add one more item" scrolls to the Add Item form with the cursor in Item Name and the keyboard up; its Save item and Never mind buttons sit side by side without overflowing, and the keyboard doesn't hide the Issue box |
+| 3.5b | Visitor detail, 👤 Assign to Fixer | The Fixer Name field's suggestions show up on both phones (Safari and Chrome list them differently, both are fine), the keyboard doesn't hide the assign buttons, and the result banner fits the card |
 | 3.6 | Metrics | The event picker panel stays on screen and scrolls inside itself. Charts fit the width |
 | 3.7 | Admins tab | Below about 560 px wide the table turns into cards with a "Sort by" menu. Rename, Disabled and Delete still work, and the invite form sits above them |
 | 3.8 | Tablet or a rotated phone | Nothing overlaps in landscape |

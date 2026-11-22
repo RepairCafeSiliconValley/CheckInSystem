@@ -61,7 +61,7 @@ React 19 + Vite SPA, React Router v7, Supabase (Postgres + Auth + Realtime), hos
 Tables: `events` (per-event settings `max_items`, `collect_email`, `collect_phone`, `collect_weight`, `is_open`), `attendees`, `work_orders`, `waiver_acceptances`, plus the admin tables `admin_allowlist` (pending invites, lower-case `email` key) and `app_users` (one row per admin, id = `auth.users.id`; only `name` is directly editable, `disabled` and deletion go through the `set_user_disabled` / `delete_app_user` RPCs).
 
 `src/lib/constants.js` is the single source of truth for categories, statuses, outcomes, cancel reasons and not-fixed reasons. Values are validated in JS only (no DB CHECK constraints). The status/outcome model (see `docs/status-outcome-overhaul.md`):
-- `status` says whether an item finished; `outcome` says how. Pipeline: `pending` (not printed) → `pending_assignment` (printed) → `assigned` (written only by an external claim Edge Function) → `completed` | `canceled`.
+- `status` says whether an item finished; `outcome` says how. Pipeline: `pending` (not printed) → `pending_assignment` (printed) → `assigned` (written only by the `claim-and-notify` Edge Function: the fixer scanning the ticket, or the desk's "Assign to Fixer" on a printed item, which calls the same function via `claimAndNotify` after re-reading the status so it can't overwrite a QR claim) → `completed` | `canceled`.
 - Recording any outcome sets `status='completed'`. "Not Fixed" also sets `not_fixed_reason`.
 - Canceling sets `status='canceled'` with `outcome` left NULL and the reason in `cancel_reason`. Undo returns to `pending` if never printed, else `pending_assignment`.
 - Status `key` is stored in the DB; `label` is display-only and can be renamed without a migration.
