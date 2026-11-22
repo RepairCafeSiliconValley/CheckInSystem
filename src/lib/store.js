@@ -242,6 +242,9 @@ export async function submitFixerOutcome(workOrderId, fixerName, outcome, notFix
 // sendText is the fixer's explicit choice between the ticket page's two claim
 // buttons. The Edge Function defaults it to true when absent, so the claim
 // still texts for any caller that doesn't pass it.
+// The desk uses this too, to claim an item on a fixer's behalf (the visitor
+// detail screen's "Assign to Fixer"), so it stays the only writer of
+// 'assigned'. The function ignores the portal's session token.
 export async function claimAndNotify(workOrderId, fixerName, { sendText = true } = {}) {
   const { data, error } = await supabase.functions.invoke("claim-and-notify", {
     body: {
@@ -250,6 +253,19 @@ export async function claimAndNotify(workOrderId, fixerName, { sendText = true }
       send_text: sendText,
     },
   });
+  if (error) throw error;
+  return data;
+}
+
+// The current status and fixer of one work order. The desk's assign re-reads
+// this just before claiming, because claim-and-notify happily overwrites an
+// item a fixer claimed by QR a moment ago.
+export async function fetchWorkOrderClaim(id) {
+  const { data, error } = await supabase
+    .from("work_orders")
+    .select("id, status, fixer_name")
+    .eq("id", id)
+    .single();
   if (error) throw error;
   return data;
 }
@@ -354,7 +370,8 @@ export async function fetchMetricsRows(eventIds = null) {
 // page view, so widening it to serve an occasional export would tax every load.
 //
 // `assigned_at` is exported as "Claimed At": when a fixer claimed the item by
-// scanning its ticket (claim-and-notify), blank if never claimed or unclaimed.
+// scanning its ticket, or the desk assigned it to one (both go through
+// claim-and-notify); blank if never claimed or unclaimed.
 // It comes from supabase-sms-notifications-migration.sql, which must have run
 // on an environment before this export works there.
 export async function exportWorkOrdersCSV(events, scopeLabel) {

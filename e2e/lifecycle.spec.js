@@ -148,6 +148,76 @@ test("cancel a printed item with Other and a note; undo returns it to Checked-In
   });
 });
 
+// ─── The desk assigns an item to a fixer ───
+// For a fixer who took the ticket without scanning it. Goes through
+// claim-and-notify, like the fixer's own claim on the ticket page.
+
+const openAssign = (page) =>
+  page.getByRole("button", { name: "👤 Assign to Fixer" }).click();
+
+test("the desk assigns a printed item to a fixer without texting", async ({ page, event, asVolunteer }) => {
+  const v = await checkIn(event.id, { firstName: "E2E Assign" });
+  const id = v.orders[0].id;
+  await markPrinted(id);
+  await openVisitor(page, asVolunteer, event.id, "E2E Assign Tester");
+
+  await openAssign(page);
+  // No phone on file, so only the quiet button, and it needs a name first.
+  await expect(page.getByRole("button", { name: "Assign & text client" })).toHaveCount(0);
+  const assign = page.getByRole("button", { name: "Assign to fixer" });
+  await expect(assign).toBeDisabled();
+  await page.getByLabel("Fixer Name").fill("E2E Desk Fixer");
+  await assign.click();
+
+  await expect(page.getByText("Assigned to E2E Desk Fixer.")).toBeVisible();
+  await expect(page.getByText("Claimed by E2E Desk Fixer")).toBeVisible();
+  await expect(page.getByText("With Fixer", { exact: true })).toBeVisible();
+  const wo = await getWorkOrder(id);
+  expect(wo).toMatchObject({ status: "assigned", fixer_name: "E2E Desk Fixer" });
+  expect(wo.assigned_at).not.toBeNull();
+});
+
+test("a textable client gets both assign buttons", async ({ page, event, asVolunteer }) => {
+  const v = await checkIn(event.id, { firstName: "E2E Textable", phone: "4085550199", textMessage: true });
+  const id = v.orders[0].id;
+  await markPrinted(id);
+  await openVisitor(page, asVolunteer, event.id, "E2E Textable Tester");
+
+  await openAssign(page);
+  await expect(page.getByRole("button", { name: "Assign & text client" })).toBeVisible();
+  const quiet = page.getByRole("button", { name: "Assign without texting" });
+  await expect(quiet).toBeVisible();
+
+  await page.getByLabel("Fixer Name").fill("E2E Regular Fixer");
+  await quiet.click();
+  // not_requested: the desk's own choice.
+  await expect(page.getByText("No text sent")).toBeVisible();
+  expect(await getWorkOrder(id)).toMatchObject({ status: "assigned", fixer_name: "E2E Regular Fixer" });
+});
+
+test("an unprinted item can't be assigned yet", async ({ page, event, asVolunteer }) => {
+  await checkIn(event.id, { firstName: "E2E Unprinted" });
+  await openVisitor(page, asVolunteer, event.id, "E2E Unprinted Tester");
+  await expect(page.getByRole("button", { name: "✕ Cancel item" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "👤 Assign to Fixer" })).toHaveCount(0);
+});
+
+test("assigning doesn't overwrite a fixer who claimed by QR meanwhile", async ({ page, event, asVolunteer }) => {
+  const v = await checkIn(event.id, { firstName: "E2E Raced" });
+  const id = v.orders[0].id;
+  await markPrinted(id);
+  await openVisitor(page, asVolunteer, event.id, "E2E Raced Tester");
+
+  await openAssign(page);
+  await page.getByLabel("Fixer Name").fill("E2E Too Late");
+  // The fixer scans the ticket while the desk is typing.
+  await updateWorkOrder(id, { status: "assigned", fixer_name: "E2E Scanner", assigned_at: new Date().toISOString() });
+  await page.getByRole("button", { name: "Assign to fixer" }).click();
+
+  await expect(page.getByText("This item was just claimed by E2E Scanner.")).toBeVisible();
+  expect(await getWorkOrder(id)).toMatchObject({ status: "assigned", fixer_name: "E2E Scanner" });
+});
+
 // Known gap (playbook "known gaps"): submit_fixer_outcome only refuses
 // completed items, so a fixer page left open can overwrite a cancel. This pins
 // the intended rule and is expected to fail until the RPC is fixed; Playwright
