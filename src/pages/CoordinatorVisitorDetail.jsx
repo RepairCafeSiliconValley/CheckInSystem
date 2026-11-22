@@ -21,7 +21,6 @@ import {
   unclaimWorkOrder,
   addExtraWorkOrder,
   claimAndNotify,
-  fetchEventFixerNames,
   fetchWorkOrderClaim,
 } from "../lib/store";
 
@@ -86,9 +85,6 @@ export default function CoordinatorVisitorDetail({
   // successful assign. Both clear when any panel opens or closes.
   const [assignError, setAssignError] = useState(null);
   const [assignResult, setAssignResult] = useState(null);
-
-  // Fixer names already used at this event, offered by the assign field.
-  const [fixerSuggestions, setFixerSuggestions] = useState([]);
 
   // Whether the "Add Item" form is open.
   const [addingExtra, setAddingExtra] = useState(false);
@@ -162,19 +158,10 @@ export default function CoordinatorVisitorDetail({
     setLoading(false);
   };
 
-  // Suggestions only: a failure leaves the field without them.
-  const loadFixerSuggestions = (eventId) =>
-    fetchEventFixerNames(eventId)
-      .then(setFixerSuggestions)
-      .catch((err) => console.error("Failed to load fixer names:", err));
-
   // State is set from the promise callbacks, not in the effect body.
   useEffect(() => {
     fetchVisitorDetail(attendeeId)
-      .then((detail) => {
-        applyVisitor(detail);
-        loadFixerSuggestions(detail.attendee.event_id);
-      })
+      .then(applyVisitor)
       .catch((err) => console.error("Failed to load visitor:", err))
       .finally(() => setLoading(false));
   }, [attendeeId]);
@@ -420,7 +407,6 @@ export default function CoordinatorVisitorDetail({
       closeAction();
       await loadData();
       setAssignResult({ id: woId, name: fixerName, result });
-      loadFixerSuggestions(attendee.event_id);
     } catch (err) {
       console.error("Failed to assign item:", err);
       setAssignError({
@@ -765,7 +751,6 @@ export default function CoordinatorVisitorDetail({
                 {actionFor(wo.id) === "assign" && (
                   <>
                     <AssignFixer
-                      suggestions={fixerSuggestions}
                       canTextClient={clientCanBeTexted}
                       onAssign={(name, sendText) =>
                         assignOrder(wo.id, name, sendText)

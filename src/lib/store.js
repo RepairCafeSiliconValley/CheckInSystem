@@ -257,30 +257,6 @@ export async function claimAndNotify(workOrderId, fixerName, { sendText = true }
   return data;
 }
 
-// ─── Fixer names used at an event (queue, for the desk's assign field) ───
-// Suggestions only, so the desk types "Bob" the same way every time and
-// Metrics doesn't count "Bob" and "bob " as two fixers. Folded the same way
-// metrics.js folds fixer names: trimmed, case-insensitive, first spelling wins.
-export async function fetchEventFixerNames(eventId) {
-  const rows = await fetchAllPages(() =>
-    supabase
-      .from("work_orders")
-      .select("id, fixer_name")
-      .eq("event_id", eventId)
-      .not("fixer_name", "is", null)
-  );
-  const byKey = new Map();
-  for (const r of rows) {
-    const name = (r.fixer_name || "").trim();
-    if (!name) continue;
-    const key = name.toLowerCase();
-    if (!byKey.has(key)) byKey.set(key, name);
-  }
-  return [...byKey.values()].sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: "base" }),
-  );
-}
-
 // The current status and fixer of one work order. The desk's assign re-reads
 // this just before claiming, because claim-and-notify happily overwrites an
 // item a fixer claimed by QR a moment ago.

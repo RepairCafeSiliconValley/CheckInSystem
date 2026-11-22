@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import Input from "./Input";
 import Button from "./Button";
 
@@ -8,11 +8,9 @@ import Button from "./Button";
 // applies, so "Assign & text client" only shows when a text can actually go.
 //
 // Unlike ClaimPanel the name starts empty and is never remembered: the portal
-// runs on a shared front-desk device (see lib/fixerName.js). Names already used
-// for fixers at this event are offered as suggestions instead.
+// runs on a shared front-desk device (see lib/fixerName.js).
 
-export default function AssignFixer({ suggestions = [], canTextClient, onAssign }) {
-  const listId = useId();
+export default function AssignFixer({ canTextClient, onAssign }) {
   const [fixerName, setFixerName] = useState("");
   // Which button is mid-flight, so only that one shows a pending label.
   const [pending, setPending] = useState(null);
@@ -40,17 +38,8 @@ export default function AssignFixer({ suggestions = [], canTextClient, onAssign 
         value={fixerName}
         onChange={setFixerName}
         placeholder="Who has the item?"
-        list={suggestions.length > 0 ? listId : undefined}
-        autoComplete="off"
         required
       />
-      {suggestions.length > 0 && (
-        <datalist id={listId}>
-          {suggestions.map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
-      )}
 
       <div style={{ display: "grid", gap: 8 }}>
         {canTextClient && (

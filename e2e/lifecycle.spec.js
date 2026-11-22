@@ -177,11 +177,7 @@ test("the desk assigns a printed item to a fixer without texting", async ({ page
   expect(wo.assigned_at).not.toBeNull();
 });
 
-test("a textable client gets both assign buttons; the field suggests this event's fixers", async ({ page, event, asVolunteer }) => {
-  const other = await checkIn(event.id, { firstName: "E2E Earlier" });
-  await markPrinted(other.orders[0].id);
-  await updateWorkOrder(other.orders[0].id, { status: "assigned", fixer_name: "E2E Regular Fixer", assigned_at: new Date().toISOString() });
-
+test("a textable client gets both assign buttons", async ({ page, event, asVolunteer }) => {
   const v = await checkIn(event.id, { firstName: "E2E Textable", phone: "4085550199", textMessage: true });
   const id = v.orders[0].id;
   await markPrinted(id);
@@ -191,7 +187,6 @@ test("a textable client gets both assign buttons; the field suggests this event'
   await expect(page.getByRole("button", { name: "Assign & text client" })).toBeVisible();
   const quiet = page.getByRole("button", { name: "Assign without texting" });
   await expect(quiet).toBeVisible();
-  await expect(page.locator('datalist option[value="E2E Regular Fixer"]')).toHaveCount(1);
 
   await page.getByLabel("Fixer Name").fill("E2E Regular Fixer");
   await quiet.click();

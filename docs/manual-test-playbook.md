@@ -79,7 +79,7 @@ The tests run a desktop-sized Chromium only. Repeat these on the iPhone (Safari)
 | 3.4 | `/fix/<id>` | The four outcome buttons sit two by two. The reason buttons wrap cleanly; the Submit button isn't hidden behind the keyboard |
 | 3.5 | Queue tab and visitor detail | The tab bar stays at the bottom, clears the iPhone home bar, and doesn't cover the last card or the Approve & Print button |
 | 3.5a | Visitor detail, extra item | "Add one more item" scrolls to the Add Item form with the cursor in Item Name and the keyboard up; its Save item and Never mind buttons sit side by side without overflowing, and the keyboard doesn't hide the Issue box |
-| 3.5b | Visitor detail, 👤 Assign to Fixer | The Fixer Name field's suggestions show up on both phones (Safari and Chrome list them differently, both are fine), the keyboard doesn't hide the assign buttons, and the result banner fits the card |
+| 3.5b | Visitor detail, 👤 Assign to Fixer | The keyboard doesn't hide the assign buttons, and the result banner fits the card |
 | 3.6 | Metrics | The event picker panel stays on screen and scrolls inside itself. Charts fit the width |
 | 3.7 | Admins tab | Below about 560 px wide the table turns into cards with a "Sort by" menu. Rename, Disabled and Delete still work, and the invite form sits above them |
 | 3.8 | Tablet or a rotated phone | Nothing overlaps in landscape |
