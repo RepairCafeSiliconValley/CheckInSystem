@@ -8,7 +8,8 @@
 -- Uses fixed UUIDs for events/attendees so rows are easy to reference.
 --
 -- Coverage:
---   • 3 events  — a past/closed event, today's open event, an upcoming one
+--   • 4 events  — a past/closed event, today's open event, an upcoming open
+--     one, and an upcoming one never opened (first_opened_at null)
 --   • 11 attendees — visitors + volunteers (is_volunteer)
 --   • 16 work orders — every status (pending / pending_assignment / completed /
 --     canceled) and every outcome (Fixed, Diagnosed, Not Fixed, Taken Home),
@@ -18,8 +19,9 @@
 --   • 8 waiver acceptances — one per visitor, with real SHA-256 content_hash
 --     matching computeWaiverHash() ("WAIVER_VERSION|" + full waiver text)
 --
--- Requires the full migration chain through supabase-reason-notes-migration.sql
--- (see CLAUDE.md for the order) — it writes the reason and note columns.
+-- Requires the full migration chain through
+-- supabase-event-first-open-migration.sql (see the MIGRATIONS list in
+-- scripts/db-reset.mjs for the order) — it writes events.first_opened_at.
 --
 -- Requires the pgcrypto extension (installed by default on Supabase in the
 -- `extensions` schema) for the waiver hash.
@@ -30,10 +32,13 @@ begin;
 truncate work_orders, waiver_acceptances, attendees, events cascade;
 
 -- ── Events ──
-insert into events (id, name, date, location, is_open, max_items, created_at) values
-  ('11111111-1111-1111-1111-111111111111', 'Milpitas Library',            '2026-03-15', 'Milpitas, CA',      false, 2, '2026-02-20 12:00-07'),
-  ('22222222-2222-2222-2222-222222222222', 'Sunnyvale Community Center',   '2026-05-25', 'Sunnyvale, CA',     true,  3, '2026-05-01 12:00-07'),
-  ('33333333-3333-3333-3333-333333333333', 'Mountain View Senior Center', '2026-06-20', 'Mountain View, CA', true,  2, '2026-05-15 12:00-07');
+-- first_opened_at: set on every event that has been open; the fourth event
+-- has never been opened, so its button reads "Open Check-In".
+insert into events (id, name, date, location, is_open, max_items, created_at, first_opened_at) values
+  ('11111111-1111-1111-1111-111111111111', 'Milpitas Library',            '2026-03-15', 'Milpitas, CA',      false, 2, '2026-02-20 12:00-07', '2026-03-15 08:00-07'),
+  ('22222222-2222-2222-2222-222222222222', 'Sunnyvale Community Center',   '2026-05-25', 'Sunnyvale, CA',     true,  3, '2026-05-01 12:00-07', '2026-05-25 08:00-07'),
+  ('33333333-3333-3333-3333-333333333333', 'Mountain View Senior Center', '2026-06-20', 'Mountain View, CA', true,  2, '2026-05-15 12:00-07', '2026-05-20 09:00-07'),
+  ('44444444-4444-4444-4444-444444444444', 'Cupertino Library',           '2026-08-15', 'Cupertino, CA',     false, 2, '2026-06-01 12:00-07', null);
 
 -- ── Attendees ──
 insert into attendees (id, event_id, first_name, last_name, email, phone, zip_code, is_volunteer, created_at) values
@@ -134,6 +139,7 @@ select
   e.name as event,
   to_char(e.date, 'YYYY-MM-DD') as date,
   e.is_open,
+  e.first_opened_at is not null as ever_opened,
   a.first_name || ' ' || a.last_name as person,
   case when a.is_volunteer then 'volunteer' else 'visitor' end as role,
   wo.code,
@@ -146,6 +152,6 @@ select
   coalesce(wo.not_fixed_note, wo.cancel_note) as note,
   wo.fixer_name
 from events e
-join attendees a on a.event_id = e.id
+left join attendees a on a.event_id = e.id
 left join work_orders wo on wo.attendee_id = a.id
 order by e.date, a.last_name, wo.priority;

@@ -25,7 +25,7 @@ async function seedEvent() {
   const d = await checkIn(event.id, { firstName: "E2E Dan" });
 
   await markPrinted(a.orders[0].id, "Electronics");
-  await updateWorkOrder(a.orders[0].id, done("Fixed", { fixer_name: "E2E Pat", weight_kg: 2.5 }));
+  await updateWorkOrder(a.orders[0].id, done("Fixed", { fixer_name: "E2E Pat", weight_kg: 2.5, assigned_at: new Date().toISOString() }));
   await markPrinted(a.orders[1].id, "Electronics");
   await updateWorkOrder(a.orders[1].id, done("Not Fixed", { not_fixed_reason: "Other", not_fixed_note: "E2E repair note", fixer_name: "e2e pat", weight_kg: 1.2 }));
   await markPrinted(c.orders[0].id, "Bikes");
@@ -130,7 +130,7 @@ test("work-order CSV: one row per item, the right columns, no personal data", as
     "Attendee ID", "Zip Code", "Volunteer",
     "Item Name", "Category", "Priority", "Status", "Status Label", "Outcome",
     "Cancel Reason", "Cancel Note", "Not Fixed Reason", "Not Fixed Note", "Fixer", "Weight (kg)",
-    "Created At", "Printed At", "Completed At",
+    "Created At", "Printed At", "Claimed At", "Completed At",
   ]);
   expect(rows).toHaveLength(6);
   // Notes are exported on purpose (free text after "Other"; the UI asks for no
@@ -144,6 +144,15 @@ test("work-order CSV: one row per item, the right columns, no personal data", as
   const notFixed = rows.find((r) => r.includes("E2E repair note")).split(",");
   expect(notFixed[16]).toBe("Other"); // Not Fixed Reason
   expect(notFixed[17]).toBe("E2E repair note"); // Not Fixed Note
+  // Claimed At (assigned_at) sits between Printed At and Completed At.
+  // Matched by outcome: Bob's unprinted item is also called "E2E Lamp".
+  const claimed = rows.find((r) => r.includes(",Fixed,")).split(",");
+  expect(claimed[22]).not.toBe(""); // Claimed At
+  expect(Date.parse(claimed[21])).toBeLessThanOrEqual(Date.parse(claimed[22])); // Printed ≤ Claimed
+  expect(Date.parse(claimed[22])).toBeLessThanOrEqual(Date.parse(claimed[23])); // Claimed ≤ Completed
+  const neverClaimed = rows.find((r) => r.includes(",Taken Home,")).split(",");
+  expect(neverClaimed[21]).not.toBe(""); // printed…
+  expect(neverClaimed[22]).toBe(""); // …but never claimed
 });
 
 test("attendee CSV from the Events tab has one row per client with newsletter flags", async ({ page, asAdmin }) => {
@@ -158,7 +167,7 @@ test("attendee CSV from the Events tab has one row per client with newsletter fl
   await card.getByRole("button", { name: "Export Attendees" }).click();
   const csv = await readFile(await (await downloadPromise).path(), "utf8");
   const [header, ...rows] = csv.trim().split("\n");
-  expect(header).toBe("First Name,Last Name,Email,Phone,Zip Code,Volunteer,Newsletter,Checked In");
+  expect(header).toBe("First Name,Last Name,Email,Phone,Zip Code,Volunteer,Newsletter,Text Message Consent,Checked In");
   expect(rows).toHaveLength(2);
   expect(rows.find((r) => r.startsWith("E2E Alice"))).toContain("alice@example.com,,95035,No,Yes");
   expect(rows.find((r) => r.startsWith("E2E Bob"))).toContain(",No,No,");

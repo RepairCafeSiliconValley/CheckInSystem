@@ -128,6 +128,10 @@ export async function getAttendee(id) {
   return row;
 }
 
+export async function updateAttendee(id, patch) {
+  await rest(`attendees?id=eq.${id}`, { method: "PATCH", body: patch });
+}
+
 export async function updateWorkOrder(id, patch) {
   await rest(`work_orders?id=eq.${id}`, { method: "PATCH", body: patch });
 }
