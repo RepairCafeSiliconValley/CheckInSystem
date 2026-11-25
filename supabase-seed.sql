@@ -16,12 +16,18 @@
 --     across categories from src/lib/constants.js. Canceled rows carry a
 --     cancel_reason, Not Fixed rows a not_fixed_reason, and one of each uses
 --     "Other" with an optional note (cancel_note / not_fixed_note).
+--   • print counts — every printed item has print_count 1, and one Checked-In
+--     item (R-D5B) was reprinted (2), so its next ticket says REPRINT
+--   • print settings — events use window.print() with a preview, as before
+--     CloudPRNT, except the upcoming Mountain View event: CloudPRNT with a
+--     preview and no printer set, which exercises "No printer is set up"
 --   • 8 waiver acceptances — one per visitor, with real SHA-256 content_hash
 --     matching computeWaiverHash() ("WAIVER_VERSION|" + full waiver text)
 --
--- Requires the full migration chain through
--- supabase-event-first-open-migration.sql (see the MIGRATIONS list in
--- scripts/db-reset.mjs for the order) — it writes events.first_opened_at.
+-- Requires the full migration chain through supabase-cloudprnt-migration.sql
+-- (see the MIGRATIONS list in scripts/db-reset.mjs for the order) — it writes
+-- events.first_opened_at, events.use_legacy_print / print_preview and
+-- work_orders.print_count.
 --
 -- Requires the pgcrypto extension (installed by default on Supabase in the
 -- `extensions` schema) for the waiver hash.
@@ -34,11 +40,11 @@ truncate work_orders, waiver_acceptances, attendees, events cascade;
 -- ── Events ──
 -- first_opened_at: set on every event that has been open; the fourth event
 -- has never been opened, so its button reads "Open Check-In".
-insert into events (id, name, date, location, is_open, max_items, created_at, first_opened_at) values
-  ('11111111-1111-1111-1111-111111111111', 'Milpitas Library',            '2026-03-15', 'Milpitas, CA',      false, 2, '2026-02-20 12:00-07', '2026-03-15 08:00-07'),
-  ('22222222-2222-2222-2222-222222222222', 'Sunnyvale Community Center',   '2026-05-25', 'Sunnyvale, CA',     true,  3, '2026-05-01 12:00-07', '2026-05-25 08:00-07'),
-  ('33333333-3333-3333-3333-333333333333', 'Mountain View Senior Center', '2026-06-20', 'Mountain View, CA', true,  2, '2026-05-15 12:00-07', '2026-05-20 09:00-07'),
-  ('44444444-4444-4444-4444-444444444444', 'Cupertino Library',           '2026-08-15', 'Cupertino, CA',     false, 2, '2026-06-01 12:00-07', null);
+insert into events (id, name, date, location, is_open, max_items, created_at, first_opened_at, use_legacy_print, print_preview) values
+  ('11111111-1111-1111-1111-111111111111', 'Milpitas Library',            '2026-03-15', 'Milpitas, CA',      false, 2, '2026-02-20 12:00-07', '2026-03-15 08:00-07', true,  true),
+  ('22222222-2222-2222-2222-222222222222', 'Sunnyvale Community Center',   '2026-05-25', 'Sunnyvale, CA',     true,  3, '2026-05-01 12:00-07', '2026-05-25 08:00-07', true,  true),
+  ('33333333-3333-3333-3333-333333333333', 'Mountain View Senior Center', '2026-06-20', 'Mountain View, CA', true,  2, '2026-05-15 12:00-07', '2026-05-20 09:00-07', false, true),
+  ('44444444-4444-4444-4444-444444444444', 'Cupertino Library',           '2026-08-15', 'Cupertino, CA',     false, 2, '2026-06-01 12:00-07', null,                  true,  true);
 
 -- ── Attendees ──
 insert into attendees (id, event_id, first_name, last_name, email, phone, zip_code, is_volunteer, created_at) values
@@ -80,6 +86,12 @@ insert into work_orders (code, attendee_id, event_id, item_name, category, descr
   -- Event 3: upcoming, pre-registered (pending, not yet printed)
   ('R-F3W', 'aaaaaaaa-0000-0000-0000-000000000010', '33333333-3333-3333-3333-333333333333', 'Wooden dining chair', 'Furniture / Wood', 'Joint at the back leg is loose and wobbles.', 1, 'pending', null, '', '2026-05-22 14:02-07', null, null),
   ('R-H8K', 'aaaaaaaa-0000-0000-0000-000000000011', '33333333-3333-3333-3333-333333333333', 'Tube radio',          'Electronics',      'Hums loudly and the dial light is out.',      1, 'pending', null, '', '2026-05-23 16:22-07', null, null);
+
+-- ── Print counts ──
+-- One print for everything that has a printed_at; the bike's ticket went
+-- missing from the board and was printed again.
+update work_orders set print_count = 1 where printed_at is not null;
+update work_orders set print_count = 2 where code = 'R-D5B';
 
 -- ── Cancel / not-fixed reasons (values from src/lib/constants.js) ──
 update work_orders set not_fixed_reason = 'Spare parts not available'                where code = 'R-J8T';
@@ -140,6 +152,7 @@ select
   to_char(e.date, 'YYYY-MM-DD') as date,
   e.is_open,
   e.first_opened_at is not null as ever_opened,
+  case when e.use_legacy_print then 'window.print' else 'cloudprnt' end as printing,
   a.first_name || ' ' || a.last_name as person,
   case when a.is_volunteer then 'volunteer' else 'visitor' end as role,
   wo.code,
@@ -147,6 +160,7 @@ select
   wo.category,
   wo.priority,
   wo.status,
+  wo.print_count,
   wo.outcome,
   coalesce(wo.not_fixed_reason, wo.cancel_reason) as reason,
   coalesce(wo.not_fixed_note, wo.cancel_note) as note,

@@ -15,9 +15,13 @@ import {
   toggleEventOpen,
   updateEvent,
   exportAttendeesCSV,
+  fetchEventPrinter,
+  saveEventPrinter,
+  fetchCloudPrinters,
 } from "../lib/store";
 import { computeByEvent, formatKg, plural } from "../lib/metrics";
 import { DEFAULT_TEXT_MESSAGE } from "../lib/textMessage";
+import { printSettings, normalizeMac, formatLastSeen, isPrinterOnline } from "../lib/printing";
 
 // Clamp to the CHECK constraint on events.max_items (1–10).
 const clampMaxItems = (v) => Math.min(10, Math.max(1, Number(v) || 2));
@@ -40,6 +44,11 @@ export default function Events({ onViewMetrics }) {
   const [settingsEvent, setSettingsEvent] = useState(null);
   const [draft, setDraft] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState(null);
+  // Printers that have checked in with the cloudprnt Edge Function, for the
+  // status line and the "use this one" suggestions in Configure Event.
+  // `at` is when they were read, the "now" their ages are measured from.
+  const [printers, setPrinters] = useState({ rows: [], at: 0 });
   // The event whose check-in QR / URL popup is open.
   const [qrEvent, setQrEvent] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -97,22 +106,42 @@ export default function Events({ onViewMetrics }) {
   };
 
   const openSettings = (ev) => {
+    const print = printSettings(ev);
     setSettingsEvent(ev);
+    setSettingsError(null);
     setDraft({
       maxItems: ev.max_items || 2,
       collectEmail: ev.collect_email !== false,
       collectPhone: ev.collect_phone !== false,
       collectWeight: ev.collect_weight === true,
       textMessage: ev.text_message_template ?? DEFAULT_TEXT_MESSAGE,
+      useLegacyPrint: print.legacy,
+      printPreview: print.preview,
+      printerMac: "",
     });
+    // The printer lives in its own admin-only table; fill it in when it lands.
+    setPrinters({ rows: [], at: 0 });
+    Promise.all([fetchEventPrinter(ev.id), fetchCloudPrinters()])
+      .then(([mac, seen]) => {
+        setDraft((d) => (d ? { ...d, printerMac: mac || "" } : d));
+        setPrinters({ rows: seen, at: Date.now() });
+      })
+      .catch((err) => console.error("Failed to load printer settings:", err));
   };
 
   const closeSettings = () => {
     setSettingsEvent(null);
     setDraft(null);
+    setSettingsError(null);
   };
 
   const handleSaveSettings = async () => {
+    const mac = draft.printerMac.trim() ? normalizeMac(draft.printerMac) : null;
+    if (draft.printerMac.trim() && !mac) {
+      setSettingsError("The printer MAC address should be 12 hex digits, like 00:11:62:AA:BB:CC.");
+      return;
+    }
+    setSettingsError(null);
     setSavingSettings(true);
     try {
       await updateEvent(settingsEvent.id, {
@@ -124,11 +153,17 @@ export default function Events({ onViewMetrics }) {
         // rather than letting Save fail on an empty box.
         text_message_template:
           draft.textMessage.trim() || DEFAULT_TEXT_MESSAGE,
+        use_legacy_print: draft.useLegacyPrint,
+        print_preview: draft.printPreview,
       });
+      // Kept even while legacy printing is on, so switching back to CloudPRNT
+      // doesn't mean typing the address again.
+      await saveEventPrinter(settingsEvent.id, mac);
       closeSettings();
       await loadEvents();
     } catch (err) {
       console.error("Failed to save event settings:", err);
+      setSettingsError(err?.message || "Couldn't save the settings.");
     }
     setSavingSettings(false);
   };
@@ -426,6 +461,24 @@ export default function Events({ onViewMetrics }) {
             disabled={!draft.collectPhone}
             disabledNote="Texting is off because this event isn't collecting phone numbers. Tickets still print the claim QR, so fixers can claim items — no text is sent."
           />
+          <PrintSettingsFields
+            draft={draft}
+            setDraft={setDraft}
+            printers={printers}
+          />
+          {settingsError && (
+            <p
+              role="alert"
+              style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "13px",
+                color: "#b42318",
+                margin: "12px 0 0 0",
+              }}
+            >
+              {settingsError}
+            </p>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
             <Button onClick={handleSaveSettings} disabled={savingSettings}>
               {savingSettings ? "Saving..." : "Save"}
@@ -464,6 +517,110 @@ export default function Events({ onViewMetrics }) {
             </Button>
           </div>
         </Modal>
+      )}
+    </div>
+  );
+}
+
+// The Printing section of Configure Event: which way tickets print
+// (printing.js), whether the desk sees a preview first, and which CloudPRNT
+// printer the event uses. The MAC address only matters for CloudPRNT, so the
+// field hides while legacy printing is on.
+function PrintSettingsFields({ draft, setDraft, printers: { rows: printers, at: now } }) {
+  const mac = normalizeMac(draft.printerMac);
+  const current = mac ? printers.find((p) => p.printer_mac === mac) : null;
+  const online = isPrinterOnline(current?.last_poll_at, now);
+  // Printers seen in the last day that aren't the one entered: the usual way
+  // to find a new printer's address is to plug it in and pick it here.
+  const suggestions = printers
+    .filter((p) => p.printer_mac !== mac)
+    .filter((p) => now - new Date(p.last_poll_at).getTime() < 24 * 3600 * 1000)
+    .slice(0, 5);
+  const note = {
+    fontFamily: "'Outfit', sans-serif",
+    fontSize: "12px",
+    color: "#667085",
+    margin: "-8px 0 12px 0",
+    lineHeight: 1.4,
+  };
+
+  return (
+    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #eaecf0" }}>
+      <div
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: "13px",
+          fontWeight: 700,
+          color: "#344054",
+          marginBottom: 12,
+        }}
+      >
+        Printing
+      </div>
+      <Checkbox
+        label="Use legacy window.print()"
+        checked={draft.useLegacyPrint}
+        onChange={(v) => setDraft({ ...draft, useLegacyPrint: v })}
+      />
+      <p style={note}>
+        {draft.useLegacyPrint
+          ? "Tickets print through the browser's print dialog."
+          : "Tickets go straight to the event's Star printer (CloudPRNT), from any device."}
+      </p>
+      <Checkbox
+        label="Enable print preview"
+        checked={draft.printPreview}
+        onChange={(v) => setDraft({ ...draft, printPreview: v })}
+      />
+      <p style={note}>
+        {draft.printPreview
+          ? "The desk sees the tickets first and presses Print."
+          : "Approve & Print and Reprint print at once, without a preview."}
+      </p>
+
+      {!draft.useLegacyPrint && (
+        <>
+          <Input
+            label="Printer MAC address"
+            value={draft.printerMac}
+            onChange={(v) => setDraft({ ...draft, printerMac: v })}
+            placeholder="00:11:62:AA:BB:CC"
+          />
+          <p style={note}>
+            {!draft.printerMac.trim()
+              ? "No printer set: printing will say so until one is entered."
+              : !mac
+                ? "That isn't a MAC address yet: 12 hex digits."
+                : current
+                  ? `${online ? "Online" : "Offline"} — last checked in ${formatLastSeen(current.last_poll_at, now)}${current.status_code ? ` (${current.status_code})` : ""}.`
+                  : "This printer hasn't checked in yet. See docs/cloudprnt-printing.md to set it up."}
+          </p>
+          {suggestions.length > 0 && (
+            <div style={{ ...note, margin: "0 0 12px 0" }}>
+              Printers seen recently:{" "}
+              {suggestions.map((p) => (
+                <button
+                  key={p.printer_mac}
+                  type="button"
+                  onClick={() => setDraft({ ...draft, printerMac: p.printer_mac.toUpperCase() })}
+                  style={{
+                    margin: "4px 6px 0 0",
+                    padding: "2px 8px",
+                    borderRadius: 12,
+                    border: "1px solid #d0d5dd",
+                    background: "#fff",
+                    fontFamily: "'Space Mono', monospace",
+                    fontSize: "11px",
+                    color: "#1e3a6e",
+                    cursor: "pointer",
+                  }}
+                >
+                  {p.printer_mac.toUpperCase()} · {formatLastSeen(p.last_poll_at, now)}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

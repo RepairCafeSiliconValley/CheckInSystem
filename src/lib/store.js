@@ -300,6 +300,81 @@ export async function addExtraWorkOrder(attendeeId, { itemName, category, descri
   return data;
 }
 
+// ─── Printing (supabase-cloudprnt-migration.sql) ───
+
+// Approve & Print with a preview: the approved items go on the board
+// (Checked-In) straight away, as they always have. printed_at and the print
+// count wait for the actual print (recordTicketPrints / queueCloudPrintJobs).
+export async function approveWorkOrders(ids) {
+  for (const id of ids) {
+    const { error } = await supabase
+      .from("work_orders")
+      .update({ status: "pending_assignment" })
+      .eq("id", id)
+      .eq("status", "pending");
+    if (error) throw error;
+  }
+}
+
+// A print made with window.print(): adds one to each item's print_count, sets
+// printed_at the first time, and moves unprinted items to Checked-In. Returns
+// [{ work_order_id, times_printed }].
+export async function recordTicketPrints(workOrderIds) {
+  const { data, error } = await supabase.rpc("record_ticket_prints", {
+    p_work_order_ids: workOrderIds,
+  });
+  if (error) throw error;
+  return data || [];
+}
+
+// Sends tickets to the event's CloudPRNT printer and counts the print, in one
+// transaction. `tickets` come from buildTicketSnapshot() in printing.js.
+// Throws with a message fit for the desk ("No printer detected…") when the
+// event has no printer or it isn't checking in; nothing is counted then.
+// Returns [{ work_order_id, times_printed }].
+export async function queueCloudPrintJobs(tickets) {
+  const { data, error } = await supabase.rpc("queue_cloudprnt_jobs", {
+    p_tickets: tickets,
+  });
+  if (error) throw error;
+  return data || [];
+}
+
+// The CloudPRNT printer an event prints to, or null. Admins only (RLS).
+export async function fetchEventPrinter(eventId) {
+  const { data, error } = await supabase
+    .from("event_printers")
+    .select("printer_mac")
+    .eq("event_id", eventId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.printer_mac ?? null;
+}
+
+// mac must already be normalised (normalizeMac in printing.js); null or ""
+// removes the event's printer.
+export async function saveEventPrinter(eventId, mac) {
+  if (!mac) {
+    const { error } = await supabase.from("event_printers").delete().eq("event_id", eventId);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase
+    .from("event_printers")
+    .upsert({ event_id: eventId, printer_mac: mac, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+// Every printer that has checked in with the cloudprnt Edge Function, most
+// recent first. Admins only (RLS).
+export async function fetchCloudPrinters() {
+  const rows = await fetchAllPages(
+    () => supabase.from("cloudprnt_printers").select("printer_mac, last_poll_at, status_code"),
+    "printer_mac",
+  );
+  return rows.sort((a, b) => (b.last_poll_at || "").localeCompare(a.last_poll_at || ""));
+}
+
 // ─── Updates ───
 
 export async function updateAttendee(id, updates) {

@@ -88,6 +88,11 @@ export default function CoordinatorVisitorDetail({
 
   // Whether the "Add Item" form is open.
   const [addingExtra, setAddingExtra] = useState(false);
+
+  // A print in progress, and how the last one went: { kind: "error" | "ok",
+  // text }, e.g. "No printer detected…" from the CloudPRNT RPC.
+  const [printing, setPrinting] = useState(false);
+  const [printMessage, setPrintMessage] = useState(null);
   const clearActionMessages = () => {
     setUnclaimError(null);
     setAssignError(null);
@@ -314,24 +319,40 @@ export default function CoordinatorVisitorDetail({
     await loadData();
   };
 
+  // Printing goes through the portal (Portal.handlePrint), which follows the
+  // event's print settings. With a preview it opens the print view and this
+  // screen unmounts; straight to the CloudPRNT printer it resolves to
+  // { queued: n } and the outcome is shown here. Either way the status,
+  // printed_at and print_count are written by the print itself.
+  const runPrint = async (ids) => {
+    setPrinting(true);
+    setPrintMessage(null);
+    try {
+      const result = await onPrint(attendeeId, ids);
+      if (result?.queued != null) {
+        const n = result.queued;
+        setPrintMessage({
+          kind: "ok",
+          text: `Sent ${n} ${n === 1 ? "ticket" : "tickets"} to the printer.`,
+        });
+        await loadData();
+      }
+    } catch (err) {
+      console.error("Failed to print:", err);
+      setPrintMessage({ kind: "error", text: err?.message || "Printing failed." });
+    }
+    setPrinting(false);
+  };
+
   // Prints only the items approved here, so tickets already on the board
   // aren't printed twice when an item is added after the first print.
   const approveAndPrint = async () => {
     await saveAll();
     const approved = orders.filter((wo) => wo.status === "pending").map((wo) => wo.id);
-    for (const id of approved) {
-      await updateWorkOrder(id, {
-        status: "pending_assignment",
-        printed_at: new Date().toISOString(),
-      });
-    }
-    await loadData();
-    onPrint(attendeeId, approved);
+    await runPrint(approved);
   };
 
-  const reprintAll = () => {
-    onPrint(attendeeId);
-  };
+  const reprintAll = () => runPrint(null);
 
   const setOrderOutcome = async (woId, outcome, notFixedReason = null, notFixedNote = null) => {
     const e = itemEdits[woId];
@@ -991,12 +1012,27 @@ export default function CoordinatorVisitorDetail({
           marginBottom: 16,
         }}
       >
+        {printMessage && (
+          <p
+            role={printMessage.kind === "error" ? "alert" : "status"}
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: printMessage.kind === "error" ? "#b42318" : "#2e7d32",
+              textAlign: "center",
+              margin: "0 0 4px 0",
+            }}
+          >
+            {printMessage.text}
+          </p>
+        )}
         {hasPending && (
           <>
             <Button
               variant="coral"
               onClick={approveAndPrint}
-              disabled={!allCategoriesAssigned}
+              disabled={!allCategoriesAssigned || printing}
             >
               Approve & Print{" "}
               {orders.filter((o) => o.status === "pending").length === 1
@@ -1020,7 +1056,7 @@ export default function CoordinatorVisitorDetail({
         )}
 
         {hasPendingAssignment && !hasPending && (
-          <Button variant="outline" onClick={reprintAll}>
+          <Button variant="outline" onClick={reprintAll} disabled={printing}>
             🖨️ Reprint{" "}
             {orders.filter((o) => o.status === "pending_assignment").length ===
             1

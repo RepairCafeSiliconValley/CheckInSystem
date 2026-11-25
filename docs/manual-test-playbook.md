@@ -6,9 +6,9 @@ The automated suites run against the local Supabase stack. Run them first; a man
 
 | Command | What it covers | Time |
 | --- | --- | --- |
-| `npm run test:db` | RLS and the public RPCs for each access level, plus the known gaps as expected failures (pgTAP, 109 checks) | ~1 s |
-| `npm run test:unit` | Every Metrics, Queue and Admin number (`metrics.js`, 19 tests) | ~1 s |
-| `npm run test:e2e` | Every page in Chromium: routing, check-in form and waiver, queue, visitor detail, printing (preview only), fixer page (including the remembered fixer name), cancel and undo, admin events, the Admins tab, which tabs each session gets, Metrics, both CSV exports, landing page (71 tests) | ~1 min |
+| `npm run test:db` | RLS and the public RPCs for each access level, plus the known gaps as expected failures, and print counting and CloudPRNT queueing (pgTAP, 140 checks) | ~1 s |
+| `npm run test:unit` | Every Metrics, Queue and Admin number (`metrics.js`), the ticket link (`ticketLink.js`), and print settings and the Star printer ticket (`printing.js`, `starTicket.js`) (35 tests) | ~1 s |
+| `npm run test:e2e` | Every page in Chromium: routing, check-in form and waiver, queue, visitor detail, printing (window.print() with and without the preview, CloudPRNT queueing, REPRINT, print counts, the print settings), fixer page (including the remembered fixer name), cancel and undo, admin events, the Admins tab, which tabs each session gets, Metrics, both CSV exports, landing page (78 tests) | ~1 min |
 | `npm test` | All three | ~1.5 min |
 
 The browser tests sign in with the same URL hash Supabase returns after a login, so they never touch Google. They create their own `E2E …` events and `@e2e.example.com` users and delete them afterwards.
@@ -60,11 +60,27 @@ The tests check the print preview and stub out the browser's print call. They ca
 | 2.6 | On the phone, record Fixed for item 1 | The laptop's Queue shows Completed for that item within a few seconds |
 | 2.6a | On the same phone, scan item 2's QR with the camera app | Fixer Name is already filled with the name from 2.6. A QR-scanner app that opens links in its own built-in browser keeps separate storage, so there the name may need typing once |
 | 2.7 | Mark Bob as a volunteer, then print his ticket | The priority badge carries the volunteer marker |
-| 2.8 | Reprint Alice's tickets | The same tickets print again, with the same submitted time |
+| 2.8 | Reprint Alice's tickets | The same tickets print again, with the same submitted time, each with **REPRINT** in large bold letters at the top |
 | 2.9 | Check in `QA Carol` from a phone that can receive texts, with a phone number and text consent, on an event that collects phones. Print her ticket, then on the laptop open Carol → 👤 Assign to Fixer, type a name and tap Assign & text client | The card says "Assigned to …" and that Carol was texted, and the phone gets the event's message with that fixer's name in it. The Queue shows With Fixer. Scanning the ticket opens the outcome form, not the claim buttons |
 | 2.9a | Add Carol's item back to the board, then assign it again with Assign & text client | A second text arrives: putting the item back supersedes the first one |
 
 Tickets printed from a `localhost` page carry `localhost` in their QR, which no phone can open. Always print from the deployed URL.
+
+### 2b. CloudPRNT (Star TSP143IV)
+
+The browser tests stand in for the printer by writing its check-in row. These need the real printer, set up as in `docs/cloudprnt-printing.md`.
+
+| # | Action | Expected result |
+| --- | --- | --- |
+| 2b.1 | Switch the printer on. In Configure Event for the QA event, untick Use legacy window.print() and Enable print preview, then pick the printer under "Printers seen recently" | The field fills with its MAC address and the line under it says Online. Save |
+| 2b.2 | From a phone signed in as the volunteer, open a visitor with one item, set the category, tap Approve & Print Ticket | "Sent 1 ticket to the printer." The ticket prints within a few seconds and the paper is cut |
+| 2b.3 | Read the ticket | The same fields as the window.print() ticket, sized for 80 mm paper. No REPRINT |
+| 2b.4 | Scan its QR | Opens the right item, as in 2.5 |
+| 2b.5 | Tap Reprint Ticket | A second ticket prints with **REPRINT** at the top |
+| 2b.6 | Approve & Print a visitor with three items | Three tickets, in priority order, each cut |
+| 2b.7 | Switch the printer off, wait 30 seconds, tap Reprint Ticket | "No printer detected…", and nothing prints when the printer comes back on |
+| 2b.8 | Open the paper cover, tap Reprint Ticket, close it within a minute | The ticket prints once the cover is closed |
+| 2b.9 | Turn Enable print preview back on and print from the preview | The preview shows; Print says "Sent 1 ticket to the printer." and it prints |
 
 ## 3. Phones and tablets
 
