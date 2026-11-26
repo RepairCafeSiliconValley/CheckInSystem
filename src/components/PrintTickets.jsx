@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "./Button";
 import TicketCodeBadge, { TICKET_CODE_BADGE_MODE, VolunteerPill } from "./TicketCodeBadge";
 import { formatClockTime } from "../lib/metrics";
 import { ticketUrl } from "../lib/ticketLink";
+import { wasPrinted } from "../lib/printing";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -46,6 +47,14 @@ export default function PrintTickets({
   // front desk's next step after printing is the next visitor, and "← Back"
   // then "← Queue" was two clicks for it.
   onDone,
+  // How Print prints (printing.js): "legacy" opens the browser's print dialog,
+  // "cloud" sends the tickets to the event's Star printer.
+  engine = "legacy",
+  // Legacy printing without a preview: open the print dialog straight away.
+  autoPrint = false,
+  // Records the print (and for "cloud", queues it). Optional so the view
+  // still prints without it.
+  onPrint,
 }) {
   const baseUrl = window.location.origin;
   const divider = { borderTop: "1px solid #000", margin: "10px 0" };
@@ -57,11 +66,69 @@ export default function PrintTickets({
   // Not an automatic return on afterprint: that also fires when the dialog is
   // cancelled, and a jammed ticket needs the preview to print again.
   const [printed, setPrinted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // { kind: "error" | "ok", text } shown under the buttons.
+  const [message, setMessage] = useState(null);
 
-  const handlePrint = useCallback(() => {
-    setPrinted(true);
-    setTimeout(() => window.print(), 50);
-  }, []);
+  // Has each item been printed before the next press of Print? Starts from
+  // printed_at, which only the first print sets, and turns true for every
+  // ticket once Print has sent it. Decides REPRINT.
+  const [printedBefore, setPrintedBefore] = useState(() =>
+    Object.fromEntries(workOrders.map((wo) => [wo.id, wasPrinted(wo)])),
+  );
+  const markAllPrinted = useCallback(
+    () => setPrintedBefore(Object.fromEntries(workOrders.map((wo) => [wo.id, true]))),
+    [workOrders],
+  );
+
+  const handlePrint = useCallback(async () => {
+    setBusy(true);
+    setMessage(null);
+    let results = null;
+    let failure = null;
+    try {
+      results = (onPrint ? await onPrint() : null) || [];
+    } catch (err) {
+      failure = err?.message || "Printing failed.";
+    }
+
+    if (engine === "cloud") {
+      if (failure) {
+        setMessage({ kind: "error", text: failure });
+      } else {
+        setPrinted(true);
+        markAllPrinted();
+        const n = results.length;
+        setMessage({ kind: "ok", text: `Sent ${n} ${n === 1 ? "ticket" : "tickets"} to the printer.` });
+      }
+    } else {
+      // The browser dialog prints whether or not printed_at was saved: the
+      // ticket matters more at the desk than the record.
+      setPrinted(true);
+      if (failure) {
+        setMessage({ kind: "error", text: `Printed, but the print wasn't recorded: ${failure}` });
+      }
+      // The dialog prints the page as it is now, so REPRINT only turns on
+      // after it, ready for the next press.
+      setTimeout(() => {
+        window.print();
+        markAllPrinted();
+      }, 0);
+    }
+    setBusy(false);
+  }, [engine, onPrint, markAllPrinted]);
+
+  // Once, on arrival. A timer rather than a direct call keeps state updates
+  // out of the effect body, and its cleanup is what stops StrictMode's
+  // mount-unmount-mount from printing twice.
+  useEffect(() => {
+    if (!autoPrint) return undefined;
+    const timer = setTimeout(handlePrint, 0);
+    return () => clearTimeout(timer);
+    // handlePrint is stable for the life of the view; listing it would reprint
+    // if the caller ever passed a new onPrint.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPrint]);
 
   const ticketLabel =
     workOrders.length === 1 ? "Ticket" : `${workOrders.length} Tickets`;
@@ -86,9 +153,10 @@ export default function PrintTickets({
             <Button
               variant={onDone && printed ? "outline" : "primary"}
               onClick={handlePrint}
+              disabled={busy}
               style={{ width: "auto", padding: "10px 24px" }}
             >
-              🖨️ Print
+              {busy ? "Printing…" : "🖨️ Print"}
             </Button>
             {onDone && (
               <Button
@@ -113,6 +181,21 @@ export default function PrintTickets({
           Preview of {ticketLabel.toLowerCase()} that will be printed and pinned
           to the board.
         </p>
+        {message && (
+          <p
+            role={message.kind === "error" ? "alert" : "status"}
+            style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: message.kind === "error" ? "#b42318" : "#2e7d32",
+              textAlign: "center",
+              marginBottom: 16,
+            }}
+          >
+            {message.text}
+          </p>
+        )}
       </div>
 
       {workOrders.map((wo, idx) => (
@@ -130,6 +213,26 @@ export default function PrintTickets({
             pageBreakAfter: idx < workOrders.length - 1 ? "always" : "auto",
           }}
         >
+          {/* Printed before: say so, big, so a duplicate on the board is
+              obvious. Matches the CloudPRNT ticket (starTicket.js). */}
+          {printedBefore[wo.id] && (
+            <div
+              className="reprint-banner"
+              style={{
+                fontSize: "34px",
+                fontWeight: 900,
+                fontFamily: font,
+                color: "#000",
+                textAlign: "center",
+                letterSpacing: "4px",
+                lineHeight: 1.1,
+                marginBottom: 8,
+              }}
+            >
+              REPRINT
+            </div>
+          )}
+
           {/* Top row: time + ticket code */}
           <div
             style={{

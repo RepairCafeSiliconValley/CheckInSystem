@@ -401,6 +401,12 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Star printers poll this one and can't send a Supabase JWT; it checks its own
+# CLOUDPRNT_SECRET instead (docs/cloudprnt-printing.md). Deploy with
+# `supabase functions deploy cloudprnt --no-verify-jwt` on hosted projects.
+[functions.cloudprnt]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54337

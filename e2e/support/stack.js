@@ -47,6 +47,11 @@ export async function createEvent(overrides = {}) {
       collect_email: true,
       collect_phone: true,
       collect_weight: false,
+      // Print the way every test was written for: window.print() with the
+      // preview. New events default to CloudPRNT without one; tests that want
+      // that pass use_legacy_print / print_preview themselves.
+      use_legacy_print: true,
+      print_preview: true,
       ...overrides,
     },
   });
@@ -141,6 +146,36 @@ export async function markPrinted(id, category = "Electronics") {
   await updateWorkOrder(id, { status: "pending_assignment", printed_at: new Date().toISOString(), category });
 }
 
+// ── CloudPRNT ──
+// Test printers have MACs starting 00:e2:e2, which cleanupE2EData() deletes.
+export const E2E_MAC_PREFIX = "00:e2:e2";
+
+export function e2eMac() {
+  const hex = randomUUID().replace(/-/g, "").slice(0, 6);
+  return `${E2E_MAC_PREFIX}:${hex.slice(0, 2)}:${hex.slice(2, 4)}:${hex.slice(4, 6)}`;
+}
+
+export async function setEventPrinter(eventId, mac) {
+  await rest("event_printers", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates",
+    body: { event_id: eventId, printer_mac: mac },
+  });
+}
+
+// What the cloudprnt Edge Function records when a printer polls.
+export async function printerCheckIn(mac, at = new Date()) {
+  await rest("cloudprnt_printers", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates",
+    body: { printer_mac: mac, last_poll_at: at.toISOString(), status_code: "200 OK" },
+  });
+}
+
+export async function printJobsFor(workOrderId) {
+  return rest(`print_jobs?work_order_id=eq.${workOrderId}&select=*&order=seq`);
+}
+
 // ── Sign-ins ──
 
 async function passwordGrant(email, password) {
@@ -231,6 +266,8 @@ export async function cleanupE2EData() {
     await rest(`attendees?event_id=in.${ids}`, { method: "DELETE" });
     await rest(`events?id=in.${ids}`, { method: "DELETE" });
   }
+
+  await rest(`cloudprnt_printers?printer_mac=like.${E2E_MAC_PREFIX}*`, { method: "DELETE" });
 
   await rest(`admin_allowlist?email=like.*${encodeURIComponent(`@${ADMIN_EMAIL_DOMAIN}`)}`, { method: "DELETE" });
   const { users } = await request("/auth/v1/admin/users?per_page=1000");

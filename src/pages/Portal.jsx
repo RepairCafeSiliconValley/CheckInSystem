@@ -23,9 +23,13 @@ import {
   signOut,
   fetchEvents,
   fetchVisitorDetail,
+  approveWorkOrders,
+  markTicketsPrinted,
+  queueCloudPrintJobs,
 } from "../lib/store";
-import { submittedStamp } from "../lib/metrics";
+import { submittedStamp, formatClockTime } from "../lib/metrics";
 import { isTextablePhone } from "../lib/textMessage";
+import { printSettings, buildTicketSnapshot } from "../lib/printing";
 
 // Every tab the portal has. The volunteer account gets the two that aren't
 // adminOnly; an admin gets all four, in one bar, with no sign-in between them.
@@ -185,46 +189,90 @@ export default function Portal() {
     setPrintData(null);
   };
 
+  // Prints a visitor's tickets the way their event is set up (Configure Event,
+  // see printing.js): CloudPRNT or window.print(), with or without a preview.
+  //
   // `onlyIds` limits the tickets to those work orders: Approve & Print passes
   // the items it just approved, so an item added after the first print doesn't
   // re-print tickets already pinned to the board. Reprint passes nothing and
   // gets every Checked-In ticket.
+  //
+  // Resolves to { queued: n } when the tickets went straight to the printer
+  // (CloudPRNT, no preview), or { preview: true } when the print view opened.
+  // Throws when nothing could be printed, so the visitor detail can say why.
   const handlePrint = async (attId, onlyIds = null) => {
-    try {
-      const { attendee, orders, event } = await fetchVisitorDetail(attId);
-      const printableOrders = orders.filter(
-        (w) =>
-          (w.status === "pending_assignment" || w.status === "pending") &&
-          (!onlyIds || onlyIds.includes(w.id)),
-      );
-      const abbreviated = attendee.last_name
-        ? `${attendee.first_name} ${attendee.last_name.charAt(0).toUpperCase()}.`
-        : attendee.first_name;
-      setPrintData({
-        orders: printableOrders,
-        attendeeName: abbreviated,
-        isVolunteer: attendee.is_volunteer,
-        // Resolved from the whole visit, not per item, so every ticket carries
-        // the same time the queue card shows.
-        submittedAt: submittedStamp(attendee, orders),
-        // Whether the ticket's text pill promises a text. Same three gates the
-        // Edge Function applies at claim time, in the same order. Drawn from the
-        // visitor's own event rather than the selected tab, so a reprint for
-        // someone from another event still gets it right.
-        //
-        // This is a snapshot: the ticket is printed at check-in but the text is
-        // sent at claim time, so editing the phone or flipping the event setting
-        // in between leaves the printed pill stale.
-        canTextClient:
-          Boolean(event?.collect_phone) &&
-          Boolean(attendee.text_message_opt_in) &&
-          isTextablePhone(attendee.phone),
-      });
-      setPrintingVisitorId(attId);
-    } catch (err) {
-      console.error("Failed to load print data:", err);
+    const { attendee, orders, event } = await fetchVisitorDetail(attId);
+    const printableOrders = orders.filter(
+      (w) =>
+        (w.status === "pending_assignment" || w.status === "pending") &&
+        (!onlyIds || onlyIds.includes(w.id)),
+    );
+    if (printableOrders.length === 0) throw new Error("There are no tickets to print.");
+
+    const abbreviated = attendee.last_name
+      ? `${attendee.first_name} ${attendee.last_name.charAt(0).toUpperCase()}.`
+      : attendee.first_name;
+    const data = {
+      orders: printableOrders,
+      attendeeName: abbreviated,
+      isVolunteer: attendee.is_volunteer,
+      // Resolved from the whole visit, not per item, so every ticket carries
+      // the same time the queue card shows.
+      submittedAt: submittedStamp(attendee, orders),
+      // Whether the ticket's text pill promises a text. Same three gates the
+      // Edge Function applies at claim time, in the same order. Drawn from the
+      // visitor's own event rather than the selected tab, so a reprint for
+      // someone from another event still gets it right.
+      //
+      // This is a snapshot: the ticket is printed at check-in but the text is
+      // sent at claim time, so editing the phone or flipping the event setting
+      // in between leaves the printed pill stale.
+      canTextClient:
+        Boolean(event?.collect_phone) &&
+        Boolean(attendee.text_message_opt_in) &&
+        isTextablePhone(attendee.phone),
+    };
+    const { legacy, preview } = printSettings(event);
+
+    // Straight to the Star printer, from the visitor detail screen.
+    if (!legacy && !preview) {
+      const results = await sendToCloudPrinter(data, printableOrders);
+      return { queued: results.length };
     }
+
+    // Everything else goes through the print view. Approved items go on the
+    // board now, as they always have; printed_at waits for the print itself.
+    await approveWorkOrders(
+      printableOrders.filter((w) => w.status === "pending").map((w) => w.id),
+    );
+    setPrintData({
+      ...data,
+      engine: legacy ? "legacy" : "cloud",
+      // Legacy without a preview: open the browser's print dialog at once.
+      autoPrint: legacy && !preview,
+    });
+    setPrintingVisitorId(attId);
+    return { preview: true };
   };
+
+  const sendToCloudPrinter = (data, workOrders) =>
+    queueCloudPrintJobs(
+      workOrders.map((wo) =>
+        buildTicketSnapshot(wo, {
+          attendeeName: data.attendeeName,
+          isVolunteer: data.isVolunteer,
+          canTextClient: data.canTextClient,
+          submittedLabel: formatClockTime(data.submittedAt),
+          origin: window.location.origin,
+        }),
+      ),
+    );
+
+  // The print view's Print button.
+  const printFromPreview = () =>
+    printData.engine === "cloud"
+      ? sendToCloudPrinter(printData, printData.orders)
+      : markTicketsPrinted(printData.orders.map((w) => w.id));
 
   if (!access) return <PortalLoading />;
 
@@ -256,6 +304,9 @@ export default function Portal() {
             isVolunteer={printData.isVolunteer}
             canTextClient={printData.canTextClient}
             submittedAt={printData.submittedAt}
+            engine={printData.engine}
+            autoPrint={printData.autoPrint}
+            onPrint={printFromPreview}
             onClose={() => {
               setPrintingVisitorId(null);
               setPrintData(null);
