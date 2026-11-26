@@ -53,7 +53,7 @@ const MIGRATIONS = [
   "supabase-ticket-code-migration.sql", // resolve_ticket_code() for the short ticket QR
   "supabase-extra-item-migration.sql", // add_extra_work_order(); needs can_access_queue()
   "supabase-event-first-open-migration.sql", // events start closed; events.first_opened_at
-  "supabase-cloudprnt-migration.sql", // print_count, print settings, CloudPRNT jobs; needs is_admin()
+  "supabase-cloudprnt-migration.sql", // print settings, CloudPRNT jobs; needs is_admin()
 ];
 
 const SEED = "supabase-seed.sql";

@@ -143,7 +143,7 @@ export async function updateWorkOrder(id, patch) {
 
 // Moves an item to "Checked-In" the way Approve & Print does.
 export async function markPrinted(id, category = "Electronics") {
-  await updateWorkOrder(id, { status: "pending_assignment", printed_at: new Date().toISOString(), print_count: 1, category });
+  await updateWorkOrder(id, { status: "pending_assignment", printed_at: new Date().toISOString(), category });
 }
 
 // ── CloudPRNT ──

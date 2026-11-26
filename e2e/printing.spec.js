@@ -1,4 +1,4 @@
-// Printing modes and print counting (supabase-cloudprnt-migration.sql):
+// Printing modes and reprints (supabase-cloudprnt-migration.sql):
 // window.print() with and without the preview, CloudPRNT straight from the
 // visitor detail, the REPRINT banner, and the print settings in Configure
 // Event. The printer itself is stood in for by writing its check-in row; the
@@ -36,10 +36,10 @@ const reprintBanner = (page) => page.locator(".print-ticket .reprint-banner");
 
 // ── window.print() ──
 
-test("every print adds to print_count, printed_at keeps the first, and reprints say REPRINT", async ({ page, event, asVolunteer }) => {
-  const v = await readyVisitor(event, "E2E Count");
+test("printed_at keeps the first print, and every later print says REPRINT", async ({ page, event, asVolunteer }) => {
+  const v = await readyVisitor(event, "E2E Reprint");
   const id = v.orders[0].id;
-  await openVisitor(page, asVolunteer, event.id, "E2E Count Tester");
+  await openVisitor(page, asVolunteer, event.id, "E2E Reprint Tester");
 
   await page.getByRole("button", { name: "Approve & Print Ticket" }).click();
   await expect(page.locator(".print-ticket")).toHaveCount(1);
@@ -47,17 +47,15 @@ test("every print adds to print_count, printed_at keeps the first, and reprints 
 
   await page.getByRole("button", { name: /Print/ }).first().click();
   await expect.poll(() => printCalls(page)).toBe(1);
-  await expect.poll(async () => (await getWorkOrder(id)).print_count).toBe(1);
+  await expect.poll(async () => (await getWorkOrder(id)).printed_at).not.toBeNull();
   const first = await getWorkOrder(id);
   expect(first.status).toBe("pending_assignment");
-  expect(first.printed_at).not.toBeNull();
-  await expect(reprintBanner(page)).toHaveCount(0);
+  // Printed now, so the next press of Print would be a reprint.
+  await expect(reprintBanner(page)).toHaveCount(1);
 
   // A jammed ticket printed again from the same preview.
   await page.getByRole("button", { name: /Print/ }).first().click();
   await expect.poll(() => printCalls(page)).toBe(2);
-  await expect(reprintBanner(page)).toHaveCount(1);
-  await expect.poll(async () => (await getWorkOrder(id)).print_count).toBe(2);
   expect((await getWorkOrder(id)).printed_at).toBe(first.printed_at);
 
   // Reprint from the visitor: REPRINT shows before Print is pressed.
@@ -65,7 +63,7 @@ test("every print adds to print_count, printed_at keeps the first, and reprints 
   await page.getByRole("button", { name: /Reprint Ticket/ }).click();
   await expect(reprintBanner(page)).toHaveCount(1);
   await page.getByRole("button", { name: /Print/ }).first().click();
-  await expect.poll(async () => (await getWorkOrder(id)).print_count).toBe(3);
+  await expect.poll(() => printCalls(page)).toBe(3);
   expect((await getWorkOrder(id)).printed_at).toBe(first.printed_at);
 });
 
@@ -76,7 +74,7 @@ test("window.print() without a preview opens the print dialog at once", async ({
 
   await page.getByRole("button", { name: "Approve & Print Ticket" }).click();
   await expect.poll(() => printCalls(page)).toBe(1);
-  await expect.poll(async () => (await getWorkOrder(v.orders[0].id)).print_count).toBe(1);
+  await expect.poll(async () => (await getWorkOrder(v.orders[0].id)).printed_at).not.toBeNull();
 });
 
 // ── CloudPRNT, no preview ──
@@ -89,7 +87,7 @@ test("CloudPRNT with no printer set: the desk is told and nothing is printed", a
   await page.getByRole("button", { name: "Approve & Print Ticket" }).click();
   await expect(page.getByRole("alert")).toHaveText("No printer is set up for this event");
   const row = await getWorkOrder(v.orders[0].id);
-  expect(row).toMatchObject({ status: "pending", print_count: 0, printed_at: null });
+  expect(row).toMatchObject({ status: "pending", printed_at: null });
   // Still on the visitor, with the button there to try again.
   await expect(page.getByRole("button", { name: "Approve & Print Ticket" })).toBeVisible();
 });
@@ -104,11 +102,11 @@ test("CloudPRNT with a printer that stopped checking in: No printer detected", a
 
   await page.getByRole("button", { name: "Approve & Print Ticket" }).click();
   await expect(page.getByRole("alert")).toContainText("No printer detected");
-  expect((await getWorkOrder(v.orders[0].id)).print_count).toBe(0);
+  expect((await getWorkOrder(v.orders[0].id)).printed_at).toBeNull();
   expect(await printJobsFor(v.orders[0].id)).toHaveLength(0);
 });
 
-test("CloudPRNT sends tickets straight to the printer and counts reprints", async ({ page, asVolunteer }) => {
+test("CloudPRNT sends tickets straight to the printer and marks reprints", async ({ page, asVolunteer }) => {
   const event = await createEvent({ use_legacy_print: false, print_preview: false });
   const mac = e2eMac();
   await setEventPrinter(event.id, mac);
@@ -124,10 +122,11 @@ test("CloudPRNT sends tickets straight to the printer and counts reprints", asyn
   expect(await printCalls(page)).toBe(0);
 
   const row = await getWorkOrder(id);
-  expect(row).toMatchObject({ status: "pending_assignment", print_count: 1 });
+  expect(row).toMatchObject({ status: "pending_assignment" });
+  expect(row.printed_at).not.toBeNull();
   let jobs = await printJobsFor(id);
   expect(jobs).toHaveLength(1);
-  expect(jobs[0]).toMatchObject({ printer_mac: mac, print_count: 1, state: "queued" });
+  expect(jobs[0]).toMatchObject({ printer_mac: mac, reprint: false, state: "queued" });
   expect(jobs[0].ticket).toMatchObject({
     work_order_id: id,
     item_name: "E2E Lamp",
@@ -141,7 +140,7 @@ test("CloudPRNT sends tickets straight to the printer and counts reprints", asyn
   await page.getByRole("button", { name: /Reprint Ticket/ }).click();
   await expect(page.getByRole("status")).toHaveText("Sent 1 ticket to the printer.");
   jobs = await printJobsFor(id);
-  expect(jobs.map((j) => j.print_count)).toEqual([1, 2]);
+  expect(jobs.map((j) => j.reprint)).toEqual([false, true]);
   expect((await getWorkOrder(id)).printed_at).toBe(row.printed_at);
 });
 

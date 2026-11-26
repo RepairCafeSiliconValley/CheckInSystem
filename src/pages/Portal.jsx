@@ -24,7 +24,7 @@ import {
   fetchEvents,
   fetchVisitorDetail,
   approveWorkOrders,
-  recordTicketPrints,
+  markTicketsPrinted,
   queueCloudPrintJobs,
 } from "../lib/store";
 import { submittedStamp, formatClockTime } from "../lib/metrics";
@@ -241,8 +241,7 @@ export default function Portal() {
     }
 
     // Everything else goes through the print view. Approved items go on the
-    // board now, as they always have; the print itself is counted when it
-    // happens.
+    // board now, as they always have; printed_at waits for the print itself.
     await approveWorkOrders(
       printableOrders.filter((w) => w.status === "pending").map((w) => w.id),
     );
@@ -273,7 +272,7 @@ export default function Portal() {
   const printFromPreview = () =>
     printData.engine === "cloud"
       ? sendToCloudPrinter(printData, printData.orders)
-      : recordTicketPrints(printData.orders.map((w) => w.id));
+      : markTicketsPrinted(printData.orders.map((w) => w.id));
 
   if (!access) return <PortalLoading />;
 

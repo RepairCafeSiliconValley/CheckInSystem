@@ -13,9 +13,9 @@ Older printers that don't support CloudPRNT, such as the TSP143IIILAN, keep **Us
 
 ## How it works
 
-1. The desk presses Approve & Print or Reprint. The browser calls the `queue_cloudprnt_jobs` RPC, which checks the event has a printer that checked in within the last **30 seconds**. It then adds one to each item's `print_count`, sets `printed_at` if it's still empty, moves new items to Checked-In and adds a row per ticket to `print_jobs`. If the printer isn't there, nothing is counted and the desk sees "No printer is set up for this event" or "No printer detected…".
+1. The desk presses Approve & Print or Reprint. The browser calls the `queue_cloudprnt_jobs` RPC, which checks the event has a printer that checked in within the last **30 seconds**. It then sets each item's `printed_at` if it's still empty, moves new items to Checked-In and adds a row per ticket to `print_jobs`, marked as a reprint when `printed_at` was already set. If the printer isn't there, nothing changes and the desk sees "No printer is set up for this event" or "No printer detected…".
 2. The printer checks in with the `cloudprnt` Edge Function every few seconds (a POST with its MAC address). Each check-in updates `cloudprnt_printers`, and the function tells the printer when a job is waiting.
-3. The printer fetches the job (GET). The function builds the ticket in Star's command format (`supabase/functions/cloudprnt/starTicket.js`) for 80 mm paper, with **REPRINT** at the top when the item's print count is above 1.
+3. The printer fetches the job (GET). The function builds the ticket in Star's command format (`supabase/functions/cloudprnt/starTicket.js`) for 80 mm paper, with **REPRINT** at the top when the job is a reprint.
 4. The printer reports the result (DELETE). The job becomes `printed`. A failed job is retried up to three times, then marked `failed`. A job nobody fetched within 10 minutes is marked `expired`, so a printer switched on later doesn't print old tickets.
 
 The printer only ever makes outgoing HTTPS requests, so it works on any network with internet access and needs no fixed IP address or open ports.

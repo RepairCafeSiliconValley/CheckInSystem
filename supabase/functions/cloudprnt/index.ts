@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
     const queued = () =>
       supabase
         .from("print_jobs")
-        .select("id, ticket, print_count, attempts")
+        .select("id, ticket, reprint, attempts")
         .eq("printer_mac", mac)
         .eq("state", "queued");
     const { data: job } = token
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
       .update({ fetched_at: new Date().toISOString(), attempts: job.attempts + 1 })
       .eq("id", job.id);
 
-    const options = { printCount: job.print_count };
+    const options = { reprint: job.reprint === true };
     const body = type === "text/plain"
       ? buildTextTicket(job.ticket, options)
       : buildStarTicket(job.ticket, options);

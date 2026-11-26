@@ -19,15 +19,10 @@ export function printSettings(event) {
   };
 }
 
-// The ticket says REPRINT when this print isn't the item's first: its
-// print_count, counting this print, is above 1.
-export function isReprint(timesPrinted) {
-  return Number(timesPrinted) > 1;
-}
-
-// The count a print about to happen will have: one more than the stored one.
-export function nextPrintCount(workOrder) {
-  return (Number(workOrder?.print_count) || 0) + 1;
+// The ticket says REPRINT when the item has been printed before. printed_at
+// is set on the first print only, so it is the whole record of that.
+export function wasPrinted(workOrder) {
+  return Boolean(workOrder?.printed_at);
 }
 
 // Canonical MAC form, the same as normalize_mac() in SQL and the cloudprnt

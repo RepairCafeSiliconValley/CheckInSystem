@@ -1,16 +1,16 @@
--- Print counting and CloudPRNT printing (supabase-cloudprnt-migration.sql):
--- normalize_mac(), the per-event print defaults, record_ticket_prints(),
+-- CloudPRNT printing and reprints (supabase-cloudprnt-migration.sql):
+-- normalize_mac(), the per-event print defaults, how printed_at is stamped,
 -- queue_cloudprnt_jobs(), and RLS on event_printers, cloudprnt_printers and
 -- print_jobs.
 --
--- The central promise: printed_at records the FIRST print and never moves,
--- while print_count goes up on every print.
+-- The central promise: printed_at records the FIRST print and never moves, so
+-- a print of an item that already has it is a reprint.
 --
 -- Runs in a transaction that is rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(31);
+select plan(29);
 
 -- ── Fixtures (as postgres, bypassing RLS) ──
 -- Pat is an admin (allowlisted, then created, which fires the trigger that
@@ -26,15 +26,17 @@ insert into attendees (id, event_id, first_name, last_name) values
   ('f0000000-0000-0000-0000-000000000a01', 'f0000000-0000-0000-0000-000000000e01', 'Ada', 'Visitor'),
   ('f0000000-0000-0000-0000-000000000a02', 'f0000000-0000-0000-0000-000000000e02', 'Bo', 'Visitor');
 -- Each id has different first three groups: the ticket-code prefix is unique.
-insert into work_orders (id, code, attendee_id, event_id, item_name, description, priority, status, printed_at, print_count) values
+insert into work_orders (id, code, attendee_id, event_id, item_name, description, priority, status, printed_at) values
   ('f1000000-0000-0000-0000-000000000001', 'P1P-1', 'f0000000-0000-0000-0000-000000000a01', 'f0000000-0000-0000-0000-000000000e01',
-   'Lamp', 'Flickers', 1, 'pending', null, 0),
+   'Lamp', 'Flickers', 1, 'pending', null),
   ('f2000000-0000-0000-0000-000000000001', 'P1P-2', 'f0000000-0000-0000-0000-000000000a01', 'f0000000-0000-0000-0000-000000000e01',
-   'Radio', 'No sound', 2, 'pending_assignment', '2030-01-01 10:00+00', 1),
+   'Radio', 'No sound', 2, 'pending_assignment', '2030-01-01 10:00+00'),
   ('f3000000-0000-0000-0000-000000000001', 'P1P-3', 'f0000000-0000-0000-0000-000000000a01', 'f0000000-0000-0000-0000-000000000e01',
-   'Kettle', 'Leaks', 3, 'completed', '2030-01-01 10:00+00', 1),
+   'Kettle', 'Leaks', 3, 'completed', '2030-01-01 10:00+00'),
+  ('f5000000-0000-0000-0000-000000000001', 'P1P-4', 'f0000000-0000-0000-0000-000000000a01', 'f0000000-0000-0000-0000-000000000e01',
+   'Clock', 'Stopped', 4, 'pending', null),
   ('f4000000-0000-0000-0000-000000000001', 'P2P-1', 'f0000000-0000-0000-0000-000000000a02', 'f0000000-0000-0000-0000-000000000e02',
-   'Fan', 'Rattles', 1, 'pending', null, 0);
+   'Fan', 'Rattles', 1, 'pending', null);
 
 
 -- ════ normalize_mac() ════
@@ -54,9 +56,6 @@ select is((select print_preview from events where id = 'f0000000-0000-0000-0000-
 -- ════ Anon can't print ════
 set local role anon;
 select throws_ok(
-  $$ select * from public.record_ticket_prints(array['f1000000-0000-0000-0000-000000000001'::uuid]) $$,
-  '42501', null, 'anon cannot execute record_ticket_prints');
-select throws_ok(
   $$ select * from public.queue_cloudprnt_jobs('[{"work_order_id":"f1000000-0000-0000-0000-000000000001"}]') $$,
   '42501', null, 'anon cannot execute queue_cloudprnt_jobs');
 select throws_ok(
@@ -64,47 +63,27 @@ select throws_ok(
   '42501', null, 'anon cannot read print_jobs');
 reset role;
 
+select hasnt_function('public', 'record_ticket_prints', 'the print-counting RPC of an earlier draft is gone');
 
--- ════ record_ticket_prints() as the volunteer ════
-set local role authenticated;
-select set_config('request.jwt.claims',
-  '{"role":"authenticated","sub":"f0000000-0000-0000-0000-0000000000bb","email":"volunteer@repaircafe.app"}',
-  true);
 
--- The completed item is skipped; the other two are counted.
-select results_eq(
-  $$ select * from public.record_ticket_prints(array[
-       'f1000000-0000-0000-0000-000000000001'::uuid,
-       'f2000000-0000-0000-0000-000000000001'::uuid,
-       'f3000000-0000-0000-0000-000000000001'::uuid]) order by 1 $$,
-  $$ values ('f1000000-0000-0000-0000-000000000001'::uuid, 1),
-            ('f2000000-0000-0000-0000-000000000001'::uuid, 2) $$,
-  'record_ticket_prints counts each printable item and returns the new counts');
-reset role;
-
-select results_eq(
-  $$ select status, printed_at is not null from work_orders where id = 'f1000000-0000-0000-0000-000000000001' $$,
-  $$ values ('pending_assignment'::text, true) $$,
-  'a first print moves the item to Checked-In and stamps printed_at');
-select is((select printed_at from work_orders where id = 'f2000000-0000-0000-0000-000000000001'),
-  '2030-01-01 10:00+00'::timestamptz, 'a reprint leaves printed_at at the first print');
-select is((select print_count from work_orders where id = 'f3000000-0000-0000-0000-000000000001'),
-  1, 'an item off the board is not counted');
-
--- A second print of the first item: count goes up, printed_at stays.
-update work_orders set printed_at = '2030-01-01 11:00+00' where id = 'f1000000-0000-0000-0000-000000000001';
+-- ════ window.print(): markTicketsPrinted() in src/lib/store.js ════
+-- The same update the app sends, as the volunteer: printed_at only where it
+-- is still empty.
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"role":"authenticated","sub":"f0000000-0000-0000-0000-0000000000bb","email":"volunteer@repaircafe.app"}',
   true);
 select lives_ok(
-  $$ select * from public.record_ticket_prints(array['f1000000-0000-0000-0000-000000000001'::uuid]) $$,
-  'the volunteer can print the same ticket again');
+  $$ update work_orders set printed_at = '2030-01-01 11:00+00'
+      where id in ('f1000000-0000-0000-0000-000000000001', 'f2000000-0000-0000-0000-000000000001')
+        and printed_at is null
+        and status in ('pending', 'pending_assignment') $$,
+  'the volunteer can stamp printed_at on a window.print() print');
 reset role;
-select is((select print_count from work_orders where id = 'f1000000-0000-0000-0000-000000000001'),
-  2, 'every print adds one to print_count');
 select is((select printed_at from work_orders where id = 'f1000000-0000-0000-0000-000000000001'),
-  '2030-01-01 11:00+00'::timestamptz, 'printed_at does not move on later prints');
+  '2030-01-01 11:00+00'::timestamptz, 'a first print stamps printed_at');
+select is((select printed_at from work_orders where id = 'f2000000-0000-0000-0000-000000000001'),
+  '2030-01-01 10:00+00'::timestamptz, 'a reprint leaves printed_at at the first print');
 
 
 -- ════ queue_cloudprnt_jobs() ════
@@ -113,7 +92,7 @@ select set_config('request.jwt.claims',
   '{"role":"authenticated","sub":"f0000000-0000-0000-0000-0000000000bb","email":"volunteer@repaircafe.app"}',
   true);
 select throws_ok(
-  $$ select * from public.queue_cloudprnt_jobs('[{"work_order_id":"f1000000-0000-0000-0000-000000000001"}]') $$,
+  $$ select * from public.queue_cloudprnt_jobs('[{"work_order_id":"f5000000-0000-0000-0000-000000000001"}]') $$,
   'P0001', 'No printer is set up for this event',
   'queueing fails when the event has no printer');
 reset role;
@@ -127,7 +106,7 @@ select set_config('request.jwt.claims',
   '{"role":"authenticated","sub":"f0000000-0000-0000-0000-0000000000bb","email":"volunteer@repaircafe.app"}',
   true);
 select throws_ok(
-  $$ select * from public.queue_cloudprnt_jobs('[{"work_order_id":"f1000000-0000-0000-0000-000000000001"}]') $$,
+  $$ select * from public.queue_cloudprnt_jobs('[{"work_order_id":"f5000000-0000-0000-0000-000000000001"}]') $$,
   'P0001', 'No printer detected. Check that the printer is on and connected to the network.',
   'queueing fails when the printer has not checked in recently');
 reset role;
@@ -139,7 +118,7 @@ select set_config('request.jwt.claims',
   '{"role":"authenticated","sub":"f0000000-0000-0000-0000-0000000000bb","email":"volunteer@repaircafe.app"}',
   true);
 select throws_ok(
-  $$ select * from public.queue_cloudprnt_jobs('[{"work_order_id":"f1000000-0000-0000-0000-000000000001"},
+  $$ select * from public.queue_cloudprnt_jobs('[{"work_order_id":"f5000000-0000-0000-0000-000000000001"},
                                                 {"work_order_id":"f4000000-0000-0000-0000-000000000001"}]') $$,
   'P0001', 'Tickets must all belong to one event',
   'one call prints for one event only');
@@ -148,24 +127,37 @@ select throws_ok(
   'P0001', 'None of these items can be printed',
   'an item off the board cannot be queued');
 
--- Sent Radio first, then Lamp: the jobs keep that order.
+-- Sent Radio (printed before) first, then Clock (never printed): the jobs
+-- keep that order, and only Radio's is a reprint.
 select results_eq(
   $$ select * from public.queue_cloudprnt_jobs(
        '[{"work_order_id":"f2000000-0000-0000-0000-000000000001","item_name":"Radio"},
-         {"work_order_id":"f1000000-0000-0000-0000-000000000001","item_name":"Lamp"}]') order by 1 $$,
-  $$ values ('f1000000-0000-0000-0000-000000000001'::uuid, 3),
-            ('f2000000-0000-0000-0000-000000000001'::uuid, 3) $$,
-  'queueing counts the print and returns the new counts');
+         {"work_order_id":"f5000000-0000-0000-0000-000000000001","item_name":"Clock"}]') order by 1 $$,
+  $$ values ('f2000000-0000-0000-0000-000000000001'::uuid, true),
+            ('f5000000-0000-0000-0000-000000000001'::uuid, false) $$,
+  'queueing says which tickets are reprints');
+reset role;
 
+select results_eq(
+  $$ select status, printed_at is not null from work_orders where id = 'f5000000-0000-0000-0000-000000000001' $$,
+  $$ values ('pending_assignment'::text, true) $$,
+  'a first CloudPRNT print moves the item to Checked-In and stamps printed_at');
+select is((select printed_at from work_orders where id = 'f2000000-0000-0000-0000-000000000001'),
+  '2030-01-01 10:00+00'::timestamptz, 'a CloudPRNT reprint leaves printed_at at the first print');
+
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"role":"authenticated","sub":"f0000000-0000-0000-0000-0000000000bb","email":"volunteer@repaircafe.app"}',
+  true);
 -- The desk can see what it sent, but can't write jobs or see printer settings.
 select results_eq(
-  $$ select work_order_id, print_count, ticket ->> 'item_name', printer_mac, state from print_jobs order by seq $$,
-  $$ values ('f2000000-0000-0000-0000-000000000001'::uuid, 3, 'Radio'::text, '00:11:62:aa:bb:cc'::text, 'queued'::text),
-            ('f1000000-0000-0000-0000-000000000001'::uuid, 3, 'Lamp'::text, '00:11:62:aa:bb:cc'::text, 'queued'::text) $$,
-  'one queued job per ticket, in the order sent, carrying the snapshot and count');
+  $$ select work_order_id, reprint, ticket ->> 'item_name', printer_mac, state from print_jobs order by seq $$,
+  $$ values ('f2000000-0000-0000-0000-000000000001'::uuid, true, 'Radio'::text, '00:11:62:aa:bb:cc'::text, 'queued'::text),
+            ('f5000000-0000-0000-0000-000000000001'::uuid, false, 'Clock'::text, '00:11:62:aa:bb:cc'::text, 'queued'::text) $$,
+  'one queued job per ticket, in the order sent, carrying the snapshot and the reprint flag');
 select throws_ok(
-  $$ insert into print_jobs (printer_mac, event_id, work_order_id, print_count, ticket)
-     values ('00:11:62:aa:bb:cc', 'f0000000-0000-0000-0000-000000000e01', 'f1000000-0000-0000-0000-000000000001', 1, '{}') $$,
+  $$ insert into print_jobs (printer_mac, event_id, work_order_id, ticket)
+     values ('00:11:62:aa:bb:cc', 'f0000000-0000-0000-0000-000000000e01', 'f1000000-0000-0000-0000-000000000001', '{}') $$,
   '42501', null, 'the volunteer cannot insert print jobs directly');
 select is((select count(*)::int from event_printers), 0, 'the volunteer cannot read event printers');
 select throws_ok(

@@ -16,8 +16,8 @@
 --     across categories from src/lib/constants.js. Canceled rows carry a
 --     cancel_reason, Not Fixed rows a not_fixed_reason, and one of each uses
 --     "Other" with an optional note (cancel_note / not_fixed_note).
---   • print counts — every printed item has print_count 1, and one Checked-In
---     item (R-D5B) was reprinted (2), so its next ticket says REPRINT
+--   • reprints — any item with printed_at has been printed, so printing it
+--     again (Reprint on a Checked-In item such as R-D5B) says REPRINT
 --   • print settings — events use window.print() with a preview, as before
 --     CloudPRNT, except the upcoming Mountain View event: CloudPRNT with a
 --     preview and no printer set, which exercises "No printer is set up"
@@ -26,8 +26,7 @@
 --
 -- Requires the full migration chain through supabase-cloudprnt-migration.sql
 -- (see the MIGRATIONS list in scripts/db-reset.mjs for the order) — it writes
--- events.first_opened_at, events.use_legacy_print / print_preview and
--- work_orders.print_count.
+-- events.first_opened_at and events.use_legacy_print / print_preview.
 --
 -- Requires the pgcrypto extension (installed by default on Supabase in the
 -- `extensions` schema) for the waiver hash.
@@ -86,12 +85,6 @@ insert into work_orders (code, attendee_id, event_id, item_name, category, descr
   -- Event 3: upcoming, pre-registered (pending, not yet printed)
   ('R-F3W', 'aaaaaaaa-0000-0000-0000-000000000010', '33333333-3333-3333-3333-333333333333', 'Wooden dining chair', 'Furniture / Wood', 'Joint at the back leg is loose and wobbles.', 1, 'pending', null, '', '2026-05-22 14:02-07', null, null),
   ('R-H8K', 'aaaaaaaa-0000-0000-0000-000000000011', '33333333-3333-3333-3333-333333333333', 'Tube radio',          'Electronics',      'Hums loudly and the dial light is out.',      1, 'pending', null, '', '2026-05-23 16:22-07', null, null);
-
--- ── Print counts ──
--- One print for everything that has a printed_at; the bike's ticket went
--- missing from the board and was printed again.
-update work_orders set print_count = 1 where printed_at is not null;
-update work_orders set print_count = 2 where code = 'R-D5B';
 
 -- ── Cancel / not-fixed reasons (values from src/lib/constants.js) ──
 update work_orders set not_fixed_reason = 'Spare parts not available'                where code = 'R-J8T';
@@ -160,7 +153,7 @@ select
   wo.category,
   wo.priority,
   wo.status,
-  wo.print_count,
+  wo.printed_at is not null as printed,
   wo.outcome,
   coalesce(wo.not_fixed_reason, wo.cancel_reason) as reason,
   coalesce(wo.not_fixed_note, wo.cancel_note) as note,

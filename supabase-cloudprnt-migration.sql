@@ -1,5 +1,5 @@
 -- ============================================
--- Migration: print counting and Star CloudPRNT printing
+-- Migration: Star CloudPRNT printing and REPRINT tickets
 -- ============================================
 -- Run in the Supabase SQL Editor (DEV project first, then prod).
 --
@@ -9,9 +9,7 @@
 -- scripts/db-reset.mjs this runs last.
 --
 -- What it adds:
---   1. work_orders.print_count — how many times the item's ticket has been
---      printed. Items already stamped with printed_at start at 1, so a
---      reprint of a ticket printed before this migration says REPRINT.
+--   1. Clean-up of an earlier draft of this file that counted prints.
 --   2. Per-event print settings: events.use_legacy_print (window.print()
 --      instead of CloudPRNT) and events.print_preview (show the ticket
 --      preview before printing). Events that exist when this runs keep
@@ -24,25 +22,26 @@
 --      cloudprnt Edge Function, so the desk can say "No printer detected"
 --      instead of queueing a ticket that never prints.
 --   5. print_jobs — tickets waiting for (or already handed to) a printer.
---   6. record_ticket_prints() — counts a print made with window.print().
---   7. queue_cloudprnt_jobs() — counts a print and queues it for the event's
---      CloudPRNT printer, in one transaction.
+--   6. queue_cloudprnt_jobs() — stamps the print and queues it for the
+--      event's CloudPRNT printer, in one transaction.
 --
--- printed_at: both RPCs set it only when it is empty, so it records the first
--- print and later prints leave it alone.
+-- printed_at records the FIRST print and never moves: queue_cloudprnt_jobs()
+-- sets it only when it is empty, and so does markTicketsPrinted() in
+-- src/lib/store.js for window.print(). A print of an item that already has
+-- printed_at is a reprint, and its ticket says REPRINT.
 --
 -- Safe to re-run.
 -- ============================================
 
 
--- ─── 1. Print count ───
+-- ─── 1. Clean-up of an earlier draft ───
+-- A first draft of this migration counted prints (work_orders.print_count,
+-- record_ticket_prints(), print_jobs.print_count) and never reached PROD.
+-- Wherever it ran (DEV, a local stack) these drop what it left; elsewhere
+-- they do nothing.
 
-alter table public.work_orders
-  add column if not exists print_count integer not null default 0;
-
-update public.work_orders
-   set print_count = 1
- where printed_at is not null and print_count = 0;
+drop function if exists public.record_ticket_prints(uuid[]);
+alter table public.work_orders drop column if exists print_count;
 
 
 -- ─── 2. Per-event print settings ───
@@ -135,9 +134,9 @@ revoke insert, update, delete on public.cloudprnt_printers from authenticated;
 -- ─── 5. Print jobs ───
 -- One row per ticket sent to a CloudPRNT printer. `ticket` is the snapshot
 -- the desk built (the same fields the preview shows); the Edge Function turns
--- it into printer commands when the printer asks for it. `print_count` is the
--- item's count including this print, so the ticket says REPRINT when it's
--- above 1.
+-- it into printer commands when the printer asks for it. `reprint` says
+-- whether the item had been printed before this job, so the ticket says
+-- REPRINT.
 --
 -- state: queued → printed, or failed after three failed attempts, or expired
 -- when no printer took it within ten minutes (see the Edge Function).
@@ -148,7 +147,7 @@ create table if not exists public.print_jobs (
   printer_mac    text not null,
   event_id       uuid not null references public.events(id) on delete cascade,
   work_order_id  uuid not null references public.work_orders(id) on delete cascade,
-  print_count    integer not null,
+  reprint        boolean not null default false,
   ticket         jsonb not null,
   state          text not null default 'queued',
   attempts       integer not null default 0,
@@ -157,6 +156,10 @@ create table if not exists public.print_jobs (
   fetched_at     timestamptz,
   completed_at   timestamptz
 );
+
+-- For a DEV table made by the earlier draft (see 1).
+alter table public.print_jobs add column if not exists reprint boolean not null default false;
+alter table public.print_jobs drop column if exists print_count;
 
 create index if not exists print_jobs_queued_idx
   on public.print_jobs (printer_mac, seq)
@@ -175,55 +178,21 @@ revoke all on public.print_jobs from anon;
 revoke insert, update, delete on public.print_jobs from authenticated;
 
 
--- ─── 6. Count a window.print() print ───
--- Called when the desk prints with the browser's print dialog. Adds one to
--- each item's print_count, sets printed_at if it is still empty, and moves a
--- not-yet-printed item to Checked-In. Items that are no longer on the board
--- (With Fixer, completed, canceled) are skipped. Returns each counted item
--- with its new count.
-
-drop function if exists public.record_ticket_prints(uuid[]);
-create function public.record_ticket_prints(p_work_order_ids uuid[])
-returns table (work_order_id uuid, times_printed integer)
-language plpgsql
-security definer
-set search_path to 'public', 'pg_temp'
-as $function$
-begin
-  if not public.can_access_queue() then
-    raise exception 'Only volunteers and admins can print tickets'
-      using errcode = '42501';
-  end if;
-
-  -- Wrapped in a CTE: RETURN QUERY takes a SELECT, not a bare UPDATE.
-  return query
-  with counted as (
-    update public.work_orders w
-       set print_count = w.print_count + 1,
-           printed_at  = coalesce(w.printed_at, now()),
-           status      = case when w.status = 'pending' then 'pending_assignment' else w.status end
-     where w.id = any(coalesce(p_work_order_ids, '{}'))
-       and w.status in ('pending', 'pending_assignment')
-    returning w.id, w.print_count
-  )
-  select c.id, c.print_count from counted c;
-end;
-$function$;
-
-revoke execute on function public.record_ticket_prints(uuid[]) from public, anon;
-grant execute on function public.record_ticket_prints(uuid[]) to authenticated;
-
-
--- ─── 7. Count a print and queue it for CloudPRNT ───
+-- ─── 6. Stamp a print and queue it for CloudPRNT ───
 -- p_tickets is a JSON array, one object per ticket, each carrying at least
 -- "work_order_id"; the whole object is kept as the job's ticket snapshot.
 -- All tickets must belong to one event. Fails, changing nothing, when the
 -- event has no printer set up or its printer hasn't checked in within the
 -- last 30 seconds — the printer polls every few seconds while it's on.
+--
+-- For each item still on the board (not printed, or Checked-In) it sets
+-- printed_at if it is empty, moves a not-yet-printed item to Checked-In and
+-- queues one job. Returns each queued item and whether it was a reprint
+-- (printed_at was already set).
 
 drop function if exists public.queue_cloudprnt_jobs(jsonb);
 create function public.queue_cloudprnt_jobs(p_tickets jsonb)
-returns table (work_order_id uuid, times_printed integer)
+returns table (work_order_id uuid, reprint boolean)
 language plpgsql
 security definer
 set search_path to 'public', 'pg_temp'
@@ -283,14 +252,19 @@ begin
   end if;
 
   return query
-  with counted as (
+  with stamped as (
+    -- `prev` keeps printed_at as it was before this print; RETURNING alone
+    -- would only show the new value.
     update public.work_orders w
-       set print_count = w.print_count + 1,
-           printed_at  = coalesce(w.printed_at, now()),
-           status      = case when w.status = 'pending' then 'pending_assignment' else w.status end
-     where w.id = any(v_ids)
-       and w.status in ('pending', 'pending_assignment')
-    returning w.id, w.print_count
+       set printed_at = coalesce(w.printed_at, now()),
+           status     = case when w.status = 'pending' then 'pending_assignment' else w.status end
+      from (select x.id, x.printed_at
+              from public.work_orders x
+             where x.id = any(v_ids)
+               and x.status in ('pending', 'pending_assignment')
+               for update) prev
+     where w.id = prev.id
+    returning w.id, prev.printed_at is not null as reprint
   ),
   tickets as (
     -- First occurrence of each item, in the order the desk sent them, so the
@@ -301,14 +275,14 @@ begin
      order by (t.elem ->> 'work_order_id')::uuid, t.ord
   ),
   queued as (
-    insert into public.print_jobs (printer_mac, event_id, work_order_id, print_count, ticket)
-    select v_mac, v_event_ids[1], c.id, c.print_count, tk.elem
-      from counted c
+    insert into public.print_jobs (printer_mac, event_id, work_order_id, reprint, ticket)
+    select v_mac, v_event_ids[1], c.id, c.reprint, tk.elem
+      from stamped c
       join tickets tk on tk.id = c.id
      order by tk.ord
     returning 1
   )
-  select c.id, c.print_count from counted c;
+  select c.id, c.reprint from stamped c;
 end;
 $function$;
 

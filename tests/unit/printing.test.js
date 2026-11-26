@@ -1,4 +1,4 @@
-// Unit tests for src/lib/printing.js (print settings, REPRINT, MAC addresses,
+// Unit tests for src/lib/printing.js (print settings, reprints, MAC addresses,
 // the CloudPRNT ticket snapshot) and supabase/functions/cloudprnt/starTicket.js
 // (the Star printer commands).
 //
@@ -10,10 +10,9 @@ import {
   buildTicketSnapshot,
   formatLastSeen,
   isPrinterOnline,
-  isReprint,
-  nextPrintCount,
   normalizeMac,
   printSettings,
+  wasPrinted,
 } from "../../src/lib/printing.js";
 import {
   LINE_WIDTH,
@@ -30,7 +29,7 @@ const WO = {
   category: "Electronics",
   item_name: "Radio",
   description: "No sound",
-  print_count: 0,
+  printed_at: null,
 };
 
 const TICKET = buildTicketSnapshot(WO, {
@@ -52,14 +51,11 @@ test("events from before the migration keep window.print() with a preview", () =
   );
 });
 
-test("REPRINT only once the count, including this print, is above 1", () => {
-  assert.equal(isReprint(1), false);
-  assert.equal(isReprint(2), true);
-  assert.equal(isReprint(undefined), false);
-  assert.equal(nextPrintCount({ print_count: 0 }), 1);
-  assert.equal(nextPrintCount({ print_count: 1 }), 2);
-  // A row from before the migration has no count: its next print is the first.
-  assert.equal(nextPrintCount({}), 1);
+test("an item with printed_at has been printed, so its next ticket is a reprint", () => {
+  assert.equal(wasPrinted({ printed_at: null }), false);
+  assert.equal(wasPrinted({}), false);
+  assert.equal(wasPrinted(null), false);
+  assert.equal(wasPrinted({ printed_at: "2030-01-01T10:00:00Z" }), true);
 });
 
 test("MAC addresses are normalised the way SQL's normalize_mac() does", () => {
@@ -120,7 +116,7 @@ test("spreadLine pads to the width and never cuts the right side", () => {
 });
 
 test("the Star ticket starts with a reset, ends with a cut, and has the fields", () => {
-  const bytes = buildStarTicket(TICKET, { printCount: 1 });
+  const bytes = buildStarTicket(TICKET, { reprint: false });
   assert.ok(bytes instanceof Uint8Array);
   const s = ascii(bytes);
   assert.ok(s.startsWith(`${ESC}@`), "ESC @ first");
@@ -140,7 +136,7 @@ test("a command byte typed into a field never reaches the printer", () => {
 });
 
 test("the Star ticket says REPRINT at the top when printed before", () => {
-  const s = ascii(buildStarTicket(TICKET, { printCount: 2 }));
+  const s = ascii(buildStarTicket(TICKET, { reprint: true }));
   const reprint = s.indexOf("REPRINT");
   assert.ok(reprint > 0);
   assert.ok(reprint < s.indexOf("10:42 AM"), "REPRINT comes before the top row");
@@ -157,9 +153,9 @@ test("the QR code carries the ticket link with its exact length", () => {
 });
 
 test("the plain-text ticket fits the paper and marks reprints", () => {
-  const first = buildTextTicket(TICKET, { printCount: 1 });
+  const first = buildTextTicket(TICKET, { reprint: false });
   assert.ok(first.split("\n").every((line) => line.length <= LINE_WIDTH));
   assert.ok(first.includes("CLIENT: Jose G. [V]"));
   assert.ok(!first.includes("REPRINT"));
-  assert.ok(buildTextTicket(TICKET, { printCount: 3 }).startsWith(" ".repeat(16) + "*** REPRINT ***"));
+  assert.ok(buildTextTicket(TICKET, { reprint: true }).startsWith(" ".repeat(16) + "*** REPRINT ***"));
 });

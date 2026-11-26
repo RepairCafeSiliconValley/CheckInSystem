@@ -303,8 +303,8 @@ export async function addExtraWorkOrder(attendeeId, { itemName, category, descri
 // ─── Printing (supabase-cloudprnt-migration.sql) ───
 
 // Approve & Print with a preview: the approved items go on the board
-// (Checked-In) straight away, as they always have. printed_at and the print
-// count wait for the actual print (recordTicketPrints / queueCloudPrintJobs).
+// (Checked-In) straight away, as they always have. printed_at waits for the
+// actual print (markTicketsPrinted / queueCloudPrintJobs).
 export async function approveWorkOrders(ids) {
   for (const id of ids) {
     const { error } = await supabase
@@ -316,22 +316,26 @@ export async function approveWorkOrders(ids) {
   }
 }
 
-// A print made with window.print(): adds one to each item's print_count, sets
-// printed_at the first time, and moves unprinted items to Checked-In. Returns
-// [{ work_order_id, times_printed }].
-export async function recordTicketPrints(workOrderIds) {
-  const { data, error } = await supabase.rpc("record_ticket_prints", {
-    p_work_order_ids: workOrderIds,
-  });
+// A print made with window.print(): stamps printed_at on items printed for the
+// first time. The `is null` filter makes it a no-op for reprints, so
+// printed_at always keeps the first print. Items off the board (With Fixer,
+// completed, canceled) are left alone, as queue_cloudprnt_jobs does.
+export async function markTicketsPrinted(workOrderIds) {
+  if (!workOrderIds?.length) return;
+  const { error } = await supabase
+    .from("work_orders")
+    .update({ printed_at: new Date().toISOString() })
+    .in("id", workOrderIds)
+    .is("printed_at", null)
+    .in("status", ["pending", "pending_assignment"]);
   if (error) throw error;
-  return data || [];
 }
 
-// Sends tickets to the event's CloudPRNT printer and counts the print, in one
-// transaction. `tickets` come from buildTicketSnapshot() in printing.js.
-// Throws with a message fit for the desk ("No printer detected…") when the
-// event has no printer or it isn't checking in; nothing is counted then.
-// Returns [{ work_order_id, times_printed }].
+// Sends tickets to the event's CloudPRNT printer and stamps printed_at the
+// first time, in one transaction. `tickets` come from buildTicketSnapshot() in
+// printing.js. Throws with a message fit for the desk ("No printer
+// detected…") when the event has no printer or it isn't checking in; nothing
+// changes then. Returns [{ work_order_id, reprint }].
 export async function queueCloudPrintJobs(tickets) {
   const { data, error } = await supabase.rpc("queue_cloudprnt_jobs", {
     p_tickets: tickets,

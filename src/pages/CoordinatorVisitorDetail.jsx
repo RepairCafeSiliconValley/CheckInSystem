@@ -323,7 +323,7 @@ export default function CoordinatorVisitorDetail({
   // event's print settings. With a preview it opens the print view and this
   // screen unmounts; straight to the CloudPRNT printer it resolves to
   // { queued: n } and the outcome is shown here. Either way the status,
-  // printed_at and print_count are written by the print itself.
+  // printed_at is written by the print itself.
   const runPrint = async (ids) => {
     setPrinting(true);
     setPrintMessage(null);

@@ -4,7 +4,7 @@ import Button from "./Button";
 import TicketCodeBadge, { TICKET_CODE_BADGE_MODE, VolunteerPill } from "./TicketCodeBadge";
 import { formatClockTime } from "../lib/metrics";
 import { ticketUrl } from "../lib/ticketLink";
-import { isReprint, nextPrintCount } from "../lib/printing";
+import { wasPrinted } from "../lib/printing";
 
 const font = "'Courier New', monospace";
 const labelStyle = {
@@ -52,9 +52,8 @@ export default function PrintTickets({
   engine = "legacy",
   // Legacy printing without a preview: open the print dialog straight away.
   autoPrint = false,
-  // Counts the print (and for "cloud", queues it). Resolves to
-  // [{ work_order_id, times_printed }]. Optional so the view still prints
-  // without it.
+  // Records the print (and for "cloud", queues it). Optional so the view
+  // still prints without it.
   onPrint,
 }) {
   const baseUrl = window.location.origin;
@@ -71,10 +70,15 @@ export default function PrintTickets({
   // { kind: "error" | "ok", text } shown under the buttons.
   const [message, setMessage] = useState(null);
 
-  // Each item's print count for the print shown here: one more than stored
-  // until Print is pressed, then what the database counted. Decides REPRINT.
-  const [counts, setCounts] = useState(() =>
-    Object.fromEntries(workOrders.map((wo) => [wo.id, nextPrintCount(wo)])),
+  // Has each item been printed before the next press of Print? Starts from
+  // printed_at, which only the first print sets, and turns true for every
+  // ticket once Print has sent it. Decides REPRINT.
+  const [printedBefore, setPrintedBefore] = useState(() =>
+    Object.fromEntries(workOrders.map((wo) => [wo.id, wasPrinted(wo)])),
+  );
+  const markAllPrinted = useCallback(
+    () => setPrintedBefore(Object.fromEntries(workOrders.map((wo) => [wo.id, true]))),
+    [workOrders],
   );
 
   const handlePrint = useCallback(async () => {
@@ -83,15 +87,9 @@ export default function PrintTickets({
     let results = null;
     let failure = null;
     try {
-      results = onPrint ? await onPrint() : [];
+      results = (onPrint ? await onPrint() : null) || [];
     } catch (err) {
       failure = err?.message || "Printing failed.";
-    }
-    if (results) {
-      setCounts((prev) => ({
-        ...prev,
-        ...Object.fromEntries(results.map((r) => [r.work_order_id, r.times_printed])),
-      }));
     }
 
     if (engine === "cloud") {
@@ -99,21 +97,26 @@ export default function PrintTickets({
         setMessage({ kind: "error", text: failure });
       } else {
         setPrinted(true);
+        markAllPrinted();
         const n = results.length;
         setMessage({ kind: "ok", text: `Sent ${n} ${n === 1 ? "ticket" : "tickets"} to the printer.` });
       }
     } else {
-      // The browser dialog prints whether or not the count was saved: the
-      // ticket matters more at the desk than the tally.
+      // The browser dialog prints whether or not printed_at was saved: the
+      // ticket matters more at the desk than the record.
       setPrinted(true);
       if (failure) {
         setMessage({ kind: "error", text: `Printed, but the print wasn't recorded: ${failure}` });
       }
-      // Let the REPRINT banner render before the dialog snapshots the page.
-      setTimeout(() => window.print(), 50);
+      // The dialog prints the page as it is now, so REPRINT only turns on
+      // after it, ready for the next press.
+      setTimeout(() => {
+        window.print();
+        markAllPrinted();
+      }, 0);
     }
     setBusy(false);
-  }, [engine, onPrint]);
+  }, [engine, onPrint, markAllPrinted]);
 
   // Once, on arrival. A timer rather than a direct call keeps state updates
   // out of the effect body, and its cleanup is what stops StrictMode's
@@ -212,7 +215,7 @@ export default function PrintTickets({
         >
           {/* Printed before: say so, big, so a duplicate on the board is
               obvious. Matches the CloudPRNT ticket (starTicket.js). */}
-          {isReprint(counts[wo.id]) && (
+          {printedBefore[wo.id] && (
             <div
               className="reprint-banner"
               style={{

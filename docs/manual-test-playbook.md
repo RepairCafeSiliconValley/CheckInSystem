@@ -6,9 +6,9 @@ The automated suites run against the local Supabase stack. Run them first; a man
 
 | Command | What it covers | Time |
 | --- | --- | --- |
-| `npm run test:db` | RLS and the public RPCs for each access level, plus the known gaps as expected failures, and print counting and CloudPRNT queueing (pgTAP, 140 checks) | ~1 s |
+| `npm run test:db` | RLS and the public RPCs for each access level, plus the known gaps as expected failures, and reprints and CloudPRNT queueing (pgTAP, 138 checks) | ~1 s |
 | `npm run test:unit` | Every Metrics, Queue and Admin number (`metrics.js`), the ticket link (`ticketLink.js`), and print settings and the Star printer ticket (`printing.js`, `starTicket.js`) (35 tests) | ~1 s |
-| `npm run test:e2e` | Every page in Chromium: routing, check-in form and waiver, queue, visitor detail, printing (window.print() with and without the preview, CloudPRNT queueing, REPRINT, print counts, the print settings), fixer page (including the remembered fixer name), cancel and undo, admin events, the Admins tab, which tabs each session gets, Metrics, both CSV exports, landing page (78 tests) | ~1 min |
+| `npm run test:e2e` | Every page in Chromium: routing, check-in form and waiver, queue, visitor detail, printing (window.print() with and without the preview, CloudPRNT queueing, REPRINT and printed_at, the print settings), fixer page (including the remembered fixer name), cancel and undo, admin events, the Admins tab, which tabs each session gets, Metrics, both CSV exports, landing page (78 tests) | ~1 min |
 | `npm test` | All three | ~1.5 min |
 
 The browser tests sign in with the same URL hash Supabase returns after a login, so they never touch Google. They create their own `E2E …` events and `@e2e.example.com` users and delete them afterwards.

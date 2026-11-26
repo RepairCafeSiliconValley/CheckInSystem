@@ -54,10 +54,6 @@ export function spreadLine(left, right, width) {
   return (room > 0 ? l.slice(0, room) + " " : "") + r;
 }
 
-export function isReprint(printCount) {
-  return Number(printCount) > 1;
-}
-
 function topRight(ticket) {
   const priority = ticket.priority != null && ticket.priority !== "" ? `#${ticket.priority}` : "";
   // The preview draws a filled speech bubble; text says the same thing.
@@ -126,11 +122,12 @@ class Commands {
   }
 }
 
-export function buildStarTicket(ticket, { printCount = 1 } = {}) {
+// `reprint`: the item had been printed before this job (print_jobs.reprint).
+export function buildStarTicket(ticket, { reprint = false } = {}) {
   const c = new Commands();
   c.raw(ESC, 0x40); // ESC @ — reset
 
-  if (isReprint(printCount)) {
+  if (reprint) {
     c.align("center").bold(true).size(3, 3).safeText("REPRINT").lf();
     c.size(1, 1).bold(false).lf();
   }
@@ -162,7 +159,7 @@ export function buildStarTicket(ticket, { printCount = 1 } = {}) {
   return c.toUint8Array();
 }
 
-export function buildTextTicket(ticket, { printCount = 1 } = {}) {
+export function buildTextTicket(ticket, { reprint = false } = {}) {
   const center = (s) => {
     const t = toPrintableAscii(s);
     const pad = Math.max(0, Math.floor((LINE_WIDTH - t.length) / 2));
@@ -170,7 +167,7 @@ export function buildTextTicket(ticket, { printCount = 1 } = {}) {
   };
   const rule = "-".repeat(LINE_WIDTH);
   const lines = [];
-  if (isReprint(printCount)) lines.push(center("*** REPRINT ***"), "");
+  if (reprint) lines.push(center("*** REPRINT ***"), "");
   lines.push(
     spreadLine(ticket.submitted_label, topRight(ticket), LINE_WIDTH),
     rule,
